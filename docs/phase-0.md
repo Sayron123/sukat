@@ -106,3 +106,15 @@ Run tests: `cd api && uv run pytest`
 **Why**
 - Tokens in one place keep colors and corners consistent and easy to change.
 - The health check proves the full chain works: browser → API → database.
+
+## Step 5 — Docs
+
+**What**
+- `.gitignore` (root) — tells git which files to never commit: Python caches and virtual env, `node_modules`, Next.js build output, and all `.env` files (but keeps `.env.example`).
+- `README.md` — what Sukat is, the folder layout, and how to run it on Windows.
+- `docs/phase-0.md` — this file.
+
+**Why**
+- `.env` files hold passwords and keys. Ignoring them prevents leaking secrets to GitHub.
+- `.env.example` files are committed so others know which settings they need.
+- A good README lets anyone (including future you) start the project in minutes.
