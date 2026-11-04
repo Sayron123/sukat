@@ -47,3 +47,23 @@ Short notes on every tool and file added in Phase 0.
 **Why**
 - One source of truth for the DB URL (`api/.env`) avoids "works in the app but not in migrations" bugs.
 - Migrations make DB changes repeatable on every machine and in production.
+
+## Step 3 — Health route
+
+**What**
+- `api/app/core/health.py` — `GET /health`. Runs `SELECT 1` on Postgres.
+  - DB reachable → `200 {"status":"ok","db":"ok"}`
+  - DB down → `503 {"status":"ok","db":"error"}` (the API itself is up, the database is not)
+- `api/app/main.py` — adds the health route and **CORS** middleware.
+- `api/tests/test_health.py` — tests the route without a real database.
+
+**Tools / ideas**
+- **Dependency injection** — the route asks for `get_db`. In tests we swap it with a fake (`app.dependency_overrides`), so tests run fast and need no Postgres.
+- **CORS** — browsers block a web page on `localhost:3000` from calling an API on `localhost:8000` unless the API says it's allowed. `CORS_ORIGINS` in `.env` lists the allowed web origins.
+- **TestClient** (uses httpx) — sends fake HTTP requests to the app inside the test.
+
+**Why**
+- A health route is the simplest way to check "is the API up, and can it reach the DB?" — useful for the web app, for Docker, and later for hosting.
+- 503 means "service unavailable", so monitoring tools can tell something is wrong.
+
+Run tests: `cd api && uv run pytest`
