@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* Sukat design tokens. Use as Tailwind classes, e.g. bg-surface, text-muted, border-border, bg-accent, rounded-button, rounded-card. */
+@theme {
+  --color-background: #ffffff;
+  --color-surface: #f5f5f4;
+  --color-border: #e7e5e4;
+  --color-text: #1c1917;
+  --color-muted: #57534e;
+  --color-accent: #c2410c;
+  --color-accent-pressed: #9a3412;
+  --color-red: #dc2626;
+  --color-green: #16a34a;
+  --color-amber: #d97706;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-button: 12px; /* buttons and inputs */
+  --radius-card: 16px; /* cards */
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+}

@@ -67,3 +67,42 @@ Short notes on every tool and file added in Phase 0.
 - 503 means "service unavailable", so monitoring tools can tell something is wrong.
 
 Run tests: `cd api && uv run pytest`
+
+## Step 4 — Frontend (`web/`)
+
+**What**
+- Created with `create-next-app`: Next.js 16, TypeScript (strict), Tailwind CSS, App Router, `src/` folder.
+- `src/app/layout.tsx` — wraps every page. Loads the **Inter** font and sets the theme color.
+- `src/app/page.tsx` — the home page (a card with the API status).
+- `src/app/api-status.tsx` — a client component. In the browser it calls `NEXT_PUBLIC_API_URL + /health` and shows **"API connected"** or **"API not reachable"**.
+- `src/app/manifest.ts` — the PWA manifest (name "Sukat", theme color `#C2410C`, white background). Next.js serves it at `/manifest.webmanifest`.
+- `public/icon-192.png`, `public/icon-512.png`, `public/apple-touch-icon.png` — placeholder app icons. Replace with real ones later.
+- `src/app/globals.css` — the **design tokens** in Tailwind's `@theme` block.
+- `.env.example` — sample `NEXT_PUBLIC_API_URL`. Copy to `.env.local`.
+
+**Design tokens → Tailwind classes**
+
+| Token | Value | Example class |
+|---|---|---|
+| background | `#FFFFFF` | `bg-background` |
+| surface | `#F5F5F4` | `bg-surface` |
+| border | `#E7E5E4` | `border-border` |
+| text | `#1C1917` | `text-text` |
+| muted | `#57534E` | `text-muted` |
+| accent | `#C2410C` | `bg-accent` |
+| accent-pressed | `#9A3412` | `active:bg-accent-pressed` |
+| red / green / amber | `#DC2626` / `#16A34A` / `#D97706` | `text-red`, `bg-green`, `bg-amber` |
+| radius button/input | 12px | `rounded-button` |
+| radius card | 16px | `rounded-card` |
+
+**Tools / ideas**
+- **Next.js** — React framework with routing, building, and serving built in.
+- **App Router** — each folder in `src/app` is a route; `page.tsx` is the page.
+- **TypeScript strict** — catches type mistakes before the code runs.
+- **Tailwind CSS v4** — style with small classes (`p-4`, `bg-surface`). Tokens are defined in CSS with `@theme` (v4 has no `tailwind.config.js` by default).
+- **PWA (Progressive Web App)** — the manifest lets users "Add to Home Screen" on phones, so Sukat opens like an app.
+- **`NEXT_PUBLIC_` env vars** — only variables with this prefix are sent to the browser. Never put secrets in them.
+
+**Why**
+- Tokens in one place keep colors and corners consistent and easy to change.
+- The health check proves the full chain works: browser → API → database.
