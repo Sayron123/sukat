@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: sukat-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sukat
+      POSTGRES_PASSWORD: sukat
+      POSTGRES_DB: sukat
+    ports:
+      - "5432:5432"
+    volumes:
+      - sukat_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sukat -d sukat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sukat_pgdata:
