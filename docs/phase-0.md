@@ -22,7 +22,7 @@ Short notes on every tool and file added in Phase 0.
 - **psycopg** — the PostgreSQL driver SQLAlchemy uses under the hood.
 - **Alembic** — manages database changes (migrations) over time.
 - **pydantic-settings** — loads and validates settings from environment variables / `.env`.
-- **pytest** (dev) — runs tests. **httpx** (dev) — needed by FastAPI's test client. **ruff** (dev) — lints and formats code.
+- **pytest** (dev) — runs tests. **httpx2** (dev) — needed by FastAPI's test client (Starlette replaced `httpx` with `httpx2`). **ruff** (dev) — lints and formats code.
 
 **Why**
 - Feature folders keep code for one area (e.g. sales) together, so the project stays easy to navigate as it grows.
@@ -60,7 +60,7 @@ Short notes on every tool and file added in Phase 0.
 **Tools / ideas**
 - **Dependency injection** — the route asks for `get_db`. In tests we swap it with a fake (`app.dependency_overrides`), so tests run fast and need no Postgres.
 - **CORS** — browsers block a web page on `localhost:3000` from calling an API on `localhost:8000` unless the API says it's allowed. `CORS_ORIGINS` in `.env` lists the allowed web origins.
-- **TestClient** (uses httpx) — sends fake HTTP requests to the app inside the test.
+- **TestClient** (uses httpx2) — sends fake HTTP requests to the app inside the test.
 
 **Why**
 - A health route is the simplest way to check "is the API up, and can it reach the DB?" — useful for the web app, for Docker, and later for hosting.
