@@ -1,5 +1,6 @@
 """Who is calling? Resolves the bearer token to an active store membership."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth.models import User
 from app.auth.security import decode_access_token
 from app.core.db import get_db
-from app.stores.models import StoreMember
+from app.stores.models import Role, StoreMember
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -63,3 +64,25 @@ def get_current_member(
 
 
 CurrentMemberDep = Annotated[CurrentMember, Depends(get_current_member)]
+
+
+def require_role(*roles: str) -> Callable[[CurrentMember], CurrentMember]:
+    """Dependency factory: allow only members whose role is in `roles`, else 403.
+
+    Usage:
+        @router.post("/x")
+        def x(member: Annotated[CurrentMember, Depends(require_role("manager"))]): ...
+    """
+    allowed = {Role(r).value for r in roles}  # fails fast on a typo like "manger"
+    if not allowed:
+        raise ValueError("require_role needs at least one role")
+
+    def _check(member: CurrentMemberDep) -> CurrentMember:
+        if member.role not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to do this",
+            )
+        return member
+
+    return _check
