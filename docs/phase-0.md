@@ -27,3 +27,23 @@ Short notes on every tool and file added in Phase 0.
 **Why**
 - Feature folders keep code for one area (e.g. sales) together, so the project stays easy to navigate as it grows.
 - Settings live in `.env` so secrets and machine-specific values stay out of the code.
+
+## Step 2 — Database
+
+**What**
+- `docker-compose.yml` (root) — starts PostgreSQL 16 in Docker.
+  - **Named volume** `sukat_pgdata` — keeps your data when the container is stopped or recreated.
+  - **Healthcheck** — runs `pg_isready` so Docker knows when the database is actually ready.
+  - **Port 5432** — so the API on your machine can reach the database at `localhost:5432`.
+- `api/alembic.ini` — Alembic's config file (logging, script location).
+- `api/alembic/env.py` — runs migrations. It reads `DATABASE_URL` from our settings, so the app and migrations always use the same database.
+- `api/alembic/versions/` — where migration files will go. Empty for now (no tables yet).
+
+**Tools**
+- **Docker / Docker Compose** — runs Postgres in a container, so you don't have to install it on Windows directly.
+- **PostgreSQL** — the database.
+- **Alembic** — tracks database changes as numbered migration files you can apply (`uv run alembic upgrade head`) or roll back.
+
+**Why**
+- One source of truth for the DB URL (`api/.env`) avoids "works in the app but not in migrations" bugs.
+- Migrations make DB changes repeatable on every machine and in production.
