@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { LogoutButton } from "@/components/logout-button";
+import { AppNav } from "@/components/app-nav";
 import { Card } from "@/components/ui";
 import { backendFetch, getToken } from "@/lib/server/backend";
 
@@ -19,11 +19,14 @@ type Staff = {
 
 export default function StaffPage() {
   return (
-    <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-      <Suspense fallback={<p className="text-muted">Loading staff…</p>}>
-        <StaffContent />
-      </Suspense>
-    </main>
+    <>
+      <AppNav active="staff" />
+      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
+        <Suspense fallback={<p className="text-muted">Loading staff…</p>}>
+          <StaffContent />
+        </Suspense>
+      </main>
+    </>
   );
 }
 
@@ -56,7 +59,6 @@ async function StaffContent() {
             {me.full_name} · <span className="capitalize">{me.role}</span>
           </p>
         </div>
-        <LogoutButton />
       </header>
 
       <Card padded={false}>
