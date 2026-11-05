@@ -455,6 +455,18 @@ def test_concurrent_repeats_of_a_scan_save_return_first_result(
 # ---------- audit fixes ----------
 
 
+def _member(api, manager):
+    invite = api.post(
+        "/staff/invites", json={"email": "m@example.com", "role": "member"}, headers=manager
+    ).json()
+    return auth_header(
+        api.post(
+            "/staff/invites/accept",
+            json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+        ).json()["access_token"]
+    )
+
+
 def test_line_without_unit_cannot_be_saved_without_a_unit(
     api, db, manager, storage, reader, cement
 ):
@@ -489,3 +501,30 @@ def test_line_without_unit_cannot_be_saved_without_a_unit(
     res = _save(api, manager, [{**as_read, "unit": "bag"}], scan_id=scan["id"])
     assert res.status_code == 201, res.text
     assert _stock(db, cement["id"]) == Decimal("5")
+
+
+def test_member_save_teaches_no_alias_but_manager_save_does(
+    api, db, manager, storage, reader, nails, cement
+):
+    # Audit M1. The AI guessed cement; staff pick nails for the same written row.
+    def guessed_wrong():
+        return [
+            scan_line(cement["id"], raw_text="2 bx pakong 4 pulgada", qty=Decimal("2"), unit="box")
+        ]
+
+    picked = [{"product_id": nails["id"], "qty": "2", "unit": "box", "scan_line": 0}]
+    member = _member(api, manager)
+
+    scan = _scan(api, member, storage, reader, guessed_wrong())
+    res = _save(api, member, picked, scan_id=scan["id"])
+    assert res.status_code == 201, res.text  # the member's stock-in still saves
+    assert _stock(db, nails["id"]) == Decimal("50")
+    learned = select(ProductAlias).where(ProductAlias.alias == "pakong 4 pulgada")
+    assert db.scalar(learned) is None
+
+    scan = _scan(api, manager, storage, reader, guessed_wrong())
+    res = _save(api, manager, picked, scan_id=scan["id"])
+    assert res.status_code == 201, res.text
+    db.expire_all()
+    alias = db.scalar(learned)
+    assert alias is not None and str(alias.product_id) == nails["id"]
