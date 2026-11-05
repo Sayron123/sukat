@@ -43,6 +43,7 @@ class Scan(Base):
     __tablename__ = "scans"
     __table_args__ = (
         UniqueConstraint("id", "store_id"),
+        UniqueConstraint("store_id", "photo_key"),  # one scan per photo
         CheckConstraint(f"type IN {_in(SCAN_TYPES)}", name="type"),
         CheckConstraint(f"status IN {_in(SCAN_STATUSES)}", name="status"),
         Index("ix_scans_store_id_created_at", "store_id", "created_at"),

@@ -139,3 +139,68 @@ def make_product(api: TestClient, headers: dict[str, str], **overrides: Any) -> 
     res = api.post("/products", json=body, headers=headers)
     assert res.status_code == 201, res.text
     return res.json()
+
+
+# ---------- scans: fake AI + photo helpers ----------
+
+JPEG_BYTES = b"\xff\xd8\xff\xe0" + b"\x00" * 60
+
+
+class FakeReader:
+    """Stands in for the AI. Set `.lines` (list of ScanLine or a callable taking the
+    catalog) or `.error` (an AIReadError); every call is recorded."""
+
+    def __init__(self) -> None:
+        self.lines: Any = []
+        self.error: Exception | None = None
+        self.calls: list[dict[str, Any]] = []
+
+    def read_list(self, image, media_type, catalog, scan_type):
+        from app.ai.schemas import AIUsageInfo, ReadResult
+
+        self.calls.append(
+            {"image": image, "media_type": media_type, "catalog": catalog, "type": scan_type}
+        )
+        if self.error is not None:
+            raise self.error
+        lines = self.lines(catalog) if callable(self.lines) else self.lines
+        usage = AIUsageInfo(model="fake-model", input_tokens=1000, output_tokens=200)
+        return ReadResult(lines=lines, usage=usage, raw={"lines": "fake"})
+
+
+@pytest.fixture
+def reader(api) -> Generator[FakeReader]:
+    from app.ai.anthropic_reader import get_vision_reader
+
+    fake = FakeReader()
+    app.dependency_overrides[get_vision_reader] = lambda: fake
+    yield fake
+
+
+def upload_photo(
+    api: TestClient, headers: dict[str, str], storage: LocalStorage, data: bytes = JPEG_BYTES
+) -> str:
+    """Get an upload URL and store the photo directly (skips the HTTP PUT). Returns key."""
+    res = api.post("/scans/upload-url", json={"size_bytes": len(data)}, headers=headers)
+    assert res.status_code == 200, res.text
+    key = res.json()["photo_key"]
+    storage.save(key, data)
+    return key
+
+
+def scan_line(product_id=None, **kw: Any):
+    from decimal import Decimal
+
+    from app.ai.schemas import ScanLine
+
+    values: dict[str, Any] = {
+        "raw_text": "line",
+        "product_id": product_id,
+        "suggested_new_name": None,
+        "qty": Decimal("1"),
+        "unit": "pc",
+        "unit_price_centavos": None,
+        "confidence": 0.95,
+    }
+    values.update(kw)
+    return ScanLine(**values)

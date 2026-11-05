@@ -90,6 +90,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_scans")),
         sa.UniqueConstraint("id", "store_id", name=op.f("uq_scans_id_store_id")),
+        sa.UniqueConstraint("store_id", "photo_key", name=op.f("uq_scans_store_id_photo_key")),
     )
     op.create_index(
         "ix_scans_store_id_created_at", "scans", ["store_id", "created_at"], unique=False
