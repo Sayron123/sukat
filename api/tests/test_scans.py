@@ -164,7 +164,15 @@ def test_stuck_pending_scan_is_reported_failed_and_can_be_retried(
 
     me = api.get("/auth/me", headers=manager).json()
     key = upload_photo(api, manager, storage)
-    db.add(Scan(store_id=me["store_id"], type="stock_in", photo_key=key, status="pending"))
+    db.add(
+        Scan(
+            store_id=me["store_id"],
+            type="stock_in",
+            photo_key=key,
+            status="pending",
+            created_by=me["user_id"],
+        )
+    )
     db.commit()
     scan_id = db.scalar(select(Scan.id))
 

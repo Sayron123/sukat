@@ -55,7 +55,7 @@ class Scan(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
     )
     type: Mapped[ScanType] = mapped_column(String(20), nullable=False)
     # Storage key of the photo; always starts with "<store_id>/".
@@ -65,8 +65,8 @@ class Scan(Base):
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Why the last read failed, shown to staff with a Retry button.
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_by: Mapped[UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    created_by: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
@@ -93,7 +93,7 @@ class Transaction(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
     )
     type: Mapped[str] = mapped_column(String(20), nullable=False)
     scan_id: Mapped[UUID | None] = mapped_column(nullable=True, index=True)
@@ -101,22 +101,24 @@ class Transaction(Base):
     # Sum of known line totals. BIGINT: many lines can pass int4's ₱21M limit.
     total_centavos: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="saved")
-    created_by: Mapped[UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    created_by: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = created_at_col()
     # Voiding never deletes anything: it records who and when, and adds reversing
     # stock movements.
     voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     voided_by: Mapped[UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
     )
 
+    # passive_deletes="all": deleting a transaction leaves its lines alone, so the
+    # database's RESTRICT rule refuses the delete instead of the ORM removing them first.
     items: Mapped[list["TransactionItem"]] = relationship(
         back_populates="transaction",
         order_by="TransactionItem.line_no",
         lazy="selectin",
-        cascade="all, delete-orphan",
+        passive_deletes="all",
     )
 
 
@@ -128,7 +130,7 @@ class TransactionItem(Base):
         ForeignKeyConstraint(
             ["transaction_id", "store_id"],
             ["transactions.id", "transactions.store_id"],
-            ondelete="CASCADE",
+            ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(["product_id", "store_id"], ["products.id", "products.store_id"]),
         CheckConstraint("qty > 0", name="qty_positive"),
@@ -140,7 +142,7 @@ class TransactionItem(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
     )
     transaction_id: Mapped[UUID] = mapped_column(nullable=False)
     line_no: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -168,7 +170,7 @@ class StockMovement(Base):
         ForeignKeyConstraint(
             ["transaction_item_id", "store_id"],
             ["transaction_items.id", "transaction_items.store_id"],
-            ondelete="CASCADE",
+            ondelete="RESTRICT",
         ),
         CheckConstraint("qty_change <> 0", name="qty_change_not_zero"),
         UniqueConstraint("transaction_item_id", "is_reversal"),
@@ -177,7 +179,7 @@ class StockMovement(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     product_id: Mapped[UUID] = mapped_column(nullable=False)
     transaction_id: Mapped[UUID] = mapped_column(nullable=False, index=True)
@@ -189,7 +191,7 @@ class StockMovement(Base):
     is_reversal: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
     qty_change: Mapped[Decimal] = mapped_column(Qty, nullable=False)
     stock_after: Mapped[Decimal] = mapped_column(Qty, nullable=False)
-    created_by: Mapped[UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    created_by: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = created_at_col()

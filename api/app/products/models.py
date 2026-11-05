@@ -44,7 +44,7 @@ class Product(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     category: Mapped[str] = mapped_column(String(40), nullable=False)
@@ -89,7 +89,7 @@ class ProductAlias(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
     )
     product_id: Mapped[UUID] = mapped_column(nullable=False, index=True)
     alias: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -112,7 +112,7 @@ class UnitConversion(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     product_id: Mapped[UUID] = mapped_column(nullable=False)
     from_unit: Mapped[str] = mapped_column(String(20), nullable=False)
