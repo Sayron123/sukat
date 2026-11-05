@@ -22,6 +22,7 @@ export type Me = {
   full_name: string;
   store_id: string;
   store_name: string;
+  store_address: string | null;
   role: Role;
 };
 

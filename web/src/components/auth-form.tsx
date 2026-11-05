@@ -15,6 +15,8 @@ type FieldDef = {
   type?: string;
   autoComplete?: string;
   minLength?: number;
+  maxLength?: number;
+  optional?: boolean;
 };
 
 export function AuthForm({
@@ -88,7 +90,8 @@ export function AuthForm({
             type={f.type ?? "text"}
             autoComplete={f.autoComplete}
             minLength={f.minLength}
-            required
+            maxLength={f.maxLength}
+            required={!f.optional}
           />
         ))}
         {error && (

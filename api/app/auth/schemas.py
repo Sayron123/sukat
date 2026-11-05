@@ -9,6 +9,7 @@ def _normalize_email(v: str) -> str:
 
 class SignupIn(BaseModel):
     store_name: str = Field(min_length=1, max_length=120)
+    store_address: str | None = Field(default=None, max_length=300)
     full_name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
@@ -22,6 +23,12 @@ class SignupIn(BaseModel):
         if not v:
             raise ValueError("must not be blank")
         return v
+
+    @field_validator("store_address")
+    @classmethod
+    def _strip_optional(cls, v: str | None) -> str | None:
+        """The address is optional: a blank one (empty form field) is saved as no address."""
+        return (v.strip() or None) if v is not None else None
 
 
 class LoginIn(BaseModel):
@@ -43,4 +50,5 @@ class MeOut(BaseModel):
     full_name: str
     store_id: UUID
     store_name: str
+    store_address: str | None
     role: str

@@ -30,6 +30,59 @@ def test_signup_creates_store_user_and_manager(api, db, signup):
     assert me.json()["store_name"] == "Bayan Hardware"
 
 
+def test_signup_saves_store_address(api, db):
+    res = api.post(
+        "/auth/signup",
+        json={
+            "store_name": "Bayan Hardware",
+            "store_address": "  12 Rizal St, Quezon City ",
+            "full_name": "Owner",
+            "email": "owner@example.com",
+            "password": "correct-horse-1",
+        },
+    )
+
+    assert res.status_code == 201, res.text
+    assert db.scalar(select(Store.address)) == "12 Rizal St, Quezon City"  # trimmed
+    me = api.get("/auth/me", headers=auth_header(res.json()["access_token"]))
+    assert me.json()["store_address"] == "12 Rizal St, Quezon City"
+
+
+@pytest.mark.parametrize("extra", [{}, {"store_address": ""}, {"store_address": "   "}])
+def test_signup_without_store_address_saves_none(api, db, extra):
+    res = api.post(
+        "/auth/signup",
+        json={
+            "store_name": "Bayan Hardware",
+            "full_name": "Owner",
+            "email": "owner@example.com",
+            "password": "correct-horse-1",
+            **extra,
+        },
+    )
+
+    assert res.status_code == 201, res.text
+    assert db.scalar(select(Store.address)) is None
+    me = api.get("/auth/me", headers=auth_header(res.json()["access_token"]))
+    assert me.json()["store_address"] is None
+
+
+@pytest.mark.parametrize(("length", "status_code"), [(300, 201), (301, 422)])
+def test_signup_limits_store_address_to_300_characters(api, db, length, status_code):
+    res = api.post(
+        "/auth/signup",
+        json={
+            "store_name": "Bayan Hardware",
+            "store_address": "x" * length,
+            "full_name": "Owner",
+            "email": "owner@example.com",
+            "password": "correct-horse-1",
+        },
+    )
+
+    assert res.status_code == status_code, res.text
+
+
 def test_signup_duplicate_email_is_409_and_creates_nothing(api, db, signup):
     signup(email="a@example.com")
     res = api.post(
