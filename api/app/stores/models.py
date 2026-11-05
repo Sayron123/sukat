@@ -48,10 +48,10 @@ class StoreMember(Base):
     id: Mapped[UUID] = uuid_pk()
     # No separate index on store_id: the (store_id, user_id) unique constraint covers it.
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
     )
     user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=true())
@@ -70,7 +70,7 @@ class Invite(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False)

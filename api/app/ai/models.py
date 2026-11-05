@@ -16,7 +16,7 @@ class AIUsage(Base):
 
     id: Mapped[UUID] = uuid_pk()
     store_id: Mapped[UUID] = mapped_column(
-        ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
     )
     feature: Mapped[str] = mapped_column(String(40), nullable=False)  # e.g. "scan_read"
     model: Mapped[str] = mapped_column(String(100), nullable=False)
