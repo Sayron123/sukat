@@ -22,6 +22,11 @@ TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://sukat:sukat@localhost:5432/sukat_test"
 )
 TABLES = [
+    "stock_movements",
+    "transaction_items",
+    "transactions",
+    "scans",
+    "ai_usage",
     "unit_conversions",
     "product_aliases",
     "products",
