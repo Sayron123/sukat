@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.schemas import ScanLine
 from app.auth.deps import CurrentMember
+from app.core.errors import Conflict, Forbidden, Invalid, NotFound
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.scan_service import line_total, quantize_qty
 from app.inventory.schemas import NewProductIn, TransactionIn
@@ -27,30 +28,6 @@ from app.stores.models import Role
 
 MAX_STOCK = Decimal("999999999.999")  # NUMERIC(12,3)
 WRITER_ROLES = {Role.MANAGER, Role.SECRETARY}
-
-
-class SaveError(Exception):
-    """A save that can't go ahead. `status_code` is the matching HTTP status, so the
-    router can map it without this module depending on the web framework."""
-
-    status_code = 422
-
-    def __init__(self, message: str, status_code: int | None = None) -> None:
-        super().__init__(message)
-        if status_code is not None:
-            self.status_code = status_code
-
-
-class NotFound(SaveError):
-    status_code = 404
-
-
-class Conflict(SaveError):
-    status_code = 409
-
-
-class Forbidden(SaveError):
-    status_code = 403
 
 
 class ScanAlreadySaved(Conflict):
@@ -151,7 +128,7 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
     """Save a stock-in. Commits on success; on any error nothing is saved.
 
     Assumes `body` passed schema validation (positive qty, one product choice per line).
-    @raises SaveError (NotFound/Conflict/Forbidden/ScanAlreadySaved) with a message for
+    @raises AppError (NotFound/Conflict/Forbidden/Invalid/ScanAlreadySaved) with a message for
         the phone to show; IntegrityError if the same client_request_id won a race
     """
     sid = current.store_id
@@ -213,12 +190,12 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
         try:
             qty_base = quantize_qty(convert(product, line.qty, line.unit))
         except UnitConversionError as e:
-            raise SaveError(f"Line {no}: {e}") from None
+            raise Invalid(f"Line {no}: {e}") from None
         if qty_base <= 0:
-            raise SaveError(f"Line {no}: quantity is too small for {product.base_unit}")
+            raise Invalid(f"Line {no}: quantity is too small for {product.base_unit}")
         new_stock = product.stock_qty + qty_base
         if new_stock > MAX_STOCK:
-            raise SaveError(f"Line {no}: stock would be too large")
+            raise Invalid(f"Line {no}: stock would be too large")
 
         amount = line_total(line.qty, line.unit_price_centavos)
         total += amount or 0

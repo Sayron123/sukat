@@ -1,8 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.auth.router import router as auth_router
 from app.core.config import settings
+from app.core.errors import AppError
 from app.core.health import router as health_router
 from app.inventory.scans import router as scans_router
 from app.inventory.transactions import router as transactions_router
@@ -11,6 +13,13 @@ from app.products.router import router as products_router
 from app.stores.router import router as stores_router
 
 app = FastAPI(title="Sukat API", version="0.1.0")
+
+
+@app.exception_handler(AppError)
+def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+    """Render business-rule errors the same way FastAPI renders HTTPException."""
+    return JSONResponse({"detail": exc.message}, status_code=exc.status_code, headers=exc.headers)
+
 
 app.add_middleware(
     CORSMiddleware,

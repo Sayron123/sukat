@@ -2,15 +2,15 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.auth.deps import CurrentMemberDep, DbSession
+from app.core.errors import Conflict, NotFound
 from app.inventory.models import StockMovement, Transaction
 from app.inventory.schemas import TransactionIn, TransactionItemOut, TransactionOut
 from app.inventory.stock_service import (
-    SaveError,
     ScanAlreadySaved,
     find_existing,
     save_stock_in,
@@ -74,13 +74,8 @@ def create_transaction(
         if existing is not None:
             return transaction_out(db, existing)
         if isinstance(e, ScanAlreadySaved):
-            raise HTTPException(e.status_code, str(e)) from None
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "Could not save because of a conflict. Please try again."
-        ) from None
-    except SaveError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, str(e)) from None
+            raise
+        raise Conflict("Could not save because of a conflict. Please try again.") from None
     response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
     return transaction_out(db, result.transaction)
 
@@ -93,5 +88,5 @@ def get_transaction(transaction_id: UUID, current: CurrentMemberDep, db: DbSessi
         )
     )
     if txn is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Transaction not found")
+        raise NotFound("Transaction not found")
     return transaction_out(db, txn)

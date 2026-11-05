@@ -5,12 +5,13 @@ import uuid
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.deps import CurrentMemberDep
 from app.core.config import settings
+from app.core.errors import AppError, BadRequest, Forbidden, NotFound
 from app.core.storage import LocalStorage, Storage, get_storage
 
 router = APIRouter(tags=["scans"])
@@ -48,9 +49,9 @@ def create_upload_url(body: UploadUrlIn, current: CurrentMemberDep, storage: Sto
     """Any staff member can upload a list photo. The key is made here (never by the
     client) and always starts with the caller's store_id."""
     if body.size_bytes > settings.UPLOAD_MAX_BYTES:
-        raise HTTPException(
-            status.HTTP_413_CONTENT_TOO_LARGE,
+        raise AppError(
             f"Photo is too large (max {settings.UPLOAD_MAX_BYTES // (1024 * 1024)} MB)",
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
         )
     key = f"{current.store_id}/scans/{uuid.uuid4().hex}.{EXTENSIONS[body.content_type]}"
     up = storage.presign_put(key, body.content_type, body.size_bytes)
@@ -75,22 +76,22 @@ async def local_upload(
     """Development stand-in for R2: accepts a PUT only with a valid, unexpired signature
     for exactly this key, content type, and size. No login needed (like R2)."""
     if not isinstance(storage, LocalStorage):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+        raise NotFound("Not found")
     content_type = request.headers.get("content-type", "")
     if (
         not KEY_RE.match(key)
         or size > settings.UPLOAD_MAX_BYTES
         or not storage.check_signature(key, expires, content_type, size, sig)
     ):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid or expired upload URL")
+        raise Forbidden("Invalid or expired upload URL")
 
     # Read at most size+1 bytes, so a lying client can't make us buffer a huge body.
     body = bytearray()
     async for chunk in request.stream():
         body.extend(chunk)
         if len(body) > size:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Body is larger than signed size")
+            raise BadRequest("Body is larger than signed size")
     if len(body) != size:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Body size does not match")
+        raise BadRequest("Body size does not match")
     # File I/O is blocking: run it in the thread pool, not on the event loop.
     await run_in_threadpool(storage.save, key, bytes(body))

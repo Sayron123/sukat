@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from app.ai.anthropic_reader import get_vision_reader
 from app.ai.base import VisionReader
 from app.auth.deps import CurrentMember, CurrentMemberDep, DbSession
+from app.core.errors import Conflict, NotFound
 from app.inventory.models import Scan
 from app.inventory.scan_service import is_stale_pending, review_lines, run_read
 from app.inventory.uploads import StorageDep, key_belongs_to_store
@@ -82,7 +83,7 @@ def _out(db: DbSession, scan: Scan) -> ScanOut:
 def _get_scan(db: DbSession, current: CurrentMember, scan_id: UUID) -> Scan:
     scan = db.scalar(select(Scan).where(Scan.id == scan_id, Scan.store_id == current.store_id))
     if scan is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Scan not found")
+        raise NotFound("Scan not found")
     return scan
 
 
@@ -102,7 +103,7 @@ def create_scan(
     scan instead of paying for a second AI read (safe for the phone to retry).
     """
     if not key_belongs_to_store(body.photo_key, current.store_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo not found")
+        raise NotFound("Photo not found")
 
     existing = db.scalar(
         select(Scan).where(Scan.store_id == current.store_id, Scan.photo_key == body.photo_key)
@@ -153,11 +154,11 @@ def retry_scan(
     be the record of a saved delivery."""
     scan = _get_scan(db, current, scan_id)
     if scan.status == "saved":
-        raise HTTPException(status.HTTP_409_CONFLICT, "This scan is already saved")
+        raise Conflict("This scan is already saved")
     if scan.status == "read":
-        raise HTTPException(status.HTTP_409_CONFLICT, "This scan was already read")
+        raise Conflict("This scan was already read")
     if scan.status == "pending" and not is_stale_pending(scan):
-        raise HTTPException(status.HTTP_409_CONFLICT, "This scan is still being read")
+        raise Conflict("This scan is still being read")
     run_read(db, scan, storage, reader)
     db.refresh(scan)
     return _out(db, scan)
