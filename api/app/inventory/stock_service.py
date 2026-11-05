@@ -142,9 +142,13 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
             status.HTTP_403_FORBIDDEN, "Only managers and secretaries can add new products"
         )
 
-    # Insert the transaction FIRST. If the same client_request_id is being saved right
-    # now by another request, this INSERT waits for it and then fails on the unique key,
-    # before we touch any stock.
+    # Check (and lock) the scan before anything is written, so a wrong scan id gets a
+    # clear 404 instead of a foreign-key error.
+    scan, scan_lines = (None, []) if body.scan_id is None else _load_scan(db, current, body.scan_id)
+
+    # Insert the transaction before touching stock. If the same client_request_id is being
+    # saved right now by another request, this INSERT waits for it and then fails on the
+    # unique key (the endpoint then returns the first result).
     txn = Transaction(
         store_id=sid,
         type="stock_in",
@@ -154,8 +158,6 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
     )
     db.add(txn)
     db.flush()
-
-    scan, scan_lines = (None, []) if body.scan_id is None else _load_scan(db, current, body.scan_id)
 
     # Resolve each line to a product id (creating new products first).
     product_ids: list[UUID] = []

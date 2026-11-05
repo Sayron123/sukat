@@ -60,15 +60,21 @@ def create_transaction(
     manager or secretary. 201 on the first save, 200 with the same body on a repeat."""
     try:
         result = save_stock_in(db, current, body)
-    except IntegrityError:
-        # Lost the race against the same client_request_id: return the winner's result.
+    except (IntegrityError, HTTPException) as e:
+        # A repeat of a request that another request was saving at the same moment ends
+        # here: as a unique-key error, or as "scan already saved" (it waited on the scan
+        # lock). Either way, if the first one saved, return its result.
         db.rollback()
+        if isinstance(e, HTTPException) and e.status_code != status.HTTP_409_CONFLICT:
+            raise
         existing = find_existing(db, current.store_id, body.client_request_id)
-        if existing is None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT, "Could not save because of a conflict. Please try again."
-            ) from None
-        return transaction_out(db, existing)
+        if existing is not None:
+            return transaction_out(db, existing)
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Could not save because of a conflict. Please try again."
+        ) from None
     response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
     return transaction_out(db, result.transaction)
 
