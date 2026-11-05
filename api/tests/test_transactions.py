@@ -6,6 +6,7 @@ import pytest
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import func, select
 
+from app.ai.convert import catalog_refs, parse_result
 from app.auth.deps import get_current_member
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.schemas import TransactionIn
@@ -449,3 +450,42 @@ def test_concurrent_repeats_of_a_scan_save_return_first_result(
     assert sorted(r.status_code for r in responses) == [200, 200, 200, 201]
     assert len({r.json()["id"] for r in responses}) == 1
     assert _stock(db, nails["id"]) == Decimal("3")
+
+
+# ---------- audit fixes ----------
+
+
+def test_line_without_unit_cannot_be_saved_without_a_unit(
+    api, db, manager, storage, reader, cement
+):
+    # Audit H1, end to end through the real AI-output converter: the AI wrote no unit.
+    raw = {
+        "raw_text": "5 sem",
+        "product_ref": "P1",
+        "suggested_new_name": None,
+        "qty": 5,
+        "unit": "",
+        "unit_price": None,
+        "line_total": None,
+        "confidence": 0.97,
+    }
+    scan = _scan(
+        api,
+        manager,
+        storage,
+        reader,
+        lambda catalog: parse_result({"lines": [raw]}, catalog_refs(catalog)),
+    )
+    line = scan["lines"][0]
+    assert line["unit"] == "" and "no_unit" in line["check_reasons"]
+
+    # Saving what the review shows (no unit) is refused; nothing changes.
+    as_read = {"product_id": cement["id"], "qty": "5", "unit": line["unit"], "scan_line": 0}
+    res = _save(api, manager, [as_read], scan_id=scan["id"])
+    assert res.status_code == 422, res.text
+    assert _stock(db, cement["id"]) == Decimal("0") and _count(db, Transaction) == 0
+
+    # Once staff enter the unit, it saves.
+    res = _save(api, manager, [{**as_read, "unit": "bag"}], scan_id=scan["id"])
+    assert res.status_code == 201, res.text
+    assert _stock(db, cement["id"]) == Decimal("5")
