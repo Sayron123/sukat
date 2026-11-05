@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.deps import CurrentMemberDep
@@ -91,4 +92,5 @@ async def local_upload(
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Body is larger than signed size")
     if len(body) != size:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Body size does not match")
-    storage.save(key, bytes(body))
+    # File I/O is blocking: run it in the thread pool, not on the event loop.
+    await run_in_threadpool(storage.save, key, bytes(body))

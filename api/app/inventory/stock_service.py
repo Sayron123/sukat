@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -30,8 +29,33 @@ MAX_STOCK = Decimal("999999999.999")  # NUMERIC(12,3)
 WRITER_ROLES = {Role.MANAGER, Role.SECRETARY}
 
 
-def _error(code: int, message: str) -> HTTPException:
-    return HTTPException(code, message)
+class SaveError(Exception):
+    """A save that can't go ahead. `status_code` is the matching HTTP status, so the
+    router can map it without this module depending on the web framework."""
+
+    status_code = 422
+
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        if status_code is not None:
+            self.status_code = status_code
+
+
+class NotFound(SaveError):
+    status_code = 404
+
+
+class Conflict(SaveError):
+    status_code = 409
+
+
+class Forbidden(SaveError):
+    status_code = 403
+
+
+class ScanAlreadySaved(Conflict):
+    """Raised for a scan that is saved. For a repeat of the same request that waited on
+    the scan lock, the router returns the first save's result instead."""
 
 
 def find_existing(db: Session, store_id: UUID, client_request_id: str) -> Transaction | None:
@@ -84,13 +108,13 @@ def _load_scan(db: Session, current: CurrentMember, scan_id: UUID) -> tuple[Scan
         .with_for_update()  # two saves of one scan: the second sees status "saved"
     )
     if scan is None:
-        raise _error(status.HTTP_404_NOT_FOUND, "Scan not found")
+        raise NotFound("Scan not found")
     if scan.type != "stock_in":
-        raise _error(status.HTTP_409_CONFLICT, "This scan is not a stock-in list")
+        raise Conflict("This scan is not a stock-in list")
     if scan.status == "saved":
-        raise _error(status.HTTP_409_CONFLICT, "This scan is already saved")
+        raise ScanAlreadySaved("This scan is already saved")
     if scan.status != "read":
-        raise _error(status.HTTP_409_CONFLICT, "This scan has not been read yet")
+        raise Conflict("This scan has not been read yet")
     lines = [ScanLine.model_validate(x) for x in (scan.ai_result_json or {}).get("lines", [])]
     return scan, lines
 
@@ -119,10 +143,7 @@ def _get_or_create_product(db: Session, store_id: UUID, new: NewProductIn) -> Pr
             if product is None:
                 raise
     if product.archived:
-        raise _error(
-            status.HTTP_409_CONFLICT,
-            f'"{product.name}" is archived. Unarchive it or choose another product.',
-        )
+        raise Conflict(f'"{product.name}" is archived. Unarchive it or choose another product.')
     return product
 
 
@@ -130,7 +151,8 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
     """Save a stock-in. Commits on success; on any error nothing is saved.
 
     Assumes `body` passed schema validation (positive qty, one product choice per line).
-    @raises HTTPException 403/404/409/422 with a message for the phone to show
+    @raises SaveError (NotFound/Conflict/Forbidden/ScanAlreadySaved) with a message for
+        the phone to show; IntegrityError if the same client_request_id won a race
     """
     sid = current.store_id
     existing = find_existing(db, sid, body.client_request_id)
@@ -138,9 +160,7 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
         return SaveResult(existing, created=False)
 
     if any(line.new_product for line in body.lines) and current.role not in WRITER_ROLES:
-        raise _error(
-            status.HTTP_403_FORBIDDEN, "Only managers and secretaries can add new products"
-        )
+        raise Forbidden("Only managers and secretaries can add new products")
 
     # Check (and lock) the scan before anything is written, so a wrong scan id gets a
     # clear 404 instead of a foreign-key error.
@@ -187,23 +207,18 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
     for no, (line, pid) in enumerate(zip(body.lines, product_ids, strict=True), start=1):
         product = locked.get(pid)
         if product is None:
-            raise _error(status.HTTP_404_NOT_FOUND, f"Line {no}: product not found")
+            raise NotFound(f"Line {no}: product not found")
         if product.archived:
-            raise _error(status.HTTP_409_CONFLICT, f'Line {no}: "{product.name}" is archived')
+            raise Conflict(f'Line {no}: "{product.name}" is archived')
         try:
             qty_base = quantize_qty(convert(product, line.qty, line.unit))
         except UnitConversionError as e:
-            raise _error(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Line {no}: {e}") from None
+            raise SaveError(f"Line {no}: {e}") from None
         if qty_base <= 0:
-            raise _error(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                f"Line {no}: quantity is too small for {product.base_unit}",
-            )
+            raise SaveError(f"Line {no}: quantity is too small for {product.base_unit}")
         new_stock = product.stock_qty + qty_base
         if new_stock > MAX_STOCK:
-            raise _error(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, f"Line {no}: stock would be too large"
-            )
+            raise SaveError(f"Line {no}: stock would be too large")
 
         amount = line_total(line.qty, line.unit_price_centavos)
         total += amount or 0

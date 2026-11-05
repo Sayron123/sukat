@@ -132,3 +132,19 @@ PUBLIC_API_URL=http://localhost:8000
 Then run `uv run alembic upgrade head` in `api/`.
 
 To test on your phone over the same Wi-Fi, use your PC's LAN address in **both** `PUBLIC_API_URL` (api) and `NEXT_PUBLIC_API_URL` / `API_URL` (web), and add the phone's web address (`http://<pc-ip>:3000`) to `CORS_ORIGINS`.
+
+## Step 10 — Fixes from code review
+
+| Problem found | Why it mattered | Fix |
+|---|---|---|
+| A retry could overwrite a scan that was already **saved**. | The saved scan's lines are the record of what arrived. Changing them after saving breaks the history. (A double save was only avoided by luck.) | Read results are written only if the scan is still pending or failed, checked under a row lock. Retry is allowed only after a failure. |
+| A read that never finished (e.g. server restarted mid-read) stayed **"pending" forever**. | The phone kept polling with no Retry button. | A pending scan older than the longest possible AI call is shown as failed with Retry. |
+| A save could start while a retry was reading. | The scan's lines could change under the save. | A retry sets the scan back to "pending", and saving needs "read". |
+| **Quantity "10" showed as "1"** on the review screen (found in browser testing). | A delivery of 10 bags would have been saved as 1. | Trailing zeros are trimmed only after a decimal point. |
+| A scan from another store got a confusing "conflict" error. | The database blocked it (good), but the message was wrong. | The scan is checked first and gets a clear "not found". |
+| The stock service raised web (FastAPI) errors directly. | Business logic tied to the web layer, and fragile error matching in the endpoint. | Domain errors (`SaveError`, `NotFound`, `Conflict`, `ScanAlreadySaved`) mapped to HTTP in the router. |
+| The local upload saved the file inside the async handler. | Blocking file writes stall other requests. | The write runs in the thread pool. |
+
+**Known limits (not bugs):**
+- **Reading runs inside the request.** A read can take up to about a minute and occupies one API worker. For many stores, move it to a background job; the phone already polls, so the screen won't need to change.
+- **Very large photos use a lot of phone memory.** The phone decodes the full photo before shrinking it, which could be slow on old phones with 48 MP cameras.

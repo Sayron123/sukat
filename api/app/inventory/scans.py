@@ -14,7 +14,7 @@ from app.ai.anthropic_reader import get_vision_reader
 from app.ai.base import VisionReader
 from app.auth.deps import CurrentMember, CurrentMemberDep, DbSession
 from app.inventory.models import Scan
-from app.inventory.scan_service import review_lines, run_read
+from app.inventory.scan_service import is_stale_pending, review_lines, run_read
 from app.inventory.uploads import StorageDep, key_belongs_to_store
 
 router = APIRouter(tags=["scans"])
@@ -57,13 +57,22 @@ class ScanOut(BaseModel):
     created_at: datetime
 
 
+STALE_MESSAGE = "Reading stopped before it finished. Please try again."
+
+
 def _out(db: DbSession, scan: Scan) -> ScanOut:
+    if is_stale_pending(scan):
+        # Shown as failed so the phone stops waiting and offers Retry.
+        status_, error, retryable = "failed", STALE_MESSAGE, True
+    else:
+        status_, error = scan.status, scan.error_message
+        retryable = scan.status == "failed" and bool((scan.ai_result_json or {}).get("retryable"))
     return ScanOut(
         id=scan.id,
         type=scan.type,
-        status=scan.status,
-        error_message=scan.error_message,
-        retryable=scan.status == "failed" and bool((scan.ai_result_json or {}).get("retryable")),
+        status=status_,
+        error_message=error,
+        retryable=retryable,
         model=scan.model,
         lines=[ReviewLineOut(**line) for line in review_lines(db, scan)],
         created_at=scan.created_at,
@@ -139,10 +148,16 @@ def retry_scan(
     storage: StorageDep,
     reader: ReaderDep,
 ) -> ScanOut:
-    """Read the same photo again (after a failure, or to try for a better read)."""
+    """Read the photo again after a failed (or stuck) read. A scan that was read
+    successfully or saved is never re-read: its lines may already be under review or
+    be the record of a saved delivery."""
     scan = _get_scan(db, current, scan_id)
     if scan.status == "saved":
         raise HTTPException(status.HTTP_409_CONFLICT, "This scan is already saved")
+    if scan.status == "read":
+        raise HTTPException(status.HTTP_409_CONFLICT, "This scan was already read")
+    if scan.status == "pending" and not is_stale_pending(scan):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This scan is still being read")
     run_read(db, scan, storage, reader)
     db.refresh(scan)
     return _out(db, scan)

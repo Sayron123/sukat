@@ -9,7 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from app.auth.deps import CurrentMemberDep, DbSession
 from app.inventory.models import StockMovement, Transaction
 from app.inventory.schemas import TransactionIn, TransactionItemOut, TransactionOut
-from app.inventory.stock_service import find_existing, save_stock_in
+from app.inventory.stock_service import (
+    SaveError,
+    ScanAlreadySaved,
+    find_existing,
+    save_stock_in,
+)
 from app.products.models import Product
 
 router = APIRouter(tags=["transactions"])
@@ -60,21 +65,22 @@ def create_transaction(
     manager or secretary. 201 on the first save, 200 with the same body on a repeat."""
     try:
         result = save_stock_in(db, current, body)
-    except (IntegrityError, HTTPException) as e:
-        # A repeat of a request that another request was saving at the same moment ends
-        # here: as a unique-key error, or as "scan already saved" (it waited on the scan
-        # lock). Either way, if the first one saved, return its result.
+    except (IntegrityError, ScanAlreadySaved) as e:
+        # How a repeat of a request that another request saved at the same moment ends:
+        # a unique-key error on client_request_id, or "scan already saved" after waiting
+        # on the scan lock. If the first one saved, return its result.
         db.rollback()
-        if isinstance(e, HTTPException) and e.status_code != status.HTTP_409_CONFLICT:
-            raise
         existing = find_existing(db, current.store_id, body.client_request_id)
         if existing is not None:
             return transaction_out(db, existing)
-        if isinstance(e, HTTPException):
-            raise
+        if isinstance(e, ScanAlreadySaved):
+            raise HTTPException(e.status_code, str(e)) from None
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Could not save because of a conflict. Please try again."
         ) from None
+    except SaveError as e:
+        db.rollback()
+        raise HTTPException(e.status_code, str(e)) from None
     response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
     return transaction_out(db, result.transaction)
 

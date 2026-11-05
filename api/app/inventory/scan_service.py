@@ -1,5 +1,6 @@
 """Reading a list photo with the AI, and turning the result into reviewable lines."""
 
+from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
@@ -47,19 +48,42 @@ def store_catalog(db: Session, store_id: UUID) -> list[CatalogEntry]:
     ]
 
 
+# Statuses a read may overwrite. A scan that is "read" or "saved" is never changed by a
+# late or repeated AI answer (e.g. after a save, its lines are the record of what arrived).
+WRITABLE_STATUSES = ("pending", "failed")
+
+
+def stale_after_seconds() -> float:
+    """After this long, a "pending" scan can't still be reading (the AI client has given
+    up by then), e.g. the server restarted mid-read."""
+    return settings.AI_TIMEOUT_SECONDS * (settings.AI_MAX_RETRIES + 1) + 60
+
+
+def is_stale_pending(scan: Scan) -> bool:
+    if scan.status != "pending":
+        return False
+    age = (datetime.now(UTC) - scan.updated_at).total_seconds()
+    return age > stale_after_seconds()
+
+
 def run_read(db: Session, scan: Scan, storage: Storage, reader: VisionReader) -> None:
     """Read scan's photo with the AI and save the outcome on the scan (status read/failed).
 
-    Commits. The AI call happens outside any open DB transaction, so a slow model never
-    holds database locks or a pooled connection.
+    Assumes the caller checked the scan may be (re)read. Commits. The AI call happens
+    outside any open DB transaction, so a slow model never holds locks or a pooled
+    connection. The result is written only if the scan is still pending/failed.
     """
+    scan.status = "pending"
+    scan.error_message = None
+    db.commit()  # marks the start (updated_at) for stale detection
+
     try:
         image = storage.read(scan.photo_key, settings.UPLOAD_MAX_BYTES)
     except ValueError:
         image = None
     media_type = sniff_image_type(image) if image else None
     if image is None or media_type is None:
-        _fail(db, scan, "Photo not found or not an image. Please upload it again.", None)
+        _finish_failed(db, scan, "Photo not found or not an image. Please upload it again.", None)
         return
 
     catalog = store_catalog(db, scan.store_id)
@@ -68,29 +92,42 @@ def run_read(db: Session, scan: Scan, storage: Storage, reader: VisionReader) ->
     try:
         result = reader.read_list(image, media_type, catalog, scan.type)
     except AIReadError as e:
-        _fail(db, scan, str(e), e)
+        _finish_failed(db, scan, str(e), e)
         return
 
-    scan.status = "read"
-    scan.error_message = None
-    scan.model = result.usage.model
-    # Store lines already mapped to product ids: the AI's short refs (P1, P2...) only
-    # mean something for the product list at the moment of reading.
-    scan.ai_result_json = {
-        "lines": [line.model_dump(mode="json") for line in result.lines],
-        "raw": result.raw,
-    }
-    log_usage(db, scan.store_id, "scan_read", result.usage)
+    log_usage(db, scan.store_id, "scan_read", result.usage)  # tokens were spent either way
+    if _lock_if_writable(db, scan):
+        scan.status = "read"
+        scan.error_message = None
+        scan.model = result.usage.model
+        # Store lines already mapped to product ids: the AI's short refs (P1, P2...) only
+        # mean something for the product list at the moment of reading.
+        scan.ai_result_json = {
+            "lines": [line.model_dump(mode="json") for line in result.lines],
+            "raw": result.raw,
+        }
     db.commit()
 
 
-def _fail(db: Session, scan: Scan, message: str, error: AIReadError | None) -> None:
-    scan.status = "failed"
-    scan.error_message = message[:500]
-    # Not retryable errors are remembered in the message only; the API exposes `retryable`.
-    scan.ai_result_json = {"retryable": bool(error and error.retryable)}
+def _lock_if_writable(db: Session, scan: Scan) -> bool:
+    """Lock the scan row and reload it; True if a read result may still be written.
+    (Something else may have changed it during the AI call.)"""
+    db.scalar(
+        select(Scan)
+        .where(Scan.id == scan.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return scan.status in WRITABLE_STATUSES
+
+
+def _finish_failed(db: Session, scan: Scan, message: str, error: AIReadError | None) -> None:
     if error and error.usage:
         log_usage(db, scan.store_id, "scan_read", error.usage)
+    if _lock_if_writable(db, scan):
+        scan.status = "failed"
+        scan.error_message = message[:500]
+        scan.ai_result_json = {"retryable": bool(error and error.retryable)}
     db.commit()
 
 

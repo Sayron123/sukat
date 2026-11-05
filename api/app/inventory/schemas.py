@@ -7,8 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.products.schemas import Category, Name, PriceCentavos, Unit
 
-Qty = Decimal
-
 
 class NewProductIn(BaseModel):
     """A product to create while saving (a line the AI marked "new")."""

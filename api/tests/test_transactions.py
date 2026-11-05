@@ -3,7 +3,6 @@ import uuid
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import func, select
 
@@ -414,10 +413,18 @@ def test_alias_from_raw(raw, alias):
     assert alias_from_raw(raw) == alias
 
 
-def test_save_stock_in_error_is_http_exception(db, manager, nails):
-    from app.inventory.stock_service import _error
+def test_save_errors_carry_http_status():
+    from app.inventory.stock_service import (
+        Conflict,
+        Forbidden,
+        NotFound,
+        SaveError,
+        ScanAlreadySaved,
+    )
 
-    assert isinstance(_error(409, "x"), HTTPException)
+    assert (SaveError("x").status_code, NotFound("x").status_code) == (422, 404)
+    assert (Conflict("x").status_code, Forbidden("x").status_code) == (409, 403)
+    assert isinstance(ScanAlreadySaved("x"), Conflict)
 
 
 def test_concurrent_repeats_of_a_scan_save_return_first_result(

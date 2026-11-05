@@ -142,3 +142,93 @@ def test_scan_stores_mapped_lines(api, db, manager, storage, reader):
     stored = db.scalar(select(Scan).where(Scan.id == scan_id)).ai_result_json
     assert stored["lines"][0]["product_id"] == nails["id"]
     assert stored["raw"] == {"lines": "fake"}
+
+
+# ---------- review fixes ----------
+
+
+def test_successful_scan_is_not_re_read(api, manager, storage, reader):
+    nails, _ = _products(api, manager)
+    reader.lines = [scan_line(nails["id"], unit="kg")]
+    key = upload_photo(api, manager, storage)
+    scan = api.post("/scans", json={"photo_key": key}, headers=manager).json()
+    assert api.post(f"/scans/{scan['id']}/retry", headers=manager).status_code == 409
+    assert len(reader.calls) == 1
+
+
+def test_stuck_pending_scan_is_reported_failed_and_can_be_retried(
+    api, db, manager, storage, reader
+):
+    from sqlalchemy import text
+
+    me = api.get("/auth/me", headers=manager).json()
+    key = upload_photo(api, manager, storage)
+    db.add(Scan(store_id=me["store_id"], type="stock_in", photo_key=key, status="pending"))
+    db.commit()
+    scan_id = db.scalar(select(Scan.id))
+
+    # Fresh: still reading, so no retry yet.
+    assert api.get(f"/scans/{scan_id}", headers=manager).json()["status"] == "pending"
+    assert api.post(f"/scans/{scan_id}/retry", headers=manager).status_code == 409
+
+    # Older than the longest possible read (e.g. the server restarted mid-read).
+    db.execute(text("UPDATE scans SET updated_at = now() - interval '1 hour'"))
+    db.commit()
+    stuck = api.get(f"/scans/{scan_id}", headers=manager).json()
+    assert stuck["status"] == "failed" and stuck["retryable"] is True
+    assert api.post(f"/scans/{scan_id}/retry", headers=manager).json()["status"] == "read"
+
+
+def test_late_ai_answer_never_overwrites_a_saved_scan(
+    api, db, db_sessionmaker, manager, storage, reader
+):
+    """If the scan changes during the AI call (here: saved), the result is not written."""
+    from sqlalchemy import update
+
+    nails, _ = _products(api, manager)
+    reader.error = AIReadError("timeout", retryable=True)
+    key = upload_photo(api, manager, storage)
+    scan_id = api.post("/scans", json={"photo_key": key}, headers=manager).json()["id"]
+
+    def lines_after_scan_got_saved(catalog):
+        with db_sessionmaker() as other:
+            other.execute(update(Scan).where(Scan.id == scan_id).values(status="saved"))
+            other.commit()
+        return [scan_line(nails["id"], unit="kg")]
+
+    reader.error = None
+    reader.lines = lines_after_scan_got_saved
+    api.post(f"/scans/{scan_id}/retry", headers=manager)
+    db.expire_all()
+    stored = db.scalar(select(Scan).where(Scan.id == scan_id))
+    assert stored.status == "saved"
+    assert "lines" not in (stored.ai_result_json or {})  # the late answer was dropped
+    assert (
+        db.scalar(select(AIUsage.tokens_in).order_by(AIUsage.created_at.desc())) == 1000
+    )  # cost still logged
+
+
+def test_a_save_cannot_happen_while_the_scan_is_being_read(api, manager, storage, reader):
+    nails, _ = _products(api, manager)
+    reader.error = AIReadError("timeout", retryable=True)
+    key = upload_photo(api, manager, storage)
+    scan_id = api.post("/scans", json={"photo_key": key}, headers=manager).json()["id"]
+
+    results = {}
+
+    def save_meanwhile(catalog):
+        results["save"] = api.post(
+            "/transactions",
+            json={
+                "client_request_id": "save-during-read-1",
+                "scan_id": scan_id,
+                "lines": [{"product_id": nails["id"], "qty": "1", "unit": "kg", "scan_line": 0}],
+            },
+            headers=manager,
+        ).status_code
+        return [scan_line(nails["id"], unit="kg")]
+
+    reader.error = None
+    reader.lines = save_meanwhile
+    assert api.post(f"/scans/{scan_id}/retry", headers=manager).json()["status"] == "read"
+    assert results["save"] == 409  # scan was "pending" during the read
