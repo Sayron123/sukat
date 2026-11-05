@@ -12,7 +12,8 @@ from pydantic import ValidationError
 
 from app.ai.base import ImageType
 from app.ai.convert import catalog_refs, catalog_text, parse_result
-from app.ai.schemas import RAW_RESULT_SCHEMA, AIReadError, AIUsageInfo, CatalogEntry, ReadResult
+from app.ai.errors import AIReadError
+from app.ai.schemas import RAW_RESULT_SCHEMA, AIUsageInfo, CatalogEntry, ReadResult
 from app.core.config import settings
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "read_list.md"
@@ -127,9 +128,3 @@ class AnthropicVisionReader:
                 usage=usage,
             ) from e
         return ReadResult(lines=lines, usage=usage, raw=json.loads(text or "{}"))
-
-
-@cache
-def get_vision_reader() -> AnthropicVisionReader:
-    """The configured reader (FastAPI dependency; tests override it with a fake)."""
-    return AnthropicVisionReader()

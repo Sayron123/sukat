@@ -2,8 +2,9 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+from app.ai.errors import AIReadError
 from app.ai.models import AIUsage
-from app.ai.schemas import AIReadError, AIUsageInfo
+from app.ai.schemas import AIUsageInfo
 from app.inventory.models import Scan
 from tests.conftest import auth_header, make_product, scan_line, upload_photo
 

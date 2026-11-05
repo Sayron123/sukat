@@ -173,7 +173,7 @@ class FakeReader:
 
 @pytest.fixture
 def reader(api) -> Generator[FakeReader]:
-    from app.ai.anthropic_reader import get_vision_reader
+    from app.ai.provider import get_vision_reader
 
     fake = FakeReader()
     app.dependency_overrides[get_vision_reader] = lambda: fake

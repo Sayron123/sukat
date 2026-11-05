@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     # ----- AI (reading list photos) -----
     # Leave empty to use the SDK's normal credential lookup (ANTHROPIC_API_KEY env, etc.).
     ANTHROPIC_API_KEY: str = ""
+    # Which VisionReader implementation to use (see app/ai/provider.py).
+    AI_PROVIDER: Literal["anthropic"] = "anthropic"
     AI_MODEL: str = "claude-opus-5-5"
     AI_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
     AI_TIMEOUT_SECONDS: float = 90.0

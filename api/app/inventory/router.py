@@ -9,8 +9,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 
-from app.ai.anthropic_reader import get_vision_reader
 from app.ai.base import VisionReader
+from app.ai.provider import get_vision_reader
 from app.auth.deps import CurrentMemberDep, DbSession
 from app.core.config import settings
 from app.core.errors import AppError, BadRequest, Forbidden, NotFound

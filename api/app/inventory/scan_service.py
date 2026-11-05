@@ -11,7 +11,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.ai.base import ImageType, VisionReader
-from app.ai.schemas import AIReadError, CatalogConversion, CatalogEntry, ScanLine
+from app.ai.errors import AIReadError
+from app.ai.schemas import CatalogConversion, CatalogEntry, ScanLine
 from app.ai.usage import log_usage
 from app.core.config import settings
 from app.core.errors import Conflict, NotFound
