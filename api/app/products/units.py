@@ -14,7 +14,10 @@ All math uses Decimal, so 0.1 + 0.2 is exactly 0.3 (floats would drift).
 import re
 from collections.abc import Iterable
 from decimal import Decimal
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:  # type-only import: models don't depend on this module at runtime
+    from app.products.models import Product
 
 # Common ways staff write units -> the one spelling we store.
 _SYNONYMS: dict[str, str] = {
@@ -56,16 +59,25 @@ class UnitConversionError(ValueError):
 
 
 class _Conversion(Protocol):
-    from_unit: str
-    factor: Decimal
+    # Read-only properties, so ORM models (Mapped[...] attributes) and plain
+    # dataclasses both fit.
+    @property
+    def from_unit(self) -> str: ...
+    @property
+    def factor(self) -> Decimal: ...
 
 
 class ConvertibleProduct(Protocol):
-    """Anything with these attributes works (the Product model, or a test stand-in)."""
+    """Anything with these attributes works (e.g. a test stand-in). The Product model is
+    accepted explicitly in convert(): type checkers don't see its Mapped[...] columns as
+    plain attributes when matching a protocol."""
 
-    name: str
-    base_unit: str
-    conversions: Iterable[_Conversion]
+    @property
+    def name(self) -> str: ...
+    @property
+    def base_unit(self) -> str: ...
+    @property
+    def conversions(self) -> Iterable[_Conversion]: ...
 
 
 def normalize_unit(unit: str) -> str:
@@ -83,7 +95,7 @@ def _metric_ratio(from_unit: str, to_unit: str) -> Decimal | None:
     return a[1] / b[1]
 
 
-def convert(product: ConvertibleProduct, qty: Decimal, unit: str) -> Decimal:
+def convert(product: "Product | ConvertibleProduct", qty: Decimal, unit: str) -> Decimal:
     """Return `qty` of `unit` expressed in the product's base unit.
 
     @param product  needs name, base_unit, and conversions (from_unit, factor)

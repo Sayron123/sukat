@@ -141,13 +141,15 @@ def test_low_stock_filter(api, db, manager):
 
 
 def test_catalog_lists_items_and_marks_imported(api, manager):
-    catalog = api.get("/catalog", headers=manager).json()
+    catalog = api.get("/products/catalog", headers=manager).json()
     assert len(catalog) == len(load_catalog().items)
     assert not any(i["already_in_store"] for i in catalog)
 
     api.post("/products/import", json={"keys": ["portland-cement-40kg"]}, headers=manager)
     marked = {
-        i["key"] for i in api.get("/catalog", headers=manager).json() if i["already_in_store"]
+        i["key"]
+        for i in api.get("/products/catalog", headers=manager).json()
+        if i["already_in_store"]
     }
     assert marked == {"portland-cement-40kg"}
 

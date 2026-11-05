@@ -5,6 +5,7 @@ from typing import Literal, Protocol
 from app.ai.schemas import CatalogEntry, ReadResult
 
 ImageType = Literal["image/jpeg", "image/png", "image/webp"]
+ScanType = Literal["sale", "stock_in"]
 
 
 class VisionReader(Protocol):
@@ -13,7 +14,7 @@ class VisionReader(Protocol):
         image: bytes,
         media_type: ImageType,
         catalog: list[CatalogEntry],
-        scan_type: Literal["sale", "stock_in"],
+        scan_type: ScanType,
     ) -> ReadResult:
         """Read the list in `image`, matching items against `catalog`.
 

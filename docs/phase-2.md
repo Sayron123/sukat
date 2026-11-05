@@ -44,7 +44,7 @@ Phase 2 adds **products**: what a store sells, in which units, and the names sta
 | `POST /products` | manager, secretary | Create. |
 | `PATCH /products/{id}` | manager, secretary | Change only the fields you send. Sending `aliases` or `conversions` replaces the whole list. |
 | `POST /products/{id}/archive` / `unarchive` | manager, secretary | Hide / show again. |
-| `GET /catalog` | everyone | Starter items, each marked `already_in_store`. |
+| `GET /products/catalog` | everyone | Starter items, each marked `already_in_store`. |
 | `POST /products/import` | manager, secretary | Copy chosen starter items into the store. |
 
 **Ideas**

@@ -2,8 +2,9 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+from app.ai.errors import AIReadError
 from app.ai.models import AIUsage
-from app.ai.schemas import AIReadError, AIUsageInfo
+from app.ai.schemas import AIUsageInfo
 from app.inventory.models import Scan
 from tests.conftest import auth_header, make_product, scan_line, upload_photo
 
@@ -27,7 +28,7 @@ def _member(api, manager):
         "/staff/invites", json={"email": "member@example.com", "role": "member"}, headers=manager
     ).json()
     token = api.post(
-        "/invites/accept",
+        "/staff/invites/accept",
         json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
     ).json()["access_token"]
     return auth_header(token)

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { isSameOrigin } from "@/lib/server/auth-route";
-import { API_URL, getToken } from "@/lib/server/backend";
+import { API_PREFIX, API_URL, getToken } from "@/lib/server/backend";
 
 /**
  * Same-origin proxy from the browser to the FastAPI backend.
@@ -10,7 +10,7 @@ import { API_URL, getToken } from "@/lib/server/backend";
  * client components call /api/backend/<path> and this handler adds the token.
  * Only the API areas the web app uses are allowed through.
  */
-const ALLOWED_PREFIXES = ["products", "catalog", "auth/me", "scans", "transactions"];
+const ALLOWED_PREFIXES = ["products", "auth/me", "scans", "transactions"];
 
 /**
  * Only plain segments like "products" or a UUID. Next.js decodes %2F and %2E inside a
@@ -39,7 +39,7 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/${joined}${req.nextUrl.search}`, {
+    res = await fetch(`${API_URL}${API_PREFIX}/${joined}${req.nextUrl.search}`, {
       method: req.method,
       cache: "no-store",
       headers: {

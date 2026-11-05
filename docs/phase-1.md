@@ -75,7 +75,7 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession): ...
 | Endpoint | Who | What it does |
 |---|---|---|
 | `POST /staff/invites` | manager | Creates an invite and returns a one-time `token`. |
-| `POST /invites/accept` | anyone with the token | Creates the account (or uses the existing one) and joins the store. Returns an access token. |
+| `POST /staff/invites/accept` | anyone with the token | Creates the account (or uses the existing one) and joins the store. Returns an access token. |
 | `GET /staff` | manager, secretary | Lists everyone in your store. |
 | `GET /staff/{member_id}` | manager, secretary | One staff member. |
 | `POST /staff/{member_id}/deactivate` | manager | Turns off a staff member's access. |

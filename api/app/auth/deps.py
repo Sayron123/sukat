@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth.models import User
 from app.auth.security import decode_access_token
 from app.core.db import get_db
+from app.core.errors import Forbidden, Unauthorized
 from app.stores.models import Role, StoreMember
 
 _bearer = HTTPBearer(auto_error=False)
@@ -30,12 +31,8 @@ class CurrentMember:
     role: str
 
 
-def _unauthorized() -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+def _unauthorized() -> Unauthorized:
+    return Unauthorized("Not authenticated", headers={"WWW-Authenticate": "Bearer"})
 
 
 def get_current_member(
@@ -79,10 +76,7 @@ def require_role(*roles: str) -> Callable[[CurrentMember], CurrentMember]:
 
     def _check(member: CurrentMemberDep) -> CurrentMember:
         if member.role not in allowed:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to do this",
-            )
+            raise Forbidden("You do not have permission to do this")
         return member
 
     return _check

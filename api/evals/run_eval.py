@@ -17,8 +17,9 @@ from decimal import Decimal
 from pathlib import Path
 
 from app.ai.anthropic_reader import AnthropicVisionReader
+from app.ai.errors import AIReadError
 from app.ai.pricing import cost_centavos
-from app.ai.schemas import AIReadError, CatalogConversion, CatalogEntry
+from app.ai.schemas import CatalogConversion, CatalogEntry
 from app.core.config import settings
 from app.inventory.scan_service import sniff_image_type
 from app.products.catalog import load_catalog

@@ -43,3 +43,14 @@ def test_cors_allows_web_origin(client):
     res = client.get("/health", headers={"Origin": "http://localhost:3000"})
 
     assert res.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_api_lives_under_v1_and_health_at_root():
+    with TestClient(app) as c:
+        app.dependency_overrides[get_db] = lambda: MagicMock()
+        assert c.get("/health").status_code == 200
+        assert c.post("/auth/login", json={}).status_code == 404  # old unversioned path
+        assert c.post("/v1/auth/login", json={}).status_code == 422  # reached, body invalid
+        paths = app.openapi()["paths"]
+        assert all(p == "/health" or p.startswith("/v1/") for p in paths)
+    app.dependency_overrides.clear()

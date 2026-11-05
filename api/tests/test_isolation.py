@@ -20,7 +20,7 @@ def two_stores(api, signup):
             headers=auth_header(manager["access_token"]),
         ).json()
         member = api.post(
-            "/invites/accept",
+            "/staff/invites/accept",
             json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
         ).json()
         staff = api.get("/staff", headers=auth_header(manager["access_token"])).json()
@@ -98,7 +98,7 @@ def test_secretary_cannot_invite_or_deactivate_but_can_list(api, signup):
         headers=auth_header(manager),
     ).json()
     secretary = api.post(
-        "/invites/accept",
+        "/staff/invites/accept",
         json={"token": invite["token"], "password": "sec-pass-123", "full_name": "S"},
     ).json()["access_token"]
 

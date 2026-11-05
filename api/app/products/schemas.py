@@ -1,15 +1,13 @@
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-from app.products.constants import CATEGORIES
+from app.products.constants import Category
 from app.products.units import normalize_unit
-
-Category = Literal[CATEGORIES]  # type: ignore[valid-type]
 
 
 def _clean(value: str) -> str:

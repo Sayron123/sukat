@@ -11,33 +11,38 @@ Keys look like "email:juan@example.com" or "ip:203.0.113.5".
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.auth.models import AuthFailure
 from app.core.config import settings
+from app.core.errors import TooManyRequests
 
 
 def email_key(email: str) -> str:
     return f"email:{email.lower()}"
 
 
-def ip_key(request: Request) -> str | None:
+def client_ip(request: Request) -> str | None:
     """Client IP as seen by the API (uvicorn rewrites it from X-Forwarded-For for trusted
-    proxies). None when unknown, so we never lump all unknown callers into one bucket."""
-    host = request.client.host if request.client else None
-    return f"ip:{host}" if host else None
+    proxies). None when unknown. Used by routers; services take the plain IP string."""
+    return request.client.host if request.client else None
 
 
-def limits_for(email: str | None, request: Request) -> list[tuple[str, int]]:
+def ip_key(ip: str | None) -> str | None:
+    """None when the IP is unknown, so we never lump all unknown callers into one bucket."""
+    return f"ip:{ip}" if ip else None
+
+
+def limits_for(email: str | None, ip: str | None) -> list[tuple[str, int]]:
     """The (key, max_failures) pairs that apply to this attempt."""
     pairs: list[tuple[str, int]] = []
     if email:
         pairs.append((email_key(email), settings.AUTH_MAX_FAILURES_PER_EMAIL))
-    ip = ip_key(request)
-    if ip:
-        pairs.append((ip, settings.AUTH_MAX_FAILURES_PER_IP))
+    key = ip_key(ip)
+    if key:
+        pairs.append((key, settings.AUTH_MAX_FAILURES_PER_IP))
     return pairs
 
 
@@ -62,9 +67,8 @@ def ensure_not_limited(db: Session, limits: list[tuple[str, int]]) -> None:
         if count >= max_failures:
             # The block lifts when the oldest failure in the window ages out.
             retry_after = int((oldest - since).total_seconds()) + 1
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many failed attempts. Please wait and try again.",
+            raise TooManyRequests(
+                "Too many failed attempts. Please wait and try again.",
                 headers={"Retry-After": str(max(retry_after, 1))},
             )
 

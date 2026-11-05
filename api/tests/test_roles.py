@@ -1,10 +1,10 @@
 import uuid
 
 import pytest
-from fastapi import HTTPException
 
 from app.auth.deps import CurrentMember, require_role
 from app.auth.models import User
+from app.core.errors import Forbidden
 
 
 def _member(role: str) -> CurrentMember:
@@ -32,7 +32,7 @@ def test_require_role(allowed, role, ok):
     if ok:
         assert check(member) is member
     else:
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(Forbidden) as exc:
             check(member)
         assert exc.value.status_code == 403
 

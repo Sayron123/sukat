@@ -23,6 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.ai.base import ScanType
 from app.core.base import Base, created_at_col, updated_at_col, uuid_pk
 
 Qty = Numeric(12, 3)
@@ -53,7 +54,7 @@ class Scan(Base):
     store_id: Mapped[UUID] = mapped_column(
         ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
     )
-    type: Mapped[str] = mapped_column(String(20), nullable=False)
+    type: Mapped[ScanType] = mapped_column(String(20), nullable=False)
     # Storage key of the photo; always starts with "<store_id>/".
     photo_key: Mapped[str] = mapped_column(String(300), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pending")

@@ -1,22 +1,46 @@
 """Reading a list photo with the AI, and turning the result into reviewable lines."""
 
+import re
+import uuid
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.ai.base import ImageType, VisionReader
-from app.ai.schemas import AIReadError, CatalogConversion, CatalogEntry, ScanLine
+from app.ai.errors import AIReadError
+from app.ai.schemas import CatalogConversion, CatalogEntry, ScanLine
 from app.ai.usage import log_usage
 from app.core.config import settings
+from app.core.errors import Conflict, NotFound
 from app.core.storage import Storage
 from app.inventory.models import Scan
+from app.inventory.schemas import ReviewLineOut, ScanOut
 from app.products.models import Product
 from app.products.units import UnitConversionError, convert
 
 CONFIDENCE_THRESHOLD = 0.8
+STALE_MESSAGE = "Reading stopped before it finished. Please try again."
+
+PHOTO_EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+# "<store uuid>/scans/<32 hex>.<ext>": nothing else is ever a valid photo key.
+PHOTO_KEY_RE = re.compile(r"^([0-9a-f-]{36})/scans/[0-9a-f]{32}\.(jpg|png|webp)$")
+
+
+def new_photo_key(store_id: UUID, content_type: str) -> str:
+    """A fresh storage key under the store's prefix (made by the server, never the client)."""
+    return f"{store_id}/scans/{uuid.uuid4().hex}.{PHOTO_EXTENSIONS[content_type]}"
+
+
+def key_belongs_to_store(key: str, store_id: UUID) -> bool:
+    """True only for a well-formed photo key under this store's prefix."""
+    m = PHOTO_KEY_RE.match(key)
+    return bool(m) and m.group(1) == str(store_id)
+
+
 QTY_STEP = Decimal("0.001")  # stock_qty has 3 decimals
 
 
@@ -203,3 +227,99 @@ def review_lines(db: Session, scan: Scan) -> list[dict]:
         else {}
     )
     return [review_line(line, products) for line in lines]
+
+
+# ---------- scan lifecycle (used by the router) ----------
+
+
+def get_scan(db: Session, store_id: UUID, scan_id: UUID) -> Scan:
+    """@raises NotFound also for another store's scan"""
+    scan = db.scalar(select(Scan).where(Scan.id == scan_id, Scan.store_id == store_id))
+    if scan is None:
+        raise NotFound("Scan not found")
+    return scan
+
+
+def start_scan(
+    db: Session,
+    store_id: UUID,
+    user_id: UUID,
+    photo_key: str,
+    scan_type: str,
+    storage: Storage,
+    reader: VisionReader,
+) -> tuple[Scan, bool]:
+    """Create a scan for an uploaded photo and read it. Returns (scan, created).
+
+    Sending the same photo_key again returns the existing scan (created=False) instead
+    of paying for a second AI read, so the phone can safely retry.
+
+    @raises NotFound if the key isn't a photo key of this store
+    """
+    if not key_belongs_to_store(photo_key, store_id):
+        raise NotFound("Photo not found")
+
+    def existing() -> Scan | None:
+        return db.scalar(select(Scan).where(Scan.store_id == store_id, Scan.photo_key == photo_key))
+
+    found = existing()
+    if found is not None:
+        return found, False
+
+    scan = Scan(
+        store_id=store_id, type=scan_type, photo_key=photo_key, status="pending", created_by=user_id
+    )
+    db.add(scan)
+    try:
+        db.commit()
+    except IntegrityError:
+        # The same photo was sent twice at the same moment; the other request reads it.
+        db.rollback()
+        found = existing()
+        if found is None:
+            raise
+        return found, False
+    run_read(db, scan, storage, reader)
+    db.refresh(scan)
+    return scan, True
+
+
+def retry_scan(
+    db: Session, store_id: UUID, scan_id: UUID, storage: Storage, reader: VisionReader
+) -> Scan:
+    """Read the photo again after a failed (or stuck) read. A scan that was read
+    successfully or saved is never re-read: its lines may be under review or be the
+    record of a saved delivery.
+
+    @raises NotFound, Conflict (saved / already read / still reading)
+    """
+    scan = get_scan(db, store_id, scan_id)
+    if scan.status == "saved":
+        raise Conflict("This scan is already saved")
+    if scan.status == "read":
+        raise Conflict("This scan was already read")
+    if scan.status == "pending" and not is_stale_pending(scan):
+        raise Conflict("This scan is still being read")
+    run_read(db, scan, storage, reader)
+    db.refresh(scan)
+    return scan
+
+
+def scan_view(db: Session, scan: Scan) -> ScanOut:
+    """The scan as the phone sees it. A stuck "pending" read is shown as a retryable
+    failure so the phone stops waiting."""
+    if is_stale_pending(scan):
+        status, error, retryable = "failed", STALE_MESSAGE, True
+    else:
+        status, error = scan.status, scan.error_message
+        retryable = scan.status == "failed" and bool((scan.ai_result_json or {}).get("retryable"))
+    return ScanOut(
+        id=scan.id,
+        type=scan.type,
+        status=status,
+        error_message=error,
+        retryable=retryable,
+        model=scan.model,
+        lines=[ReviewLineOut(**line) for line in review_lines(db, scan)],
+        created_at=scan.created_at,
+    )

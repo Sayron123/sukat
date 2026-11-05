@@ -11,7 +11,7 @@ from app.inventory.models import Scan, StockMovement, Transaction, TransactionIt
 from app.inventory.schemas import TransactionIn
 from app.inventory.stock_service import alias_from_raw, save_stock_in
 from app.products.models import Product, ProductAlias
-from tests.conftest import auth_header, make_product, scan_line, upload_photo
+from tests.conftest import API_BASE_URL, auth_header, make_product, scan_line, upload_photo
 
 
 def _rid() -> str:
@@ -193,7 +193,7 @@ def test_member_can_save_but_cannot_create_products(api, db, manager, nails):
     ).json()
     member = auth_header(
         api.post(
-            "/invites/accept",
+            "/staff/invites/accept",
             json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
         ).json()["access_token"]
     )
@@ -413,18 +413,13 @@ def test_alias_from_raw(raw, alias):
     assert alias_from_raw(raw) == alias
 
 
-def test_save_errors_carry_http_status():
-    from app.inventory.stock_service import (
-        Conflict,
-        Forbidden,
-        NotFound,
-        SaveError,
-        ScanAlreadySaved,
-    )
+def test_app_errors_carry_http_status():
+    from app.core.errors import AppError, Conflict, Forbidden, Invalid, NotFound
+    from app.inventory.stock_service import ScanAlreadySaved
 
-    assert (SaveError("x").status_code, NotFound("x").status_code) == (422, 404)
+    assert (Invalid("x").status_code, NotFound("x").status_code) == (422, 404)
     assert (Conflict("x").status_code, Forbidden("x").status_code) == (409, 403)
-    assert isinstance(ScanAlreadySaved("x"), Conflict)
+    assert isinstance(ScanAlreadySaved("x"), Conflict) and isinstance(Conflict("x"), AppError)
 
 
 def test_concurrent_repeats_of_a_scan_save_return_first_result(
@@ -446,7 +441,7 @@ def test_concurrent_repeats_of_a_scan_save_return_first_result(
     }
 
     def post(_):
-        with TestClient(app) as client:
+        with TestClient(app, base_url=API_BASE_URL) as client:
             return client.post("/transactions", json=body, headers=manager)
 
     with ThreadPoolExecutor(4) as pool:

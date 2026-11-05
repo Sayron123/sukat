@@ -47,12 +47,12 @@ def test_signup_duplicate_email_is_409_and_creates_nothing(api, db, signup):
 
 def test_signup_is_one_transaction(api, db, monkeypatch):
     """If the last insert (membership) fails, the store and user are not saved either."""
-    import app.auth.router as auth_router
+    import app.auth.service as auth_service
 
     class BadRole:
         MANAGER = "owner"  # violates the role CHECK constraint at commit time
 
-    monkeypatch.setattr(auth_router, "Role", BadRole)
+    monkeypatch.setattr(auth_service, "Role", BadRole)
     with pytest.raises(IntegrityError):
         api.post(
             "/auth/signup",

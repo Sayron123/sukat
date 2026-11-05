@@ -8,15 +8,12 @@ import json
 from decimal import Decimal
 from functools import cache
 from pathlib import Path
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.products.constants import CATEGORIES
+from app.products.constants import Category
 
 CATALOG_PATH = Path(__file__).with_name("seed_catalog.json")
-
-Category = Literal[CATEGORIES]  # type: ignore[valid-type]
 
 
 class CatalogConversion(BaseModel):

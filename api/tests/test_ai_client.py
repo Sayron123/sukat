@@ -12,15 +12,9 @@ import pytest
 
 from app.ai.anthropic_reader import AnthropicVisionReader, _system_prompt
 from app.ai.convert import catalog_refs, catalog_text
+from app.ai.errors import AIReadError
 from app.ai.pricing import cost_centavos
-from app.ai.schemas import (
-    RAW_RESULT_SCHEMA,
-    AIReadError,
-    AIUsageInfo,
-    CatalogConversion,
-    CatalogEntry,
-    RawLine,
-)
+from app.ai.schemas import RAW_RESULT_SCHEMA, AIUsageInfo, CatalogConversion, CatalogEntry, RawLine
 from app.core.config import settings
 
 CEMENT = CatalogEntry(
