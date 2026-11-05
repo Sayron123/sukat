@@ -233,3 +233,16 @@ def test_a_save_cannot_happen_while_the_scan_is_being_read(api, manager, storage
     reader.lines = save_meanwhile
     assert api.post(f"/scans/{scan_id}/retry", headers=manager).json()["status"] == "read"
     assert results["save"] == 409  # scan was "pending" during the read
+
+
+def test_line_without_unit_needs_check_and_has_no_base_qty(api, manager, storage, reader):
+    # Audit H1: never use the product's unit for a line with no unit written.
+    _, cement = _products(api, manager)
+    reader.lines = [scan_line(cement["id"], raw_text="5 sem", qty=Decimal("5"), unit="")]
+    key = upload_photo(api, manager, storage)
+    res = api.post("/scans", json={"photo_key": key, "type": "stock_in"}, headers=manager)
+    assert res.status_code == 201, res.text
+    line = res.json()["lines"][0]
+    assert line["product_id"] == cement["id"] and line["unit"] == ""
+    assert line["qty_base"] is None
+    assert line["needs_check"] is True and "no_unit" in line["check_reasons"]

@@ -4,8 +4,10 @@ from decimal import Decimal
 
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
+from app.ai.convert import catalog_refs, parse_result
 from app.auth.deps import get_current_member
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.schemas import TransactionIn
@@ -449,3 +451,113 @@ def test_concurrent_repeats_of_a_scan_save_return_first_result(
     assert sorted(r.status_code for r in responses) == [200, 200, 200, 201]
     assert len({r.json()["id"] for r in responses}) == 1
     assert _stock(db, nails["id"]) == Decimal("3")
+
+
+# ---------- audit fixes ----------
+
+
+def _member(api, manager):
+    invite = api.post(
+        "/staff/invites", json={"email": "m@example.com", "role": "member"}, headers=manager
+    ).json()
+    return auth_header(
+        api.post(
+            "/staff/invites/accept",
+            json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+        ).json()["access_token"]
+    )
+
+
+def test_line_without_unit_cannot_be_saved_without_a_unit(
+    api, db, manager, storage, reader, cement
+):
+    # Audit H1, end to end through the real AI-output converter: the AI wrote no unit.
+    raw = {
+        "raw_text": "5 sem",
+        "product_ref": "P1",
+        "suggested_new_name": None,
+        "qty": 5,
+        "unit": "",
+        "unit_price": None,
+        "line_total": None,
+        "confidence": 0.97,
+    }
+    scan = _scan(
+        api,
+        manager,
+        storage,
+        reader,
+        lambda catalog: parse_result({"lines": [raw]}, catalog_refs(catalog)),
+    )
+    line = scan["lines"][0]
+    assert line["unit"] == "" and "no_unit" in line["check_reasons"]
+
+    # Saving what the review shows (no unit) is refused; nothing changes.
+    as_read = {"product_id": cement["id"], "qty": "5", "unit": line["unit"], "scan_line": 0}
+    res = _save(api, manager, [as_read], scan_id=scan["id"])
+    assert res.status_code == 422, res.text
+    assert _stock(db, cement["id"]) == Decimal("0") and _count(db, Transaction) == 0
+
+    # Once staff enter the unit, it saves.
+    res = _save(api, manager, [{**as_read, "unit": "bag"}], scan_id=scan["id"])
+    assert res.status_code == 201, res.text
+    assert _stock(db, cement["id"]) == Decimal("5")
+
+
+def test_member_save_teaches_no_alias_but_manager_save_does(
+    api, db, manager, storage, reader, nails, cement
+):
+    # Audit M1. The AI guessed cement; staff pick nails for the same written row.
+    def guessed_wrong():
+        return [
+            scan_line(cement["id"], raw_text="2 bx pakong 4 pulgada", qty=Decimal("2"), unit="box")
+        ]
+
+    picked = [{"product_id": nails["id"], "qty": "2", "unit": "box", "scan_line": 0}]
+    member = _member(api, manager)
+
+    scan = _scan(api, member, storage, reader, guessed_wrong())
+    res = _save(api, member, picked, scan_id=scan["id"])
+    assert res.status_code == 201, res.text  # the member's stock-in still saves
+    assert _stock(db, nails["id"]) == Decimal("50")
+    learned = select(ProductAlias).where(ProductAlias.alias == "pakong 4 pulgada")
+    assert db.scalar(learned) is None
+
+    scan = _scan(api, manager, storage, reader, guessed_wrong())
+    res = _save(api, manager, picked, scan_id=scan["id"])
+    assert res.status_code == 201, res.text
+    db.expire_all()
+    alias = db.scalar(learned)
+    assert alias is not None and str(alias.product_id) == nails["id"]
+
+
+def test_database_refuses_movement_pointing_at_another_stores_line(api, db, manager, signup, nails):
+    # Audit M3: the movement -> line key includes store_id.
+    assert (
+        _save(api, manager, [{"product_id": nails["id"], "qty": "1", "unit": "kg"}]).status_code
+        == 201
+    )
+    other = auth_header(signup(email="b@example.com", store_name="Store B")["access_token"])
+    rope = make_product(api, other, name="Nylon Rope", category="Others", base_unit="m")
+    assert (
+        _save(api, other, [{"product_id": rope["id"], "qty": "1", "unit": "m"}]).status_code == 201
+    )
+
+    a_item = db.scalar(select(TransactionItem).where(TransactionItem.product_id == nails["id"]))
+    b_txn = db.scalar(select(Transaction).where(Transaction.store_id != a_item.store_id))
+    # Free store A's line (its own movement holds the unique slot), then point B at it.
+    db.execute(delete(StockMovement).where(StockMovement.transaction_item_id == a_item.id))
+    db.add(
+        StockMovement(
+            store_id=b_txn.store_id,
+            product_id=uuid.UUID(rope["id"]),
+            transaction_id=b_txn.id,
+            transaction_item_id=a_item.id,
+            qty_change=Decimal("1"),
+            stock_after=Decimal("2"),
+        )
+    )
+    with pytest.raises(IntegrityError) as e:
+        db.flush()
+    assert "fk_stock_movements_transaction_item_id_transaction_items" in str(e.value)
+    db.rollback()

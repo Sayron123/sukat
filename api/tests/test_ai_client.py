@@ -227,3 +227,11 @@ def test_cost_centavos():
     )
     # (4.00 + 2.00 + 0.20) USD * 58 PHP * 100 = 35960 centavos
     assert cost_centavos(usage) == Decimal("35960.0000")
+
+
+def test_missing_unit_is_not_guessed_from_the_product():
+    # Audit H1: an empty unit stays empty (the review then asks staff for it).
+    result, _ = _read(_response([_line(unit="")]))
+    line = result.lines[0]
+    assert line.product_id == CEMENT.product_id and line.unit == ""
+    assert "If no unit is written, return an empty string" in _system_prompt()

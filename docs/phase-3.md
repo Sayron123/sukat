@@ -11,7 +11,7 @@ Phase 3 lets staff **take a photo of a delivery list**. The AI reads it, staff c
 | `scans` | One photo: its storage key, `type` (sale / stock_in), `status` (pending → read / failed → saved), what the AI read, which model. |
 | `transactions` | One saved event that changes stock (stock_in now; sale and adjustment later). Has `client_request_id`. |
 | `transaction_items` | The lines: product, qty and unit as written, `qty_base` (in the product's base unit), price, line total. |
-| `stock_movements` | Every stock change with `stock_after`: a history you can audit ("why is cement 13?"). |
+| `stock_movements` | Every stock change with `stock_after`: a history you can audit ("why is cement 13?"). Its link to the line is `(transaction_item_id, store_id)`, so it can never point at another store's line (migration `0005a`). |
 | `ai_usage` | Every AI call: model, tokens in/out, cost in centavos. |
 
 **Ideas**
@@ -59,8 +59,10 @@ Phase 3 lets staff **take a photo of a delivery list**. The AI reads it, staff c
 Each line gets `qty_base` (converted with Phase 2's `convert()`, e.g. 2 box nails = 50 kg) and is marked **check** when:
 - the AI's confidence is below 0.8,
 - there's no matching product (or it's a new one),
-- the quantity is unclear, or
-- the unit can't be converted for that product.
+- the quantity is unclear (`no_qty`),
+- **no unit was written** (`no_unit`) — the unit is never guessed from the product, because "2 pako 4" could mean 2 kg or 2 boxes. `qty_base` stays empty until staff enter the unit, and the line can't be saved without one,
+- the unit can't be converted for that product (`unknown_unit`), or
+- the quantity is too small for the base unit (`qty_too_small`).
 
 **Ideas**
 - **Sending the same photo again returns the same scan** — no second AI charge if the phone retries.
@@ -84,7 +86,7 @@ In **one** database transaction:
 - **Row locks prevent lost updates.** Without them, two saves at the same moment could both read 10, both add 5, and both write 15 (instead of 20).
 - **Locks are taken in id order**, so two saves can't wait on each other forever (deadlock).
 - **A repeat sent at the same moment** waits on the unique key and then gets the first save's answer.
-- **Alias learning** — if staff change a line to another product, the item's written name (like "pakong 4 pulgada") becomes an alias. Next time the AI and the search find it. The text comes from the stored scan, not from the phone, and an alias that belongs to another product is never taken.
+- **Alias learning** — if a **manager or secretary** changes a line to another product, the item's written name (like "pakong 4 pulgada") becomes an alias. Next time the AI and the search find it. The text comes from the stored scan, not from the phone, and an alias that belongs to another product is never taken. A **member's** save never creates aliases (aliases change how every later scan matches, like editing a product), but the stock-in still saves.
 - **Members can scan and save stock-in** for existing products. Only managers and secretaries can create products (same rule as Phase 2).
 
 ## Step 6 — Tests
@@ -95,7 +97,9 @@ In **one** database transaction:
 - **Concurrency** — 8 saves at the same moment add exactly 8, with `stock_after` 1, 2, …, 8.
 - **Tenant isolation** — Store A can't read or retry Store B's scan, scan B's photo, read B's transaction, add stock to B's product, or save B's scan. The AI only sees the store's own products.
 - **Member** can scan and save; can't create products.
-- **Alias learning**, including never taking another product's alias.
+- **Alias learning**, including never taking another product's alias, and members' saves teaching none.
+- **No unit written** — the line gets `no_unit`, no `qty_base`, and can't be saved until a unit is entered.
+- **Store-safe movement key** — the database refuses a stock movement that points to another store's line.
 
 Each key safety check was tested by removing it on purpose: the matching test fails without it.
 

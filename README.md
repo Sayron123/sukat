@@ -45,6 +45,8 @@ docker compose up -d
 ```powershell
 cd api
 copy .env.example .env
+# .env must keep APP_ENV=development. Without it the API acts as production and
+# refuses the public JWT_SECRET. Never use .env.example values on a server.
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host 0.0.0.0

@@ -107,7 +107,7 @@ export function ReviewLineCard({
           onPick={(p) => update({ product: p })}
           onAddNew={
             canCreate
-              ? (name) => update({ product: null, newProduct: { name, category: "Others", base_unit: line.unit || "pc" } })
+              ? (name) => update({ product: null, newProduct: { name, category: "Others", base_unit: line.unit } })
               : undefined
           }
         />

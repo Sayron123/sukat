@@ -55,7 +55,8 @@ def to_scan_line(raw: RawLine, refs: dict[str, CatalogEntry]) -> ScanLine:
     confidence so the line is flagged for checking instead of breaking the scan."""
     entry = refs.get((raw.product_ref or "").strip().upper())
     qty = raw.qty if raw.qty.is_finite() and raw.qty > 0 else None
-    unit = normalize_unit(raw.unit) or (entry.base_unit if entry else "")
+    # No unit written -> "". Never fill in the product's unit: the review asks staff for it.
+    unit = normalize_unit(raw.unit)
 
     price = _to_centavos(raw.unit_price)
     if price is None and qty and raw.line_total is not None:

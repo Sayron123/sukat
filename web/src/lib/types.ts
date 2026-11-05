@@ -84,6 +84,7 @@ export type CheckReason =
   | "new_product"
   | "no_product"
   | "no_qty"
+  | "no_unit"
   | "unknown_unit"
   | "qty_too_small";
 
