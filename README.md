@@ -2,7 +2,8 @@
 
 Sukat is a multi-tenant SaaS for Philippine hardware stores: products, inventory, sales, and insights in one app that works on phones (PWA).
 
-This repo is at **Phase 0**: project setup only. No auth, no tables yet.
+This repo is at **Phase 1**: stores, accounts, staff invites, and roles (manager, secretary, member).
+See `docs/phase-0.md` and `docs/phase-1.md` for what each part does and why.
 
 ## Folder structure
 
@@ -11,9 +12,10 @@ sukat/
 ├── api/                  # Backend: FastAPI + SQLAlchemy + Alembic (Python, uv)
 │   ├── app/
 │   │   ├── main.py       # FastAPI app entry point
-│   │   ├── core/         # config, db session, health route
-│   │   ├── auth/  stores/  products/  inventory/
-│   │   └── sales/  insights/  ai/      # feature folders (empty for now)
+│   │   ├── core/         # config, db session, base model, health route
+│   │   ├── auth/         # users, signup/login, JWT, role checks
+│   │   ├── stores/       # stores, staff, invites
+│   │   └── products/  inventory/  sales/  insights/  ai/   # empty for now
 │   ├── alembic/          # database migrations
 │   ├── tests/            # pytest tests
 │   ├── pyproject.toml    # Python deps
@@ -21,7 +23,7 @@ sukat/
 ├── web/                  # Frontend: Next.js 16 + TypeScript + Tailwind (PWA)
 │   ├── src/app/
 │   └── .env.example
-├── docs/phase-0.md       # What and why for each Phase 0 step
+├── docs/                 # What and why for each phase (phase-0.md, phase-1.md)
 └── docker-compose.yml    # PostgreSQL 16
 ```
 
@@ -41,6 +43,7 @@ docker compose up -d
 cd api
 copy .env.example .env
 uv sync
+uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host 0.0.0.0
 ```
 
@@ -55,13 +58,13 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. You should see **API connected**.
+Open http://localhost:3000. You should see **API connected**. Click **Create store** to sign up.
 
 ## Useful commands
 
 ```powershell
 cd api
-uv run pytest          # run tests
+uv run pytest          # run tests (needs the database running; uses a sukat_test DB)
 uv run ruff check .    # lint
 uv run alembic upgrade head   # apply migrations
 ```

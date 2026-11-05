@@ -5,7 +5,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
 
-engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+# connect_timeout: fail fast (seconds) instead of hanging when the DB host does not answer.
+# timezone=UTC: TIMESTAMPTZ values come back in UTC.
+engine = create_engine(
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args={"connect_timeout": 5, "options": "-c timezone=UTC"},
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
