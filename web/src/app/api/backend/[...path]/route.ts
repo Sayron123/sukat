@@ -12,10 +12,20 @@ import { API_URL, getToken } from "@/lib/server/backend";
  */
 const ALLOWED_PREFIXES = ["products", "catalog", "auth/me"];
 
+/**
+ * Only plain segments like "products" or a UUID. Next.js decodes %2F and %2E inside a
+ * segment, so without this "products/..%2F..%2Fstaff" would pass the prefix check and
+ * fetch() would then resolve the ".." and reach /staff.
+ */
+const SAFE_SEGMENT = /^[A-Za-z0-9_-]+$/;
+
 async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]">) {
   const { path } = await ctx.params;
   const joined = path.join("/");
-  if (!ALLOWED_PREFIXES.some((p) => joined === p || joined.startsWith(`${p}/`))) {
+  if (
+    !path.every((segment) => SAFE_SEGMENT.test(segment)) ||
+    !ALLOWED_PREFIXES.some((p) => joined === p || joined.startsWith(`${p}/`))
+  ) {
     return NextResponse.json({ detail: "Not found" }, { status: 404 });
   }
   // CSRF: writes must come from our own pages.

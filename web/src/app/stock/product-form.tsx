@@ -35,7 +35,8 @@ export function ProductForm({ product }: { product?: Product }) {
 
   function validate(): string | Record<string, unknown> {
     const priceCentavos = pesosToCentavos(price);
-    if (priceCentavos === undefined) return "Price must be a number like 250 or 1250.50";
+    if (priceCentavos === undefined)
+      return "Price must be a number like 250 or 1250.50 (up to ₱9,999,999.99)";
     const low = lowStock.trim();
     if (low && !QTY_PATTERN.test(low)) return "Low stock level must be a number (up to 3 decimals)";
     const rows = convs.filter((c) => c.from_unit.trim() || c.factor.trim());

@@ -218,3 +218,74 @@ def test_units_are_saved_in_canonical_spelling(api, manager):
         headers=manager,
     )
     assert clash.status_code == 422  # "piece" is the base unit "pc"
+
+
+# ---------- review fixes ----------
+
+
+def test_base_unit_cannot_change_while_there_is_stock(api, db, manager):
+    p = make_product(api, manager, name="Nails", base_unit="kg")
+    db.execute(update(Product).where(Product.id == p["id"]).values(stock_qty=50))
+    db.commit()
+    res = api.patch(f"/products/{p['id']}", json={"base_unit": "g"}, headers=manager)
+    assert res.status_code == 409
+    assert "50 kg" in res.json()["detail"]
+    assert api.get(f"/products/{p['id']}", headers=manager).json()["base_unit"] == "kg"
+
+
+def test_base_unit_change_must_restate_conversions(api, manager):
+    p = make_product(
+        api,
+        manager,
+        name="Nails",
+        base_unit="kg",
+        conversions=[{"from_unit": "box", "factor": "25"}],
+    )
+    assert (
+        api.patch(f"/products/{p['id']}", json={"base_unit": "g"}, headers=manager).status_code
+        == 422
+    )
+    ok = api.patch(
+        f"/products/{p['id']}",
+        json={"base_unit": "g", "conversions": [{"from_unit": "box", "factor": "25000"}]},
+        headers=manager,
+    )
+    assert ok.status_code == 200
+    assert ok.json()["conversions"] == [{"from_unit": "box", "factor": "25000.000000"}]
+
+
+def test_same_base_unit_in_patch_is_not_a_change(api, manager):
+    p = make_product(api, manager, conversions=[{"from_unit": "kg", "factor": "0.025"}])
+    res = api.patch(
+        f"/products/{p['id']}", json={"base_unit": "Bag", "name": "Cement"}, headers=manager
+    )
+    assert res.status_code == 200
+
+
+def test_huge_page_number_is_422_not_500(api, manager):
+    assert api.get("/products?page=10001", headers=manager).status_code == 422
+    assert api.get("/products?page=10000000000000000000", headers=manager).status_code == 422
+
+
+def test_price_limit(api, manager):
+    ok = make_product(api, manager, name="Big", price_centavos=999_999_999)
+    assert ok["price_centavos"] == 999_999_999
+    too_big = api.post(
+        "/products",
+        json={"name": "Bigger", "category": "Others", "base_unit": "pc", "price_centavos": 10**9},
+        headers=manager,
+    )
+    assert too_big.status_code == 422
+
+
+def test_archived_name_clash_says_archived(api, manager):
+    p = make_product(api, manager)
+    api.post(f"/products/{p['id']}/archive", headers=manager)
+    res = api.post(
+        "/products",
+        json={"name": "Portland Cement 40kg", "category": "Cement", "base_unit": "bag"},
+        headers=manager,
+    )
+    assert res.status_code == 409 and "archived" in res.json()["detail"]
+    imp = api.post("/products/import", json={"keys": ["portland-cement-40kg"]}, headers=manager)
+    assert imp.json()["skipped"][0]["reason"] == "archived in store"

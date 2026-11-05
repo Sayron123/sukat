@@ -84,12 +84,16 @@ def _ensure_unique(
     if exclude_id is not None:
         others.append(Product.id != exclude_id)
     if name is not None:
-        taken = db.scalar(
-            select(Product.name).where(*others, func.lower(Product.name) == name.lower())
-        )
+        taken = db.execute(
+            select(Product.name, Product.archived).where(
+                *others, func.lower(Product.name) == name.lower()
+            )
+        ).first()
         if taken:
+            # Archived products are hidden from the list, so say so or the 409 looks wrong.
+            hint = " (archived: unarchive it instead)" if taken.archived else ""
             raise HTTPException(
-                status.HTTP_409_CONFLICT, f'A product named "{taken}" already exists'
+                status.HTTP_409_CONFLICT, f'A product named "{taken.name}" already exists{hint}'
             )
     if aliases:
         row = db.execute(
@@ -149,7 +153,8 @@ def list_products(
     category: Category | None = None,
     low_stock: bool = False,
     include_archived: bool = False,
-    page: Annotated[int, Query(ge=1)] = 1,
+    # Upper bound keeps OFFSET inside Postgres' bigint range (huge values crashed with 500).
+    page: Annotated[int, Query(ge=1, le=10_000)] = 1,
 ) -> ProductPage:
     """List this store's products, 20 per page, sorted by name.
 
@@ -238,6 +243,21 @@ def update_product(
         body.aliases if "aliases" in fields else None,
         exclude_id=product.id,
     )
+    if "base_unit" in fields and body.base_unit != product.base_unit:
+        # stock_qty and every conversion factor are measured in the base unit, so changing
+        # it would silently re-interpret them (50 kg would become "50 g").
+        if product.stock_qty != 0:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Can't change the base unit while there is stock "
+                f"({product.stock_qty.normalize():f} {product.base_unit}). Bring stock to 0 first.",
+            )
+        if product.conversions and body.conversions is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "Changing the base unit changes what each conversion means. "
+                "Send the conversions again for the new base unit.",
+            )
     for field in ("name", "category", "base_unit", "price_centavos", "low_stock_level"):
         if field in fields:
             setattr(product, field, getattr(body, field))
@@ -316,14 +336,21 @@ def import_catalog_items(body: ImportIn, current: Writer, db: DbSession) -> Impo
         )
 
     sid = current.store_id
-    names = set(db.scalars(select(func.lower(Product.name)).where(Product.store_id == sid)).all())
+    archived_by_name = dict(
+        db.execute(
+            select(func.lower(Product.name), Product.archived).where(Product.store_id == sid)
+        ).all()
+    )
+    names = set(archived_by_name)
     used_aliases = set(db.scalars(select(ProductAlias.alias).where(ProductAlias.store_id == sid)))
 
     created, skipped, dropped = 0, [], []
     for key in dict.fromkeys(body.keys):  # de-duplicate, keep order
         item = by_key[key]
         if item.name.lower() in names:
-            skipped.append(SkippedItem(key=key, name=item.name, reason="already in store"))
+            archived = archived_by_name.get(item.name.lower())
+            reason = "archived in store" if archived else "already in store"
+            skipped.append(SkippedItem(key=key, name=item.name, reason=reason))
             continue
         product = Product(
             store_id=sid, name=item.name, category=item.category, base_unit=item.base_unit

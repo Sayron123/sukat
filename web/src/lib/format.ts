@@ -18,7 +18,8 @@ export function formatQty(qty: string): string {
 export function pesosToCentavos(input: string): number | null | undefined {
   const text = input.replace(/[,\s₱]/g, "");
   if (text === "") return null;
-  const m = /^(\d{1,8})(?:\.(\d{1,2}))?$/.exec(text);
+  // Up to ₱9,999,999.99, the API's limit.
+  const m = /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(text);
   if (!m) return undefined;
   return Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
 }

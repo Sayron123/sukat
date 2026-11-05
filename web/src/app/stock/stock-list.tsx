@@ -81,6 +81,7 @@ export function StockList() {
           setQuery(e.target.value);
           setPage(1);
         }}
+        maxLength={80}
         placeholder="Search name or alias (e.g. sem, bakal 10mm)"
         aria-label="Search products"
         className="h-11 rounded-button border border-border bg-background px-3 text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"

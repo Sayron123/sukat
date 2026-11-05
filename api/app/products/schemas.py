@@ -29,8 +29,8 @@ Name = Annotated[
 # Units are stored in one spelling ("Kilos" -> "kg") so conversions always match.
 Unit = Annotated[str, Field(max_length=20), AfterValidator(lambda v: _not_blank(normalize_unit(v)))]
 Alias = Annotated[str, Field(max_length=80), AfterValidator(lambda v: _not_blank(_clean(v)))]
-# int4 column: keep well under 2,147,483,647 centavos (₱21.4M per unit).
-PriceCentavos = Annotated[int, Field(ge=0, le=2_000_000_000)]
+# Max ₱9,999,999.99 per unit; fits the int4 column (2,147,483,647) with room to spare.
+PriceCentavos = Annotated[int, Field(ge=0, le=999_999_999)]
 Qty = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)]
 Factor = Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=6)]
 
