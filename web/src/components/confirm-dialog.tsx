@@ -45,7 +45,7 @@ export function ConfirmDialog({
       }}
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-card border border-border bg-background p-6 text-text backdrop:bg-text/40"
     >
-      <h2 id="confirm-title" className="text-lg font-semibold">
+      <h2 id="confirm-title" className="text-lg font-bold">
         {title}
       </h2>
       <div className="mt-2 text-sm text-muted">{children}</div>

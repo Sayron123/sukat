@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Stock · Sukat" };
 
 export default function StockPage() {
   return (
-    <AppPage active="stock">
+    <AppPage tab="stock">
       <StockList />
     </AppPage>
   );

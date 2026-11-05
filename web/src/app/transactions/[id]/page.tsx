@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { AppPage } from "@/components/app-page";
+import { Loading } from "@/components/ui";
 
 import { TransactionDetail } from "./transaction-detail";
 
@@ -9,8 +10,8 @@ export const metadata: Metadata = { title: "Transaction · Sukat" };
 
 export default function TransactionPage({ params }: PageProps<"/transactions/[id]">) {
   return (
-    <AppPage active="history">
-      <Suspense fallback={<p className="text-muted">Loading…</p>}>
+    <AppPage>
+      <Suspense fallback={<Loading />}>
         <Detail params={params} />
       </Suspense>
     </AppPage>
