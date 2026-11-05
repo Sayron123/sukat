@@ -24,21 +24,25 @@ def email_key(email: str) -> str:
     return f"email:{email.lower()}"
 
 
-def ip_key(request: Request) -> str | None:
+def client_ip(request: Request) -> str | None:
     """Client IP as seen by the API (uvicorn rewrites it from X-Forwarded-For for trusted
-    proxies). None when unknown, so we never lump all unknown callers into one bucket."""
-    host = request.client.host if request.client else None
-    return f"ip:{host}" if host else None
+    proxies). None when unknown. Used by routers; services take the plain IP string."""
+    return request.client.host if request.client else None
 
 
-def limits_for(email: str | None, request: Request) -> list[tuple[str, int]]:
+def ip_key(ip: str | None) -> str | None:
+    """None when the IP is unknown, so we never lump all unknown callers into one bucket."""
+    return f"ip:{ip}" if ip else None
+
+
+def limits_for(email: str | None, ip: str | None) -> list[tuple[str, int]]:
     """The (key, max_failures) pairs that apply to this attempt."""
     pairs: list[tuple[str, int]] = []
     if email:
         pairs.append((email_key(email), settings.AUTH_MAX_FAILURES_PER_EMAIL))
-    ip = ip_key(request)
-    if ip:
-        pairs.append((ip, settings.AUTH_MAX_FAILURES_PER_IP))
+    key = ip_key(ip)
+    if key:
+        pairs.append((key, settings.AUTH_MAX_FAILURES_PER_IP))
     return pairs
 
 
