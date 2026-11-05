@@ -213,6 +213,9 @@ def save_transaction(db: Session, current: CurrentMember, body: TransactionIn) -
 
     total = 0
     learned: set[str] = set()
+    # Aliases change how every later scan and search matches, like editing a product, so
+    # only managers and secretaries teach them. A member's save still goes through.
+    can_learn = current.role in WRITER_ROLES
     for no, (line, pid) in enumerate(zip(body.lines, product_ids, strict=True), start=1):
         product = locked.get(pid)
         if product is None:
@@ -264,7 +267,7 @@ def save_transaction(db: Session, current: CurrentMember, body: TransactionIn) -
             )
         )
 
-        if line.scan_line is not None and 0 <= line.scan_line < len(scan_lines):
+        if can_learn and line.scan_line is not None and 0 <= line.scan_line < len(scan_lines):
             _learn_alias(db, sid, product, scan_lines[line.scan_line], learned)
 
     if is_sale and not body.confirm:

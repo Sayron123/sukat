@@ -12,6 +12,8 @@ Phase 4 adds **sales**: take a photo of a receipt, check it, save it, and stock 
 **Rules for a sale line**
 - **Existing products only.** If the AI suggests a new product anyway, the suggestion is dropped before saving the scan. A line with no match is marked **Check** ("No matching product").
 - **No price written?** It uses the product's price **for that unit**. Nails at ₱85/kg with 1 box = 25 kg → 1 box = ₱2,125.
+- **No unit written?** Nothing is guessed: the line is marked **Check** ("No unit written") with no price and no total until staff enter the unit. "2 pako 4" could be 2 kg (₱170) or 2 boxes (₱4,250).
+- **Alias learning** works as in stock in, but only for managers and secretaries. A member's sale still saves.
 - **A written price that differs** from the product's price gets the **"price differs"** warning, with the usual price shown. It's a warning, not a "Check": stores often give discounts.
 - Stock-in prices are supplier costs, so they are never filled in or compared.
 
@@ -100,3 +102,10 @@ Found and fixed earlier in this phase (by tests):
 - Small-unit totals were rounded twice.
 
 **Known limit:** voiding a scanned sale leaves its scan marked "saved", so the same photo can't be saved again. To redo a voided sale, take a new photo.
+
+## Update — brought up to date with main
+
+Phase 4 was updated with the audit fixes already in `main` (H1, H2, M1, M3):
+- Both prompts (`read_stock_in.md`, `read_sale.md`) return an empty unit when none is written; `pricing.py` no longer falls back to the base unit.
+- Members' saves (stock in and sales) never create aliases.
+- Phase 4's `0005` (void) and main's `0005a` (store-safe line key) both came right after `0004`. They change different things, so neither was renamed: an empty merge migration `0006` joins them. A database at `0004`, `0005` or `0005a` upgrades with `uv run alembic upgrade head`.

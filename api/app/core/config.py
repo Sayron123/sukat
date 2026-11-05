@@ -12,8 +12,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # "development" or "production". Production refuses to start with unsafe defaults.
-    APP_ENV: str = "development"
+    # Defaults to "production" so a server with no APP_ENV is safe. Only the exact value
+    # "development" allows the public dev JWT_SECRET (a typo like "prod" still gets checked).
+    APP_ENV: str = "production"
 
     DATABASE_URL: str = "postgresql+psycopg://sukat:sukat@localhost:5432/sukat"
     # Comma-separated list of allowed origins, e.g. "http://localhost:3000,http://127.0.0.1:3000"
@@ -68,10 +69,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":
-        if self.APP_ENV == "production" and (
+        if self.APP_ENV != "development" and (
             self.JWT_SECRET == DEV_JWT_SECRET or len(self.JWT_SECRET) < 32
         ):
-            raise ValueError("Set JWT_SECRET to a random value of at least 32 characters.")
+            raise ValueError(
+                "Set JWT_SECRET to a random value of at least 32 characters "
+                "(or APP_ENV=development on your own PC)."
+            )
         if self.STORAGE_BACKEND == "r2" and not all(
             (self.R2_ACCOUNT_ID, self.R2_ACCESS_KEY_ID, self.R2_SECRET_ACCESS_KEY, self.R2_BUCKET)
         ):

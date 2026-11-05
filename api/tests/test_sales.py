@@ -211,6 +211,36 @@ def test_sale_from_scan_learns_alias_and_marks_scan_saved(api, db, manager, stor
     assert db.scalar(select(Scan.status).where(Scan.id == scan["id"])) == "saved"
 
 
+def test_member_sale_from_scan_learns_no_alias(api, db, manager, storage, reader, nails):
+    # Audit M1 (Phase 4 part): only managers and secretaries teach aliases.
+    invite = api.post(
+        "/staff/invites", json={"email": "m@example.com", "role": "member"}, headers=manager
+    ).json()
+    member = auth_header(
+        api.post(
+            "/staff/invites/accept",
+            json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+        ).json()["access_token"]
+    )
+    scan = _scan(
+        api,
+        member,
+        storage,
+        reader,
+        [scan_line(None, raw_text="2 kg pakong bakal 4", qty=Decimal("2"), unit="kg")],
+        "sale",
+    )
+    res = _txn(
+        api,
+        member,
+        "sale",
+        [{"product_id": nails["id"], "qty": "2", "unit": "kg", "scan_line": 0}],
+        scan_id=scan["id"],
+    )
+    assert res.status_code == 201, res.text  # the sale still saves
+    assert db.scalar(select(ProductAlias).where(ProductAlias.alias == "pakong bakal 4")) is None
+
+
 # ---------- tenant isolation ----------
 
 

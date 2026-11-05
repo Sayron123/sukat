@@ -191,9 +191,12 @@ def review_line(line: ScanLine, products: dict[UUID, Product], scan_type: str) -
         reasons.append("new_product" if suggested else "no_product")
     if line.qty is None:
         reasons.append("no_qty")
-    if product is not None and line.qty is not None:
+    if not line.unit:
+        # Never guess the unit (1 box of nails is not 1 kg): staff must enter it.
+        reasons.append("no_unit")
+    if product is not None and line.qty is not None and line.unit:
         try:
-            qty_base = quantize_qty(convert(product, line.qty, line.unit or product.base_unit))
+            qty_base = quantize_qty(convert(product, line.qty, line.unit))
             if qty_base <= 0:
                 reasons.append("qty_too_small")
                 qty_base = None

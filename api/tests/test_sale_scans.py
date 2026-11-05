@@ -1,5 +1,6 @@
 """Sale scans: existing products only, default prices, and 'price differs'."""
 
+import uuid
 from decimal import Decimal
 
 from app.products.pricing import price_per_unit
@@ -144,3 +145,27 @@ def test_review_total_for_small_units_is_not_rounded_twice(api, manager, storage
     )["lines"][0]
     assert line["unit_price_centavos"] == 9  # 8.5 centavos per gram, shown rounded
     assert line["line_total_centavos"] == 4250  # but the total is exact: ₱42.50
+
+
+def test_sale_line_without_unit_gets_no_default_price(api, manager, storage, reader):
+    # Audit H1 (Phase 4 part): "2 pako 4" could be 2 kg (₱170) or 2 boxes (₱4,250).
+    # With no unit written, nothing is guessed: no qty_base, no price, no total.
+    nails = _nails(api, manager)
+    scan = _scan(
+        api, manager, storage, reader, [scan_line(nails["id"], raw_text="2 pako 4", unit="")]
+    )
+    line = scan["lines"][0]
+    assert line["unit"] == "" and line["needs_check"] and "no_unit" in line["check_reasons"]
+    assert line["qty_base"] is None
+    assert line["unit_price_centavos"] is None and line["price_source"] is None
+    assert line["line_total_centavos"] is None and line["expected_unit_price_centavos"] is None
+
+
+def test_price_per_unit_never_guesses_an_empty_unit(api, manager, db):
+    from app.products.models import Product
+    from app.products.pricing import priced_line
+
+    nails = db.get(Product, uuid.UUID(_nails(api, manager)["id"]))
+    assert price_per_unit(nails, 8500, "") is None
+    assert priced_line(nails, 8500, Decimal("2"), "") == (None, None)
+    assert price_per_unit(nails, 8500, "box") == 212500

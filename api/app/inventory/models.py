@@ -123,6 +123,7 @@ class Transaction(Base):
 class TransactionItem(Base):
     __tablename__ = "transaction_items"
     __table_args__ = (
+        UniqueConstraint("id", "store_id"),  # target of stock_movements' composite FK
         UniqueConstraint("transaction_id", "line_no"),
         ForeignKeyConstraint(
             ["transaction_id", "store_id"],
@@ -163,6 +164,12 @@ class StockMovement(Base):
         ForeignKeyConstraint(
             ["transaction_id", "store_id"], ["transactions.id", "transactions.store_id"]
         ),
+        # Composite, so a movement can never point at another store's line.
+        ForeignKeyConstraint(
+            ["transaction_item_id", "store_id"],
+            ["transaction_items.id", "transaction_items.store_id"],
+            ondelete="CASCADE",
+        ),
         CheckConstraint("qty_change <> 0", name="qty_change_not_zero"),
         UniqueConstraint("transaction_item_id", "is_reversal"),
         Index("ix_stock_movements_product_id_created_at", "product_id", "created_at"),
@@ -175,9 +182,8 @@ class StockMovement(Base):
     product_id: Mapped[UUID] = mapped_column(nullable=False)
     transaction_id: Mapped[UUID] = mapped_column(nullable=False, index=True)
     # The line that caused this movement (NULL for future whole-transaction adjustments).
-    transaction_item_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("transaction_items.id", ondelete="CASCADE"), nullable=True
-    )
+    # Points to its line by (transaction_item_id, store_id): see the composite FK above.
+    transaction_item_id: Mapped[UUID | None] = mapped_column(nullable=True)
     # True for the movement that undoes a line when its transaction is voided. With the
     # unique (transaction_item_id, is_reversal) below, a line can be undone at most once.
     is_reversal: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())

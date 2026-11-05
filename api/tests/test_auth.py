@@ -118,3 +118,25 @@ def test_production_refuses_default_jwt_secret():
     with pytest.raises(ValidationError):
         Settings(APP_ENV="production", _env_file=None)
     Settings(APP_ENV="production", JWT_SECRET="x" * 40, _env_file=None)  # ok
+
+
+def test_missing_or_mistyped_app_env_refuses_public_jwt_secret(monkeypatch):
+    # Audit H2: fail closed. Only the exact value "development" allows the public secret.
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # no APP_ENV -> production
+    for typo in ("prod", "Production", "development ", "dev"):
+        monkeypatch.setenv("APP_ENV", typo)
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None)
+    monkeypatch.setenv("APP_ENV", "prod")
+    with pytest.raises(ValidationError):
+        Settings(JWT_SECRET="too-short", _env_file=None)
+    Settings(JWT_SECRET="x" * 40, _env_file=None)  # ok: private secret
+    monkeypatch.setenv("APP_ENV", "development")
+    Settings(_env_file=None)  # ok on a developer's PC

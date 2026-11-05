@@ -5,19 +5,24 @@ The database is created if missing, migrated with Alembic, and wiped between tes
 """
 
 import os
-from collections.abc import Callable, Generator
-from typing import Any
 
-import pytest
-from alembic.config import Config
-from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, make_url, text
-from sqlalchemy.orm import Session, sessionmaker
+# Settings default to production, which refuses the public dev JWT secret. Tests run as
+# development, so they work without a .env file. Must be set before `app` is imported.
+os.environ["APP_ENV"] = "development"
 
-from alembic import command
-from app.core.db import get_db
-from app.core.storage import LocalStorage, get_storage
-from app.main import app
+from collections.abc import Callable, Generator  # noqa: E402
+from typing import Any  # noqa: E402
+
+import pytest  # noqa: E402
+from alembic.config import Config  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import Engine, create_engine, make_url, text  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+
+from alembic import command  # noqa: E402
+from app.core.db import get_db  # noqa: E402
+from app.core.storage import LocalStorage, get_storage  # noqa: E402
+from app.main import app  # noqa: E402
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://sukat:sukat@localhost:5432/sukat_test"

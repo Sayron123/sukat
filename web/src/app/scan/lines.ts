@@ -44,7 +44,7 @@ export function toEditLine(line: ReviewLine, index: number): EditLine {
           }
         : null,
     newProduct: line.is_new
-      ? { name: line.suggested_new_name ?? "", category: "Others", base_unit: line.unit || "pc" }
+      ? { name: line.suggested_new_name ?? "", category: "Others", base_unit: line.unit }
       : null,
     // formatQty only trims zeros after a decimal point ("10.000" -> "10", "10" stays "10").
     qty: line.qty === null ? "" : formatQty(line.qty),
@@ -114,6 +114,7 @@ export const REASON_TEXT: Record<CheckReason, string> = {
   new_product: "Not in your products",
   no_product: "No matching product",
   no_qty: "Quantity unclear",
+  no_unit: "No unit written",
   unknown_unit: "Unit not known for this product",
   qty_too_small: "Quantity too small",
 };

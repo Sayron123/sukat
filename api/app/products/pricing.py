@@ -18,12 +18,13 @@ def price_per_unit(
     Rounded half up to the centavo.
 
     @param price_centavos the product's price per base unit (None = not priced)
-    @returns None when the product has no price or the unit can't be converted
+    @returns None when the product has no price, the unit is empty (never guessed), or
+        the unit can't be converted
     """
-    if price_centavos is None:
+    if price_centavos is None or not unit:
         return None
     try:
-        base_qty = convert(product, Decimal(1), unit or product.base_unit)
+        base_qty = convert(product, Decimal(1), unit)
     except UnitConversionError:
         return None
     return int((base_qty * price_centavos).quantize(Decimal(1), rounding=ROUND_HALF_UP))
@@ -38,11 +39,12 @@ def priced_line(
     Multiplying the already-rounded unit price would exaggerate rounding for small
     units: 500 g of ₱85.00/kg nails is ₱42.50, but 500 x round(8.5) centavos = ₱45.00.
 
-    @returns (None, None) when the product has no price or the unit can't be converted
+    @returns (None, None) when the product has no price, the unit is empty, or the unit
+        can't be converted
     """
     unit_price = price_per_unit(product, price_centavos, unit)
     if unit_price is None or price_centavos is None:
         return None, None
-    base_qty = convert(product, qty, unit or product.base_unit)
+    base_qty = convert(product, qty, unit)
     total = int((base_qty * price_centavos).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     return unit_price, total

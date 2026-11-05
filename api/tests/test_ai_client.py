@@ -235,3 +235,12 @@ def test_sale_scans_use_the_sale_prompt():
     req = client.calls[0]
     assert req["system"][0]["text"] == system_prompt("sale") != system_prompt("stock_in")
     assert "customer sale" in req["messages"][0]["content"][1]["text"]
+
+
+def test_missing_unit_is_not_guessed_from_the_product():
+    # Audit H1: an empty unit stays empty (the review then asks staff for it).
+    result, _ = _read(_response([_line(unit="")]))
+    line = result.lines[0]
+    assert line.product_id == CEMENT.product_id and line.unit == ""
+    for scan_type in ("stock_in", "sale"):
+        assert "If no unit is written, return an empty string" in system_prompt(scan_type)

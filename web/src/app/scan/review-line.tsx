@@ -101,7 +101,7 @@ export function ReviewLineCard({
                           newProduct: {
                             name,
                             category: "Others",
-                            base_unit: line.unit || "pc",
+                            base_unit: line.unit,
                           },
                         })
                     : undefined

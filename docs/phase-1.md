@@ -49,7 +49,7 @@ Phase 1 adds accounts, stores, staff, and roles. Every request knows **who** is 
 - **store_id comes from the token, never from the request body.** Every query uses `current.store_id`. A user can't send `"store_id": "<other store>"` to reach another store.
 - **Membership is re-checked on every request.** A deactivated staff member's old token stops working right away.
 - **Same error for wrong password and unknown email**, so attackers can't use login to find out which emails have accounts.
-- **Production guard** — with `APP_ENV=production`, the API refuses to start using the default `JWT_SECRET`.
+- **Production guard (fails closed)** — `APP_ENV` defaults to `production`. Unless `APP_ENV` is exactly `development`, the API refuses to start with the public default `JWT_SECRET` or one shorter than 32 characters. A server with no `APP_ENV`, or a typo like `prod`, is therefore still protected. Your own PC uses `APP_ENV=development` from `.env.example`; tests set it themselves.
 
 ## Step 3 — Role checks
 
