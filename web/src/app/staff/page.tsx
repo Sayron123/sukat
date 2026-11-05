@@ -31,10 +31,17 @@ async function StaffContent() {
   const token = await getToken();
   if (!token) redirect("/login");
 
-  const [meRes, staffRes] = await Promise.all([
-    backendFetch("/auth/me", { token }),
-    backendFetch("/staff", { token }),
-  ]);
+  let meRes: Response;
+  let staffRes: Response;
+  try {
+    [meRes, staffRes] = await Promise.all([
+      backendFetch("/auth/me", { token }),
+      backendFetch("/staff", { token }),
+    ]);
+  } catch {
+    // fetch() throws (instead of returning a status) when the API cannot be reached.
+    return <ApiDown />;
+  }
   // Expired, invalid, or deactivated: the cookie is no longer useful.
   if (meRes.status === 401) redirect("/login");
   if (!meRes.ok) throw new Error("Could not load your account");
@@ -65,6 +72,17 @@ async function StaffContent() {
         )}
       </Card>
     </div>
+  );
+}
+
+function ApiDown() {
+  return (
+    <Card>
+      <h1 className="text-lg font-semibold text-text">API not reachable</h1>
+      <p className="mt-1 text-sm text-muted">
+        The Sukat server is not responding. Check that it is running, then reload this page.
+      </p>
+    </Card>
   );
 }
 

@@ -4,10 +4,37 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { SESSION_COOKIE, backendFetch, errorMessage } from "./backend";
 
-/** Reject cross-site form posts: the request must come from this site's own pages. */
+/**
+ * CSRF check: reject POSTs sent by other websites.
+ *
+ * Compares only the HOST of the browser's Origin header with the host this request was
+ * sent to (x-forwarded-host when behind a proxy, else host). This is the same check
+ * Next.js uses for Server Actions. Comparing the full origin would break behind an HTTPS
+ * proxy, where the browser says "https://" but this server sees "http://".
+ *
+ * @returns true when there is no Origin header (non-browser clients, which cannot carry
+ *   the victim's cookies anyway) or when the hosts match.
+ */
 export function isSameOrigin(req: NextRequest): boolean {
   const origin = req.headers.get("origin");
-  return origin === null || origin === req.nextUrl.origin;
+  if (origin === null) return true;
+  const requestHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (!requestHost) return false;
+  try {
+    return new URL(origin).host === requestHost.split(",")[0].trim();
+  } catch {
+    return false; // "null" or a malformed Origin
+  }
+}
+
+/**
+ * The caller's IP chain, passed on so the API can rate-limit per IP. Only trustworthy
+ * when a proxy in front of Next.js sets X-Forwarded-For (most hosts do); the API also
+ * limits per email, which cannot be faked.
+ */
+function forwardedFor(req: NextRequest): Record<string, string> {
+  const xff = req.headers.get("x-forwarded-for");
+  return xff ? { "X-Forwarded-For": xff } : {};
 }
 
 /**
@@ -28,7 +55,11 @@ export async function forwardAuth(req: NextRequest, apiPath: string): Promise<Ne
 
   let res: Response;
   try {
-    res = await backendFetch(apiPath, { method: "POST", body: JSON.stringify(body) });
+    res = await backendFetch(apiPath, {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: forwardedFor(req),
+    });
   } catch {
     return NextResponse.json({ error: "API not reachable" }, { status: 502 });
   }
