@@ -21,7 +21,16 @@ from app.main import app
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://sukat:sukat@localhost:5432/sukat_test"
 )
-TABLES = ["auth_failures", "invites", "store_members", "users", "stores"]
+TABLES = [
+    "unit_conversions",
+    "product_aliases",
+    "products",
+    "auth_failures",
+    "invites",
+    "store_members",
+    "users",
+    "stores",
+]
 
 
 def _create_database_if_missing(url: str) -> None:
@@ -103,3 +112,17 @@ def signup(api: TestClient) -> Callable[..., dict[str, Any]]:
         return {**res.json(), "email": email, "password": password}
 
     return _signup
+
+
+@pytest.fixture
+def manager(signup) -> dict[str, str]:
+    """Auth header for a fresh store's manager."""
+    return auth_header(signup()["access_token"])
+
+
+def make_product(api: TestClient, headers: dict[str, str], **overrides: Any) -> dict[str, Any]:
+    body = {"name": "Portland Cement 40kg", "category": "Cement", "base_unit": "bag"}
+    body.update(overrides)
+    res = api.post("/products", json=body, headers=headers)
+    assert res.status_code == 201, res.text
+    return res.json()
