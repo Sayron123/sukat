@@ -114,10 +114,15 @@ class ReviewLineOut(BaseModel):
     unit: str
     qty_base: Decimal | None
     unit_price_centavos: int | None
+    # "receipt" = written on the photo, "product" = filled in from the product's price.
+    price_source: Literal["receipt", "product"] | None
+    # Sales only: the product's price for this unit, to compare with a written price.
+    expected_unit_price_centavos: int | None
     line_total_centavos: int | None
     confidence: float
     needs_check: bool
-    check_reasons: list[str]
+    check_reasons: list[str]  # must be looked at (amber "Check")
+    warnings: list[str]  # worth a look, e.g. "price_differs"
 
 
 class ScanOut(BaseModel):

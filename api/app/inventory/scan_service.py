@@ -20,6 +20,7 @@ from app.core.storage import Storage
 from app.inventory.models import Scan
 from app.inventory.schemas import ReviewLineOut, ScanOut
 from app.products.models import Product
+from app.products.pricing import price_per_unit
 from app.products.units import UnitConversionError, convert
 
 CONFIDENCE_THRESHOLD = 0.8
@@ -126,8 +127,12 @@ def run_read(db: Session, scan: Scan, storage: Storage, reader: VisionReader) ->
         scan.model = result.usage.model
         # Store lines already mapped to product ids: the AI's short refs (P1, P2...) only
         # mean something for the product list at the moment of reading.
+        lines = result.lines
+        if scan.type == "sale":
+            # A sale can only be of existing products, whatever the AI suggested.
+            lines = [line.model_copy(update={"suggested_new_name": None}) for line in lines]
         scan.ai_result_json = {
-            "lines": [line.model_dump(mode="json") for line in result.lines],
+            "lines": [line.model_dump(mode="json") for line in lines],
             "raw": result.raw,
         }
     db.commit()
@@ -165,17 +170,25 @@ def line_total(qty: Decimal | None, unit_price_centavos: int | None) -> int | No
     return int((qty * unit_price_centavos).quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
-def review_line(line: ScanLine, products: dict[UUID, Product]) -> dict:
-    """Add what the review screen needs: product details, qty in base unit, and why the
-    line needs checking (empty list = looks fine)."""
+def review_line(line: ScanLine, products: dict[UUID, Product], scan_type: str) -> dict:
+    """Add what the review screen needs: product details, qty in base unit, the price to
+    use, why the line needs checking (`check_reasons`), and softer `warnings`.
+
+    For a sale: no new products; a missing price defaults to the product's price for
+    that unit; a written price that differs from it gets the "price_differs" warning.
+    For stock in, prices are supplier costs and are never compared or defaulted.
+    """
     product = products.get(line.product_id) if line.product_id else None
+    is_sale = scan_type == "sale"
+    suggested = None if (product or is_sale) else line.suggested_new_name
     reasons: list[str] = []
+    warnings: list[str] = []
     qty_base: Decimal | None = None
 
     if line.confidence < CONFIDENCE_THRESHOLD:
         reasons.append("low_confidence")
     if product is None:
-        reasons.append("new_product" if line.suggested_new_name else "no_product")
+        reasons.append("new_product" if suggested else "no_product")
     if line.qty is None:
         reasons.append("no_qty")
     if product is not None and line.qty is not None:
@@ -187,21 +200,34 @@ def review_line(line: ScanLine, products: dict[UUID, Product]) -> dict:
         except UnitConversionError:
             reasons.append("unknown_unit")
 
+    unit_price = line.unit_price_centavos
+    price_source = "receipt" if unit_price is not None else None
+    expected = None
+    if is_sale and product is not None:
+        expected = price_per_unit(product, product.price_centavos, line.unit)
+        if unit_price is None and expected is not None:
+            unit_price, price_source = expected, "product"
+        elif unit_price is not None and expected is not None and unit_price != expected:
+            warnings.append("price_differs")
+
     return {
         "raw_text": line.raw_text,
         "product_id": product.id if product else None,
         "product_name": product.name if product else None,
         "base_unit": product.base_unit if product else None,
-        "suggested_new_name": None if product else line.suggested_new_name,
-        "is_new": product is None and bool(line.suggested_new_name),
+        "suggested_new_name": suggested,
+        "is_new": bool(suggested),
         "qty": line.qty,
         "unit": line.unit,
         "qty_base": qty_base,
-        "unit_price_centavos": line.unit_price_centavos,
-        "line_total_centavos": line_total(line.qty, line.unit_price_centavos),
+        "unit_price_centavos": unit_price,
+        "price_source": price_source,
+        "expected_unit_price_centavos": expected,
+        "line_total_centavos": line_total(line.qty, unit_price),
         "confidence": line.confidence,
         "needs_check": bool(reasons),
         "check_reasons": reasons,
+        "warnings": warnings,
     }
 
 
@@ -226,7 +252,7 @@ def review_lines(db: Session, scan: Scan) -> list[dict]:
         if ids
         else {}
     )
-    return [review_line(line, products) for line in lines]
+    return [review_line(line, products, scan.type) for line in lines]
 
 
 # ---------- scan lifecycle (used by the router) ----------

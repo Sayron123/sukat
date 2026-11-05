@@ -10,7 +10,7 @@ import anthropic
 import httpx2
 import pytest
 
-from app.ai.anthropic_reader import AnthropicVisionReader, _system_prompt
+from app.ai.anthropic_reader import AnthropicVisionReader, system_prompt
 from app.ai.convert import catalog_refs, catalog_text
 from app.ai.errors import AIReadError
 from app.ai.pricing import cost_centavos
@@ -93,7 +93,7 @@ def test_request_shape():
     assert req["output_config"]["effort"] == settings.AI_EFFORT
     assert req["fallbacks"] == "default" and req["betas"] == ["server-side-fallback-2026-07-01"]
     prompt, products = req["system"]
-    assert prompt["text"] == _system_prompt() and "cache_control" not in prompt
+    assert prompt["text"] == system_prompt("stock_in") and "cache_control" not in prompt
     assert products["cache_control"] == {"type": "ephemeral"}  # product list is cached
     assert (
         "P2 | Portland Cement 40kg | unit: bag | also: sem, semento | 1 kg = 0.025 bag"
@@ -227,3 +227,11 @@ def test_cost_centavos():
     )
     # (4.00 + 2.00 + 0.20) USD * 58 PHP * 100 = 35960 centavos
     assert cost_centavos(usage) == Decimal("35960.0000")
+
+
+def test_sale_scans_use_the_sale_prompt():
+    client = FakeClient(_response([_line()]))
+    AnthropicVisionReader(client).read_list(b"\xff\xd8img", "image/jpeg", CATALOG, "sale")
+    req = client.calls[0]
+    assert req["system"][0]["text"] == system_prompt("sale") != system_prompt("stock_in")
+    assert "customer sale" in req["messages"][0]["content"][1]["text"]
