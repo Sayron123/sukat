@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from app.products.constants import CATEGORIES
+from app.products.units import normalize_unit
 
 Category = Literal[CATEGORIES]  # type: ignore[valid-type]
 
@@ -25,7 +26,8 @@ def _not_blank(value: str) -> str:
 Name = Annotated[
     str, Field(max_length=160), AfterValidator(lambda v: _not_blank(re.sub(r"\s+", " ", v).strip()))
 ]
-Unit = Annotated[str, Field(max_length=20), AfterValidator(lambda v: _not_blank(_clean(v)))]
+# Units are stored in one spelling ("Kilos" -> "kg") so conversions always match.
+Unit = Annotated[str, Field(max_length=20), AfterValidator(lambda v: _not_blank(normalize_unit(v)))]
 Alias = Annotated[str, Field(max_length=80), AfterValidator(lambda v: _not_blank(_clean(v)))]
 # int4 column: keep well under 2,147,483,647 centavos (₱21.4M per unit).
 PriceCentavos = Annotated[int, Field(ge=0, le=2_000_000_000)]

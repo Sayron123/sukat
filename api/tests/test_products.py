@@ -195,3 +195,26 @@ def test_import_everything(api, manager):
     assert res.status_code == 200, res.text
     assert res.json()["created"] == len(keys)
     assert res.json()["dropped_aliases"] == []
+
+
+def test_units_are_saved_in_canonical_spelling(api, manager):
+    p = make_product(
+        api,
+        manager,
+        name="Nails",
+        base_unit="Kilos",
+        conversions=[{"from_unit": "Kahon", "factor": "25"}],
+    )
+    assert p["base_unit"] == "kg"
+    assert p["conversions"][0]["from_unit"] == "box"
+    clash = api.post(
+        "/products",
+        json={
+            "name": "Y",
+            "category": "Others",
+            "base_unit": "pcs",
+            "conversions": [{"from_unit": "piece", "factor": "2"}],
+        },
+        headers=manager,
+    )
+    assert clash.status_code == 422  # "piece" is the base unit "pc"

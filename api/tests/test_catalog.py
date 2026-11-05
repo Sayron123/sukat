@@ -45,3 +45,12 @@ def test_no_prices_in_catalog():
 def test_examples_from_the_spec_are_present():
     aliases = {a for i in load_catalog().items for a in i.aliases}
     assert {"sem", "bakal 10mm", "plywood 1/2"} <= aliases
+
+
+def test_units_are_already_in_canonical_spelling():
+    from app.products.units import normalize_unit
+
+    for item in load_catalog().items:
+        assert normalize_unit(item.base_unit) == item.base_unit, item.name
+        for conv in item.conversions:
+            assert normalize_unit(conv.from_unit) == conv.from_unit, item.name
