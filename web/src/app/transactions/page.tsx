@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "History · Sukat" };
 
 export default function TransactionsPage() {
   return (
-    <AppPage active="history">
+    <AppPage>
       <TransactionList />
     </AppPage>
   );

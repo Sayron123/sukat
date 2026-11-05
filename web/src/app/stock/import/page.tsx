@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Import starter items · Sukat" };
 
 export default function ImportPage() {
   return (
-    <AppPage active="stock">
+    <AppPage>
       <RequireWriter>
         <ImportCatalog />
       </RequireWriter>

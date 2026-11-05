@@ -5,7 +5,7 @@ import { useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { hardNavigate } from "@/lib/hard-navigate";
 
-import { Button, Card, Field } from "./ui";
+import { Button, Field, textLinkClass } from "./ui";
 
 const noopSubscribe = () => () => {};
 
@@ -19,16 +19,18 @@ type FieldDef = {
 
 export function AuthForm({
   title,
+  subtitle,
   endpoint,
   fields,
   submitLabel,
   footer,
 }: {
   title: string;
+  subtitle: string;
   endpoint: string;
   fields: FieldDef[];
   submitLabel: string;
-  footer: { text: string; href: string; link: string };
+  footer: { text: string; href: string };
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -57,7 +59,7 @@ export function AuthForm({
         setError(data?.error ?? "Something went wrong");
         return;
       }
-      hardNavigate("/stock");
+      hardNavigate("/");
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -66,38 +68,45 @@ export function AuthForm({
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold text-text">{title}</h1>
-        <form method="post" onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
-          {fields.map((f) => (
-            <Field
-              key={f.name}
-              id={f.name}
-              name={f.name}
-              label={f.label}
-              type={f.type ?? "text"}
-              autoComplete={f.autoComplete}
-              minLength={f.minLength}
-              required
-            />
-          ))}
-          {error && (
-            <p role="alert" className="text-sm text-red">
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={!ready || pending}>
-            {pending ? "Please wait…" : submitLabel}
-          </Button>
-        </form>
-        <p className="mt-4 text-sm text-muted">
-          {footer.text}{" "}
-          <Link href={footer.href} className="font-medium text-accent hover:underline">
-            {footer.link}
-          </Link>
-        </p>
-      </Card>
+    <main className="mx-auto w-full max-w-lg flex-1 px-6 pt-16 pb-36">
+      <div
+        aria-hidden
+        className="mb-[30px] grid h-[52px] w-[52px] place-items-center rounded-button bg-text text-base font-bold text-white"
+      >
+        S
+      </div>
+      <p className="text-[13px] font-bold text-muted uppercase">Sukat</p>
+      <h1 className="mt-1 text-[28px] leading-tight font-bold text-text">{title}</h1>
+      <p className="mt-2 mb-7 text-sm text-muted">{subtitle}</p>
+      <form method="post" onSubmit={onSubmit} className="flex flex-col gap-[22px]">
+        {fields.map((f) => (
+          <Field
+            key={f.name}
+            id={f.name}
+            name={f.name}
+            label={f.label}
+            type={f.type ?? "text"}
+            autoComplete={f.autoComplete}
+            minLength={f.minLength}
+            required
+          />
+        ))}
+        {error && (
+          <p role="alert" className="text-sm text-red">
+            {error}
+          </p>
+        )}
+        <Link href={footer.href} className={`${textLinkClass} self-start`}>
+          {footer.text}
+        </Link>
+        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background">
+          <div className="mx-auto max-w-lg px-6 pt-3 pb-6">
+            <Button type="submit" size="lg" disabled={!ready || pending}>
+              {pending ? "Please wait…" : submitLabel}
+            </Button>
+          </div>
+        </div>
+      </form>
     </main>
   );
 }

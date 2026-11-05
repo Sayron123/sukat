@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Scan receipt · Sukat" };
 
 export default function ScanSalePage() {
   return (
-    <AppPage active="scan">
+    <AppPage>
       <ScanFlow mode="sale" />
     </AppPage>
   );

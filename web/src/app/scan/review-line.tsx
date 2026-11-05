@@ -1,10 +1,18 @@
 "use client";
 
-import { Field, Select } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { Badge, Field, Select } from "@/components/ui";
 import { formatPeso } from "@/lib/format";
 import { CATEGORIES } from "@/lib/types";
 
-import { type EditLine, REASON_TEXT, editLine, lineProblem, lineTotal, priceDiffers } from "./lines";
+import {
+  type EditLine,
+  REASON_TEXT,
+  editLine,
+  lineProblem,
+  lineTotal,
+  priceDiffers,
+} from "./lines";
 import { type PickedProduct, ProductPicker } from "./product-picker";
 
 /**
@@ -43,7 +51,12 @@ export function ReviewLineCard({
     const patch: Partial<EditLine> = { product: p };
     // Sale with no price yet: use the product's price when the unit is its base unit.
     // (For other units the server fills in the converted price when saving.)
-    if (isSale && (!line.price.trim() || line.priceFromProduct) && p.price_centavos !== null && line.unit === p.base_unit) {
+    if (
+      isSale &&
+      (!line.price.trim() || line.priceFromProduct) &&
+      p.price_centavos !== null &&
+      line.unit === p.base_unit
+    ) {
       patch.price = (p.price_centavos / 100).toFixed(2);
       patch.priceFromProduct = true;
     }
@@ -54,119 +67,151 @@ export function ReviewLineCard({
   return (
     <li
       aria-label={`Line ${index + 1}`}
-      className={`rounded-card border-2 bg-surface p-4 ${
-        problem ? "border-red" : needsCheck ? "border-amber" : "border-border"
-      }`}
+      className={`rounded-card border bg-background p-4 ${
+        problem ? "border-red" : "border-border"
+      } ${needsCheck ? "border-l-4 border-l-amber pl-[13px]" : ""}`}
     >
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <p className="min-w-0 text-sm text-muted">
-          <span className="sr-only">Written as: </span>“{line.rawText}”
-        </p>
-        <div className="flex shrink-0 items-center gap-1">
-          {line.newProduct && (
-            <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-white">New</span>
-          )}
-          {differs && (
-            <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
-              Price differs
-            </span>
-          )}
-          {needsCheck && (
-            <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">Check</span>
-          )}
-          <button
-            type="button"
-            onClick={onRemove}
-            aria-label={`Remove line ${index + 1}`}
-            className="flex h-9 w-9 items-center justify-center rounded-button text-muted hover:bg-background hover:text-red"
-          >
-            ✕
-          </button>
+      <div className="flex items-start gap-2">
+        {/* Badges move under the name when the name needs the room. */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="min-w-[60%] flex-1">
+            {line.newProduct ? (
+              <input
+                id={id("new-name")}
+                aria-label="New product name"
+                value={line.newProduct.name}
+                placeholder="New product name"
+                onChange={(e) =>
+                  update({
+                    newProduct: { ...line.newProduct!, name: e.target.value },
+                  })
+                }
+                className="h-9 w-full min-w-0 border-b border-transparent bg-transparent text-base font-bold text-text outline-none focus:border-text"
+              />
+            ) : (
+              <ProductPicker
+                value={line.product}
+                invalid={problem === "Pick a product"}
+                onPick={pickProduct}
+                onAddNew={
+                  canCreate
+                    ? (name) =>
+                        update({
+                          product: null,
+                          newProduct: {
+                            name,
+                            category: "Others",
+                            base_unit: line.unit || "pc",
+                          },
+                        })
+                    : undefined
+                }
+              />
+            )}
+          </div>
+          {line.newProduct && <Badge>New</Badge>}
+          {differs && <Badge tone="amber">Price differs</Badge>}
+          {needsCheck && <Badge tone="amber">Check</Badge>}
         </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove line ${index + 1}`}
+          className="-mr-2 grid h-9 w-9 shrink-0 place-items-center rounded-button text-subtle hover:bg-surface hover:text-red"
+        >
+          <Icon name="close" size={18} />
+        </button>
       </div>
 
-      {needsCheck && (
-        <p className="mb-3 text-xs text-amber">{line.checkReasons.map((r) => REASON_TEXT[r]).join(" · ")}</p>
-      )}
+      <p className="mt-0.5 mb-3 text-[13px] text-subtle">
+        Written as “{line.rawText}”
+        {needsCheck && (
+          <span className="text-[#b45309]">
+            {" "}
+            · {line.checkReasons.map((r) => REASON_TEXT[r]).join(" · ")}
+          </span>
+        )}
+      </p>
 
-      {line.newProduct ? (
-        <div className="flex flex-col gap-3">
+      {line.newProduct && (
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <Select
+            id={id("new-category")}
+            label="Category"
+            value={line.newProduct.category}
+            onChange={(e) =>
+              update({
+                newProduct: { ...line.newProduct!, category: e.target.value },
+              })
+            }
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </Select>
           <Field
-            id={id("new-name")}
-            label="New product name"
-            value={line.newProduct.name}
-            onChange={(e) => update({ newProduct: { ...line.newProduct!, name: e.target.value } })}
+            id={id("new-unit")}
+            label="Stock counted in"
+            value={line.newProduct.base_unit}
+            onChange={(e) =>
+              update({
+                newProduct: { ...line.newProduct!, base_unit: e.target.value },
+              })
+            }
           />
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              id={id("new-category")}
-              label="Category"
-              value={line.newProduct.category}
-              onChange={(e) => update({ newProduct: { ...line.newProduct!, category: e.target.value } })}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </Select>
-            <Field
-              id={id("new-unit")}
-              label="Stock counted in"
-              value={line.newProduct.base_unit}
-              onChange={(e) => update({ newProduct: { ...line.newProduct!, base_unit: e.target.value } })}
-            />
-          </div>
           <button
             type="button"
             onClick={() => update({ newProduct: null })}
-            className="self-start text-sm font-medium text-accent hover:underline"
+            className="col-span-2 min-h-10 self-start text-left text-[13px] text-muted underline"
           >
             Pick an existing product instead
           </button>
         </div>
-      ) : (
-        <ProductPicker
-          value={line.product}
-          invalid={problem === "Pick a product"}
-          onPick={pickProduct}
-          onAddNew={
-            canCreate
-              ? (name) => update({ product: null, newProduct: { name, category: "Others", base_unit: line.unit || "pc" } })
-              : undefined
-          }
-        />
       )}
 
-      {/* Qty + Unit row */}
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      {/* Qty / Unit / Price / Total, as in the design */}
+      <div className="grid grid-cols-[48px_58px_76px_1fr] items-end gap-[7px]">
         <Field
           id={id("qty")}
           label="Qty"
+          compact
           inputMode="decimal"
+          invalid={problem === "Enter a quantity"}
           value={line.qty}
           onChange={(e) => update({ qty: e.target.value })}
         />
-        <Field id={id("unit")} label="Unit" value={line.unit} onChange={(e) => update({ unit: e.target.value })} />
-      </div>
-      {/* Price + Total row */}
-      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Field
+          id={id("unit")}
+          label="Unit"
+          compact
+          invalid={problem === "Enter a unit"}
+          value={line.unit}
+          onChange={(e) => update({ unit: e.target.value })}
+        />
         <Field
           id={id("price")}
-          label={`Price per ${line.unit || "unit"} (₱)`}
+          label="Price"
+          compact
           inputMode="decimal"
-          placeholder="Optional"
+          placeholder="—"
+          invalid={problem?.startsWith("Price") ?? false}
           value={line.price}
           onChange={(e) => update({ price: e.target.value })}
         />
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-text">Total</span>
-          <span className="flex h-11 items-center font-medium text-text">
-            {total === null ? <span className="text-muted">—</span> : formatPeso(total)}
-          </span>
+        <div className="min-w-0 pb-[9px] text-right">
+          <span className="mb-1.5 block text-[13px] text-subtle">Total</span>
+          <b className="text-[13px] whitespace-nowrap text-text">
+            {total === null ? (
+              <span className="text-subtle">—</span>
+            ) : (
+              formatPeso(total)
+            )}
+          </b>
         </div>
       </div>
 
       {differs && line.expectedPrice !== null && (
-        <p className="mt-2 text-xs text-amber">
+        <p className="mt-2 text-[13px] text-[#b45309]">
           Usual price: {formatPeso(line.expectedPrice)} per {line.unit}
         </p>
       )}

@@ -7,9 +7,10 @@ export const metadata: Metadata = { title: "Create your store · Sukat" };
 export default function SignupPage() {
   return (
     <AuthForm
-      title="Create your store"
+      title="Set up your store"
+      subtitle="Create your store and your manager account."
       endpoint="/api/auth/signup"
-      submitLabel="Create store"
+      submitLabel="Create Store"
       fields={[
         { name: "store_name", label: "Store name", autoComplete: "organization" },
         { name: "full_name", label: "Your name", autoComplete: "name" },
@@ -22,7 +23,7 @@ export default function SignupPage() {
           minLength: 8,
         },
       ]}
-      footer={{ text: "Already have an account?", href: "/login", link: "Log in" }}
+      footer={{ text: "Already have an account? Sign in", href: "/login" }}
     />
   );
 }

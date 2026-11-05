@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { Card, Chip } from "@/components/ui";
+import { PageHeader } from "@/components/page-header";
+import { Badge, Card, Chip, Pager } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
-import { formatPeso, formatWhen } from "@/lib/format";
+import { formatPeso, formatShortWhen } from "@/lib/format";
 import type { ScanMode, TransactionPage } from "@/lib/types";
 
 const FILTERS: { label: string; type: ScanMode | null }[] = [
@@ -35,9 +36,9 @@ export function TransactionList() {
   }, [type, page]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">History</h1>
-      <div className="flex gap-2" role="group" aria-label="Type">
+    <>
+      <PageHeader eyebrow="Stock movements" title="History" back="/more" />
+      <div className="mb-[22px] flex gap-2" role="group" aria-label="Type">
         {FILTERS.map((f) => (
           <Chip key={f.label} selected={type === f.type} onClick={() => (setType(f.type), setPage(1))}>
             {f.label}
@@ -45,7 +46,7 @@ export function TransactionList() {
         ))}
       </div>
       {error && (
-        <p role="alert" className="text-sm text-red">
+        <p role="alert" className="mb-3 text-sm text-red">
           {error}
         </p>
       )}
@@ -54,46 +55,40 @@ export function TransactionList() {
       ) : data.items.length === 0 ? (
         <Card className="text-center text-muted">Nothing saved yet.</Card>
       ) : (
-        <Card padded={false}>
-          <ul className="divide-y divide-border">
-            {data.items.map((t) => (
-              <li key={t.id}>
-                <Link href={`/transactions/${t.id}`} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-text">
-                      {t.type === "sale" ? "Sale" : "Stock in"}
-                      {t.status === "voided" && (
-                        <span className="ml-2 rounded-full bg-red/10 px-2 py-0.5 text-xs font-medium text-red">
-                          Voided
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-sm text-muted">
-                      {formatWhen(t.created_at)} · {t.item_count} item{t.item_count === 1 ? "" : "s"}
-                    </p>
+        <ul className="mb-5 border-t border-border">
+          {data.items.map((t) => (
+            <li key={t.id}>
+              <Link
+                href={`/transactions/${t.id}`}
+                className="flex min-h-[82px] items-center gap-2 border-b border-border py-[11px]"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <b className="text-base text-text">{t.type === "sale" ? "Sale" : "Stock received"}</b>
+                    {t.status === "voided" ? (
+                      <Badge tone="red">Voided</Badge>
+                    ) : (
+                      <Badge>{t.type === "sale" ? "Sale" : "Stock in"}</Badge>
+                    )}
                   </div>
-                  <span className={`shrink-0 font-medium ${t.status === "voided" ? "text-muted line-through" : "text-text"}`}>
+                  <small className="mt-[5px] block truncate text-sm text-muted">{formatShortWhen(t.created_at)}</small>
+                </div>
+                <div className="shrink-0 text-right">
+                  <strong className="block text-base text-text">
+                    {t.type === "sale" ? "−" : "+"} {t.item_count} item{t.item_count === 1 ? "" : "s"}
+                  </strong>
+                  <small
+                    className={`mt-[5px] block text-sm ${t.status === "voided" ? "text-subtle line-through" : "text-muted"}`}
+                  >
                     {formatPeso(t.total_centavos)}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Card>
+                  </small>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
-      {data && data.pages > 1 && (
-        <div className="flex items-center justify-between">
-          <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-11 rounded-button border border-border px-4 text-sm font-medium text-text disabled:opacity-40">
-            Previous
-          </button>
-          <span className="text-sm text-muted">
-            Page {data.page} of {data.pages}
-          </span>
-          <button type="button" disabled={page >= data.pages} onClick={() => setPage(page + 1)} className="h-11 rounded-button border border-border px-4 text-sm font-medium text-text disabled:opacity-40">
-            Next
-          </button>
-        </div>
-      )}
-    </div>
+      {data && <Pager page={data.page} pages={data.pages} onPage={setPage} />}
+    </>
   );
 }

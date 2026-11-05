@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Add product · Sukat" };
 
 export default function NewProductPage() {
   return (
-    <AppPage active="stock">
+    <AppPage>
       <RequireWriter>
         <ProductForm />
       </RequireWriter>

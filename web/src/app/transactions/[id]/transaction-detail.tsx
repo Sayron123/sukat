@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Button, Card } from "@/components/ui";
+import { PageHeader } from "@/components/page-header";
+import { Button, Loading, Notice } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { formatPeso, formatQty, formatWhen } from "@/lib/format";
 import { canEditProducts, type Me, type Transaction } from "@/lib/types";
@@ -47,7 +47,15 @@ export function TransactionDetail({ id }: { id: string }) {
     }
   }
 
-  if (!txn) return <p className={error ? "text-red" : "text-muted"}>{error ?? "Loading…"}</p>;
+  if (!txn)
+    return error ? (
+      <>
+        <PageHeader title="History" back="/transactions" />
+        <p className="text-red">{error}</p>
+      </>
+    ) : (
+      <Loading />
+    );
 
   const isSale = txn.type === "sale";
   const voided = txn.status === "voided";
@@ -55,53 +63,47 @@ export function TransactionDetail({ id }: { id: string }) {
   const sign = isSale ? "−" : "+";
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-text">{isSale ? "Sale" : "Stock in"}</h1>
-        <Link href="/transactions" className="text-sm font-medium text-accent hover:underline">
-          History
-        </Link>
-      </div>
+    <>
+      <PageHeader eyebrow={formatWhen(txn.created_at)} title={isSale ? "Sale" : "Stock received"} back="/transactions" />
 
-      <Card className="flex flex-col gap-1">
-        <p className={`text-3xl font-semibold ${voided ? "text-muted line-through" : "text-text"}`}>
+      <div className="mb-5 rounded-card bg-surface p-4">
+        <p className="text-sm text-muted">{isSale ? "Total" : "Stock value"}</p>
+        <strong className={`mt-2 block text-[32px] leading-tight ${voided ? "text-subtle line-through" : "text-text"}`}>
           {formatPeso(txn.total_centavos)}
-        </p>
-        <p className="text-sm text-muted">
-          {formatWhen(txn.created_at)}
+        </strong>
+        <p className="mt-2 text-sm text-muted">
+          {txn.items.length} item{txn.items.length === 1 ? "" : "s"}
           {txn.created_by_name && ` · by ${txn.created_by_name}`}
         </p>
-        {voided && (
-          <p role="status" className="mt-2 rounded-button bg-red/10 px-3 py-2 text-sm text-red">
-            Voided{txn.voided_at && ` ${formatWhen(txn.voided_at)}`}
-            {txn.voided_by_name && ` by ${txn.voided_by_name}`}. Stock was put back.
-          </p>
-        )}
-      </Card>
+      </div>
 
-      <Card padded={false}>
-        <ul className="divide-y divide-border">
-          {txn.items.map((item) => (
-            <li key={item.line_no} className="flex items-start justify-between gap-3 px-4 py-3">
-              <div className="min-w-0">
-                <p className="font-medium text-text">{item.product_name}</p>
-                <p className="text-sm text-muted">
-                  {sign}
-                  {formatQty(item.qty)} {item.unit}
-                  {item.unit_price_centavos !== null && ` × ${formatPeso(item.unit_price_centavos)}`}
-                  {item.unit !== item.base_unit && ` (${formatQty(item.qty_base)} ${item.base_unit})`}
-                </p>
-              </div>
-              <span className="shrink-0 text-sm font-medium text-text">
-                {item.line_total_centavos === null ? "—" : formatPeso(item.line_total_centavos)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      {voided && (
+        <Notice role="status" icon="history" title="Voided" className="mb-5">
+          {txn.voided_at && `${formatWhen(txn.voided_at)}`}
+          {txn.voided_by_name && ` by ${txn.voided_by_name}`}. Stock was put back.
+        </Notice>
+      )}
+
+      <ul className="mb-6 border-t border-border">
+        {txn.items.map((item) => (
+          <li key={item.line_no} className="flex min-h-[72px] items-center justify-between gap-3 border-b border-border py-2.5">
+            <div className="min-w-0">
+              <b className="block text-base text-text">{item.product_name}</b>
+              <small className="mt-1 block text-sm text-muted">
+                {sign} {formatQty(item.qty)} {item.unit}
+                {item.unit_price_centavos !== null && ` × ${formatPeso(item.unit_price_centavos)}`}
+                {item.unit !== item.base_unit && ` (${formatQty(item.qty_base)} ${item.base_unit})`}
+              </small>
+            </div>
+            <strong className="shrink-0 text-base text-text">
+              {item.line_total_centavos === null ? "—" : formatPeso(item.line_total_centavos)}
+            </strong>
+          </li>
+        ))}
+      </ul>
 
       {error && (
-        <p role="alert" className="text-sm text-red">
+        <p role="alert" className="mb-3 text-sm text-red">
           {error}
         </p>
       )}
@@ -125,6 +127,6 @@ export function TransactionDetail({ id }: { id: string }) {
           deleted, and this can’t be undone.
         </p>
       </ConfirmDialog>
-    </div>
+    </>
   );
 }
