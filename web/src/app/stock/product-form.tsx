@@ -1,10 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-import { Button, Card, Field, GhostButton, Select } from "@/components/ui";
+import { ActionDock } from "@/components/action-dock";
+import { Icon } from "@/components/icons";
+import { PageHeader } from "@/components/page-header";
+import { Button, Field, GhostButton, Notice, Select } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { centavosToInput, formatQty, pesosToCentavos } from "@/lib/format";
 import { CATEGORIES, type Product } from "@/lib/types";
@@ -97,129 +99,146 @@ export function ProductForm({ product }: { product?: Product }) {
   }
 
   return (
-    <form onSubmit={onSubmit} method="post" className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-text">{product ? "Edit product" : "Add product"}</h1>
-        <Link href="/stock" className="text-sm font-medium text-accent hover:underline">
-          Cancel
-        </Link>
-      </div>
+    <>
+      <PageHeader eyebrow="Product details" title={product ? "Edit product" : "Add product"} back="/stock" />
 
       {product?.archived && (
-        <p className="rounded-button bg-amber/15 px-3 py-2 text-sm text-text">This product is archived.</p>
+        <Notice icon="box" title="This product is archived" className="mb-5">
+          It is hidden from the stock list. Unarchive it to use it again.
+        </Notice>
       )}
 
-      <Card className="flex flex-col gap-4">
-        <Field id="name" label="Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={160} />
+      <form id="product-form" onSubmit={onSubmit} method="post" className="flex flex-col gap-[22px]">
+        <Field
+          id="name"
+          label="Product name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          maxLength={160}
+        />
         <Select id="category" label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
           {CATEGORIES.map((c) => (
             <option key={c}>{c}</option>
           ))}
         </Select>
-        <div className="grid grid-cols-2 gap-3">
-          <Field
-            id="base_unit"
-            label="Base unit"
-            list="units"
-            value={baseUnit}
-            onChange={(e) => setBaseUnit(e.target.value)}
-            required
-            maxLength={20}
-          />
-          <Field
-            id="price"
-            label={`Price per ${baseUnit || "unit"} (₱)`}
-            inputMode="decimal"
-            placeholder="No price"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
-        </div>
+        <Field
+          id="base_unit"
+          label="Base unit"
+          list="units"
+          value={baseUnit}
+          onChange={(e) => setBaseUnit(e.target.value)}
+          required
+          maxLength={20}
+          hint="The unit you count stock in, e.g. pc, kg, bag."
+        />
         <datalist id="units">
           {COMMON_UNITS.map((u) => (
             <option key={u} value={u} />
           ))}
         </datalist>
-        <div className="grid grid-cols-2 gap-3">
-          <Field
-            id="low_stock"
-            label="Low stock at"
-            inputMode="decimal"
-            placeholder="Off"
-            value={lowStock}
-            onChange={(e) => setLowStock(e.target.value)}
-          />
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-text">In stock</span>
-            <span className="flex h-11 items-center text-muted">
-              {product ? `${formatQty(product.stock_qty)} ${product.base_unit}` : "0"}
-            </span>
+        <Field
+          id="price"
+          label={`Selling price per ${baseUnit || "unit"}`}
+          prefix="₱"
+          inputMode="decimal"
+          placeholder="No price"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+        />
+        <Field
+          id="low_stock"
+          label="Low stock alert at"
+          suffix={baseUnit}
+          inputMode="decimal"
+          placeholder="Off"
+          value={lowStock}
+          onChange={(e) => setLowStock(e.target.value)}
+          hint="We’ll warn you when stock reaches this number. Leave blank to turn off."
+        />
+        {product && (
+          <div>
+            <p className="mb-[7px] text-[13px] font-bold text-text">In stock</p>
+            <p className="text-2xl leading-none font-bold text-text">
+              {formatQty(product.stock_qty)} <span className="text-[13px] font-normal text-muted">{product.base_unit}</span>
+            </p>
+            <p className="mt-1.5 text-[13px] text-subtle">Stock changes through deliveries and sales, not here.</p>
           </div>
-        </div>
-        <p className="-mt-2 text-xs text-muted">Stock changes through deliveries and sales, not here.</p>
+        )}
         <Field
           id="aliases"
-          label="Other names (comma-separated)"
+          label="Other names"
           placeholder="e.g. sem, semento"
           value={aliases}
           onChange={(e) => setAliases(e.target.value)}
+          hint="Comma-separated. Helps the scanner and search find this product."
         />
-      </Card>
 
-      <Card className="flex flex-col gap-3">
-        <div>
-          <h2 className="font-semibold text-text">Other units</h2>
-          <p className="text-sm text-muted">
+        <section className="border-t border-border pt-5">
+          <h2 className="text-[13px] font-bold text-text">Other units</h2>
+          <p className="mt-1 text-[13px] leading-snug text-subtle">
             Example: 1 box = 25 {baseUnit || "kg"}. g/kg, ml/l and cm/m are converted automatically.
           </p>
-        </div>
-        {convs.map((c, i) => (
-          <div key={i} className="flex items-end gap-2">
-            <span className="flex h-11 items-center text-muted">1</span>
-            <Field
-              id={`conv-unit-${i}`}
-              wrapperClassName="flex-1"
-              label="Unit"
-              value={c.from_unit}
-              onChange={(e) => setConvs(convs.map((x, j) => (j === i ? { ...x, from_unit: e.target.value } : x)))}
-            />
-            <span className="flex h-11 items-center text-muted">=</span>
-            <Field
-              id={`conv-factor-${i}`}
-              wrapperClassName="flex-1"
-              label={baseUnit || "base unit"}
-              inputMode="decimal"
-              value={c.factor}
-              onChange={(e) => setConvs(convs.map((x, j) => (j === i ? { ...x, factor: e.target.value } : x)))}
-            />
-            <button
-              type="button"
-              aria-label={`Remove ${c.from_unit || "unit"}`}
-              onClick={() => setConvs(convs.filter((_, j) => j !== i))}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-button text-muted hover:bg-background hover:text-red"
-            >
-              ✕
-            </button>
+          <div className="mt-3 flex flex-col gap-3">
+            {convs.map((c, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <span className="flex h-[42px] items-center text-sm text-muted">1</span>
+                <Field
+                  id={`conv-unit-${i}`}
+                  compact
+                  wrapperClassName="flex-1"
+                  label="Unit"
+                  value={c.from_unit}
+                  onChange={(e) => setConvs(convs.map((x, j) => (j === i ? { ...x, from_unit: e.target.value } : x)))}
+                />
+                <span className="flex h-[42px] items-center text-sm text-muted">=</span>
+                <Field
+                  id={`conv-factor-${i}`}
+                  compact
+                  wrapperClassName="flex-1"
+                  label={baseUnit || "base unit"}
+                  inputMode="decimal"
+                  value={c.factor}
+                  onChange={(e) => setConvs(convs.map((x, j) => (j === i ? { ...x, factor: e.target.value } : x)))}
+                />
+                <button
+                  type="button"
+                  aria-label={`Remove ${c.from_unit || "unit"}`}
+                  onClick={() => setConvs(convs.filter((_, j) => j !== i))}
+                  className="grid h-[42px] w-10 shrink-0 place-items-center rounded-button text-muted hover:bg-surface hover:text-red"
+                >
+                  <Icon name="close" size={18} />
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-        <GhostButton type="button" onClick={() => setConvs([...convs, { from_unit: "", factor: "" }])}>
-          + Add unit
-        </GhostButton>
-      </Card>
+          <button
+            type="button"
+            onClick={() => setConvs([...convs, { from_unit: "", factor: "" }])}
+            className="mt-1 flex h-[52px] items-center gap-1.5 text-[13px] font-semibold text-muted"
+          >
+            <Icon name="plus" size={18} />
+            Add unit
+          </button>
+        </section>
 
-      {error && (
-        <p role="alert" className="text-sm text-red">
-          {error}
-        </p>
-      )}
-      <Button type="submit" disabled={saving}>
-        {saving ? "Saving…" : "Save"}
-      </Button>
-      {product && (
-        <GhostButton type="button" onClick={toggleArchive} disabled={saving}>
-          {product.archived ? "Unarchive" : "Archive"}
-        </GhostButton>
-      )}
-    </form>
+        {product && (
+          <GhostButton type="button" onClick={toggleArchive} disabled={saving}>
+            {product.archived ? "Unarchive product" : "Archive product"}
+          </GhostButton>
+        )}
+      </form>
+
+      <ActionDock>
+        {error && (
+          <p role="alert" className="text-sm text-red">
+            {error}
+          </p>
+        )}
+        <Button type="submit" form="product-form" size="lg" disabled={saving}>
+          {saving ? "Saving…" : "Save Product"}
+        </Button>
+      </ActionDock>
+    </>
   );
 }

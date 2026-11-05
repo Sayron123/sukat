@@ -3,12 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 
+import { Icon } from "@/components/icons";
+import { buttonClass } from "@/components/ui";
 import { setPendingPhoto } from "@/lib/pending-photo";
 
 /**
  * Opens the camera straight away (the tap goes directly to the file input; browsers
  * don't allow opening it later from code), then continues on /scan/sale with the photo.
- * If the visitor isn't logged in, the upload there sends them to the login page.
  */
 export function ScanReceiptButton() {
   const router = useRouter();
@@ -34,8 +35,9 @@ export function ScanReceiptButton() {
       <button
         type="button"
         onClick={() => input.current?.click()}
-        className="flex h-14 w-full items-center justify-center rounded-button bg-accent text-base font-medium text-white hover:bg-accent-pressed active:bg-accent-pressed"
+        className={buttonClass("primary", "lg")}
       >
+        <Icon name="camera" />
         Scan Receipt
       </button>
     </>

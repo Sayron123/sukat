@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { Card, Chip } from "@/components/ui";
+import { ActionDock } from "@/components/action-dock";
+import { Icon } from "@/components/icons";
+import { PageHeader, headerIconClass } from "@/components/page-header";
+import { Badge, Card, Chip, Pager, SearchBox, buttonClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { formatPeso, formatQty } from "@/lib/format";
 import { CATEGORIES, canEditProducts, type Category, type Me, type ProductPage } from "@/lib/types";
-
-const linkButton =
-  "flex h-11 items-center justify-center rounded-button px-4 text-sm font-medium";
 
 export function StockList() {
   const [me, setMe] = useState<Me | null>(null);
@@ -53,41 +53,35 @@ export function StockList() {
   const filtering = debounced !== "" || category !== null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-text">Stock</h1>
-        {canEdit && (
-          <div className="flex gap-2">
-            <Link
-              href="/stock/import"
-              className={`${linkButton} border border-border bg-background text-text hover:bg-surface`}
-            >
-              Import
+    <>
+      <PageHeader
+        eyebrow={data ? `${data.total} product${data.total === 1 ? "" : "s"}` : " "}
+        title="Stock"
+        action={
+          canEdit && (
+            <Link href="/stock/new" aria-label="Add product" className={headerIconClass}>
+              <Icon name="plus" size={24} />
             </Link>
-            <Link
-              href="/stock/new"
-              className={`${linkButton} bg-accent text-white hover:bg-accent-pressed`}
-            >
-              + Add
-            </Link>
-          </div>
-        )}
-      </div>
+          )
+        }
+      />
 
-      <input
-        type="search"
+      <SearchBox
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
           setPage(1);
         }}
         maxLength={80}
-        placeholder="Search name or alias (e.g. sem, bakal 10mm)"
-        aria-label="Search products"
-        className="h-11 rounded-button border border-border bg-background px-3 text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
+        placeholder="Search products"
+        aria-label="Search products (name or other name, e.g. sem, bakal 10mm)"
       />
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Category">
+      <div
+        className="-mx-5 mt-4 mb-[22px] flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]"
+        role="group"
+        aria-label="Category"
+      >
         <Chip selected={category === null} onClick={() => (setCategory(null), setPage(1))}>
           All
         </Chip>
@@ -99,7 +93,7 @@ export function StockList() {
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-red">
+        <p role="alert" className="mb-3 text-sm text-red">
           {error}
         </p>
       )}
@@ -112,12 +106,9 @@ export function StockList() {
             <p className="text-muted">No products match.</p>
           ) : (
             <>
-              <p className="font-medium text-text">No products yet</p>
+              <p className="font-bold text-text">No products yet</p>
               {canEdit && (
-                <Link
-                  href="/stock/import"
-                  className={`${linkButton} mx-auto mt-4 w-fit bg-accent text-white hover:bg-accent-pressed`}
-                >
+                <Link href="/stock/import" className={`${buttonClass()} mt-4`}>
                   Import starter items
                 </Link>
               )}
@@ -125,73 +116,50 @@ export function StockList() {
           )}
         </Card>
       ) : (
-        <>
-          <p className="text-sm text-muted">
-            {data.total} product{data.total === 1 ? "" : "s"}
-          </p>
-          <Card padded={false}>
-            <ul className="divide-y divide-border">
-              {data.items.map((p) => {
-                const row = (
-                  <div className="flex items-start justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-text">{p.name}</p>
-                      <p className="text-sm text-muted">
-                        {p.category} · {formatPeso(p.price_centavos)}
-                        {p.price_centavos !== null && ` / ${p.base_unit}`}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="font-medium text-text">
-                        {formatQty(p.stock_qty)} {p.base_unit}
-                      </span>
-                      {p.is_low_stock && (
-                        <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
-                          Low stock
-                        </span>
-                      )}
-                    </div>
+        <div className="flex flex-col gap-3">
+          <ul className="flex flex-col gap-3">
+            {data.items.map((p) => {
+              const row = (
+                <Card className="flex min-h-[88px] items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-[7px]">
+                      <b className="min-w-0 text-base text-text">{p.name}</b>
+                      {p.is_low_stock && <Badge tone="red">Low</Badge>}
+                    </p>
+                    <small className="mt-[5px] block text-sm text-muted">
+                      {p.category} · {formatPeso(p.price_centavos)}
+                      {p.price_centavos !== null && `/${p.base_unit}`}
+                    </small>
                   </div>
-                );
-                return (
-                  <li key={p.id}>
-                    {canEdit ? (
-                      <Link href={`/stock/${p.id}`} className="block hover:bg-background">
-                        {row}
-                      </Link>
-                    ) : (
-                      row
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-          {data.pages > 1 && (
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                className="h-11 rounded-button border border-border px-4 text-sm font-medium text-text disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-muted">
-                Page {data.page} of {data.pages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= data.pages}
-                onClick={() => setPage(page + 1)}
-                className="h-11 rounded-button border border-border px-4 text-sm font-medium text-text disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </>
+                  <div className="min-w-[62px] shrink-0 text-right">
+                    <strong className="block text-2xl leading-none text-text">{formatQty(p.stock_qty)}</strong>
+                    <span className="text-[13px] text-muted">{p.base_unit}</span>
+                  </div>
+                </Card>
+              );
+              return (
+                <li key={p.id}>
+                  {canEdit ? (
+                    <Link href={`/stock/${p.id}`} className="block rounded-card hover:bg-surface">
+                      {row}
+                    </Link>
+                  ) : (
+                    row
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <Pager page={data.page} pages={data.pages} onPage={setPage} />
+        </div>
       )}
-    </div>
+
+      <ActionDock>
+        <Link href="/scan" className={buttonClass("primary", "lg")}>
+          <Icon name="camera" />
+          Scan Stock In
+        </Link>
+      </ActionDock>
+    </>
   );
 }
