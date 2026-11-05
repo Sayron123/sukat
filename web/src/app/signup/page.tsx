@@ -13,6 +13,13 @@ export default function SignupPage() {
       submitLabel="Create Store"
       fields={[
         { name: "store_name", label: "Store name", autoComplete: "organization" },
+        {
+          name: "store_address",
+          label: "Store address (optional)",
+          autoComplete: "street-address",
+          maxLength: 300,
+          optional: true,
+        },
         { name: "full_name", label: "Your name", autoComplete: "name" },
         { name: "email", label: "Email", type: "email", autoComplete: "email" },
         {

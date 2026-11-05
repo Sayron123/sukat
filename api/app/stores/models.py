@@ -31,6 +31,7 @@ class Store(Base):
 
     id: Mapped[UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(120), nullable=False)
+    address: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
 

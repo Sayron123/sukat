@@ -38,6 +38,9 @@ export function MoreMenu() {
           <Avatar name={me.store_name} large />
           <div className="min-w-0">
             <b className="block truncate text-base text-text">{me.store_name}</b>
+            {me.store_address && (
+              <span className="mt-1 block truncate text-sm text-muted">{me.store_address}</span>
+            )}
             <span className="mt-1 block truncate text-sm text-muted">
               {me.full_name} · <span className="capitalize">{me.role}</span>
             </span>

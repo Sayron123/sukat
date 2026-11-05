@@ -33,5 +33,6 @@ def me(current: CurrentMemberDep, db: DbSession) -> MeOut:
         full_name=current.user.full_name,
         store_id=store.id,
         store_name=store.name,
+        store_address=store.address,
         role=current.role,
     )

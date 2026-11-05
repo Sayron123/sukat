@@ -33,7 +33,7 @@ def signup(db: Session, data: SignupIn) -> TokenOut:
     if db.scalar(select(User.id).where(User.email == data.email)) is not None:
         raise Conflict(EMAIL_TAKEN)
 
-    store = Store(name=data.store_name)
+    store = Store(name=data.store_name, address=data.store_address)
     user = User(
         email=data.email, full_name=data.full_name, password_hash=hash_password(data.password)
     )
