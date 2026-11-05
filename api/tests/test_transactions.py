@@ -4,7 +4,8 @@ from decimal import Decimal
 
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.ai.convert import catalog_refs, parse_result
 from app.auth.deps import get_current_member
@@ -528,3 +529,35 @@ def test_member_save_teaches_no_alias_but_manager_save_does(
     db.expire_all()
     alias = db.scalar(learned)
     assert alias is not None and str(alias.product_id) == nails["id"]
+
+
+def test_database_refuses_movement_pointing_at_another_stores_line(api, db, manager, signup, nails):
+    # Audit M3: the movement -> line key includes store_id.
+    assert (
+        _save(api, manager, [{"product_id": nails["id"], "qty": "1", "unit": "kg"}]).status_code
+        == 201
+    )
+    other = auth_header(signup(email="b@example.com", store_name="Store B")["access_token"])
+    rope = make_product(api, other, name="Nylon Rope", category="Others", base_unit="m")
+    assert (
+        _save(api, other, [{"product_id": rope["id"], "qty": "1", "unit": "m"}]).status_code == 201
+    )
+
+    a_item = db.scalar(select(TransactionItem).where(TransactionItem.product_id == nails["id"]))
+    b_txn = db.scalar(select(Transaction).where(Transaction.store_id != a_item.store_id))
+    # Free store A's line (its own movement holds the unique slot), then point B at it.
+    db.execute(delete(StockMovement).where(StockMovement.transaction_item_id == a_item.id))
+    db.add(
+        StockMovement(
+            store_id=b_txn.store_id,
+            product_id=uuid.UUID(rope["id"]),
+            transaction_id=b_txn.id,
+            transaction_item_id=a_item.id,
+            qty_change=Decimal("1"),
+            stock_after=Decimal("2"),
+        )
+    )
+    with pytest.raises(IntegrityError) as e:
+        db.flush()
+    assert "fk_stock_movements_transaction_item_id_transaction_items" in str(e.value)
+    db.rollback()
