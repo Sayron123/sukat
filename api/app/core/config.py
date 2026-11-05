@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     INVITE_EXPIRE_HOURS: int = 72
 
+    # Failed login / invite-accept limits, counted over a sliding window.
+    AUTH_FAILURE_WINDOW_MINUTES: int = 15
+    AUTH_MAX_FAILURES_PER_EMAIL: int = 10
+    AUTH_MAX_FAILURES_PER_IP: int = 30
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

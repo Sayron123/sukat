@@ -21,7 +21,7 @@ from app.main import app
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://sukat:sukat@localhost:5432/sukat_test"
 )
-TABLES = ["invites", "store_members", "users", "stores"]
+TABLES = ["auth_failures", "invites", "store_members", "users", "stores"]
 
 
 def _create_database_if_missing(url: str) -> None:

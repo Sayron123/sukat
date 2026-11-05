@@ -6,11 +6,19 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import delete, select
 
 from app.auth.deps import CurrentMember, DbSession, require_role
 from app.auth.models import User
+from app.auth.rate_limit import (
+    clear_failures,
+    email_key,
+    ensure_not_limited,
+    ip_key,
+    limits_for,
+    record_failure,
+)
 from app.auth.schemas import TokenOut
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.core.config import settings
@@ -93,14 +101,26 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession) -> InviteOut:
 
 
 @router.post("/invites/accept", response_model=TokenOut)
-def accept_invite(body: AcceptInviteIn, db: DbSession) -> TokenOut:
+def accept_invite(body: AcceptInviteIn, request: Request, db: DbSession) -> TokenOut:
+    """Join a store with an invite token. Creates the account if the email is new;
+    otherwise the invitee must give that account's current password.
+
+    Bad tokens count against the caller's IP; wrong passwords count against the email too.
+    """
+    ensure_not_limited(db, limits_for(None, request))
     invalid = HTTPException(status.HTTP_400_BAD_REQUEST, "This invite is invalid or has expired")
     # FOR UPDATE locks the invite row, so the same invite cannot be accepted twice at once.
     invite = db.scalar(
         select(Invite).where(Invite.token_hash == _hash_token(body.token)).with_for_update()
     )
     if invite is None or invite.accepted_at is not None or invite.expires_at <= datetime.now(UTC):
+        ip = ip_key(request)
+        if ip:
+            record_failure(db, [ip])
         raise invalid
+
+    limits = limits_for(invite.email, request)
+    ensure_not_limited(db, limits)
 
     user = db.scalar(select(User).where(User.email == invite.email))
     if user is None:
@@ -115,7 +135,10 @@ def accept_invite(body: AcceptInviteIn, db: DbSession) -> TokenOut:
         db.flush()
     elif not verify_password(body.password, user.password_hash):
         # Existing account: the invitee proves it is theirs with their current password.
+        record_failure(db, [key for key, _ in limits])
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect password for this account")
+    else:
+        clear_failures(db, email_key(invite.email))
 
     member = db.scalar(
         select(StoreMember).where(

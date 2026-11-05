@@ -1,9 +1,16 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.auth.deps import CurrentMemberDep, DbSession
 from app.auth.models import User
+from app.auth.rate_limit import (
+    clear_failures,
+    email_key,
+    ensure_not_limited,
+    limits_for,
+    record_failure,
+)
 from app.auth.schemas import LoginIn, MeOut, SignupIn, TokenOut
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.stores.models import Role, Store, StoreMember
@@ -40,12 +47,24 @@ def signup(body: SignupIn, db: DbSession) -> TokenOut:
 
 
 @router.post("/login", response_model=TokenOut)
-def login(body: LoginIn, db: DbSession) -> TokenOut:
+def login(body: LoginIn, request: Request, db: DbSession) -> TokenOut:
+    """Check email + password and return an access token for the user's first active store.
+
+    Too many failures for the same email (or IP) inside the window returns 429, even if
+    the password is right, so guessing cannot continue.
+    """
+    limits = limits_for(body.email, request)
+    ensure_not_limited(db, limits)
+
     user = db.scalar(select(User).where(User.email == body.email))
     # Always run the hash check (even for unknown emails) so timing does not reveal accounts.
     password_ok = verify_password(body.password, user.password_hash if user else None)
     if user is None or not password_ok:
+        # Unknown emails are counted too, so the 429 does not reveal which emails exist.
+        record_failure(db, [key for key, _ in limits])
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
+    clear_failures(db, email_key(body.email))
+    db.commit()
 
     # Phase 1: a user signs in to their first active store. Store switching comes later.
     member = db.scalar(

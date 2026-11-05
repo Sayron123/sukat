@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, String
+from sqlalchemy import CheckConstraint, DateTime, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base import Base, created_at_col, updated_at_col, uuid_pk
@@ -18,3 +18,17 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(120), nullable=False)
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
+
+
+class AuthFailure(Base):
+    """One failed login/accept attempt for a key ("email:..." or "ip:..."). Used for rate
+    limiting; rows older than AUTH_FAILURE_WINDOW_MINUTES are deleted automatically."""
+
+    __tablename__ = "auth_failures"
+    __table_args__ = (Index("ix_auth_failures_key_created_at", "key", "created_at"),)
+
+    id: Mapped[UUID] = uuid_pk()
+    key: Mapped[str] = mapped_column(String(400), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
