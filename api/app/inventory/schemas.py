@@ -82,6 +82,26 @@ class TransactionOut(BaseModel):
     total_centavos: int
     items: list[TransactionItemOut]
     created_at: datetime
+    created_by_name: str | None
+    voided_at: datetime | None
+    voided_by_name: str | None
+
+
+class TransactionSummaryOut(BaseModel):
+    id: UUID
+    type: str
+    status: str
+    total_centavos: int
+    item_count: int
+    created_at: datetime
+
+
+class TransactionPage(BaseModel):
+    items: list[TransactionSummaryOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
 
 
 # ---------- photo upload ----------

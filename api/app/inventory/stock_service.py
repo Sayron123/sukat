@@ -10,6 +10,7 @@ Guarantees:
 
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -19,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.schemas import ScanLine
 from app.auth.deps import CurrentMember
+from app.auth.models import User
 from app.core.errors import Conflict, Forbidden, Invalid, NotFound
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.scan_service import line_total, quantize_qty
@@ -27,7 +29,9 @@ from app.inventory.schemas import (
     TransactionIn,
     TransactionItemOut,
     TransactionOut,
+    TransactionSummaryOut,
 )
+from app.products.constants import PAGE_SIZE
 from app.products.models import Product, ProductAlias
 from app.products.pricing import priced_line
 from app.products.units import UnitConversionError, convert, is_unit_word, normalize_unit
@@ -347,13 +351,21 @@ def get_transaction(db: Session, store_id: UUID, transaction_id: UUID) -> Transa
 
 
 def transaction_view(db: Session, txn: Transaction) -> TransactionOut:
-    """Built from what is stored, so a repeated request gets exactly the same answer."""
+    """Built from what is stored, so a repeated request gets exactly the same answer.
+    `stock_after` per line is from the original movement (not the void reversal)."""
     pids = {item.product_id for item in txn.items}
     products = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_(pids)))}
     stock_after = dict(
         db.execute(
             select(StockMovement.transaction_item_id, StockMovement.stock_after).where(
-                StockMovement.transaction_id == txn.id
+                StockMovement.transaction_id == txn.id, StockMovement.is_reversal.is_(False)
+            )
+        ).all()
+    )
+    names = dict(
+        db.execute(
+            select(User.id, User.full_name).where(
+                User.id.in_({u for u in (txn.created_by, txn.voided_by) if u})
             )
         ).all()
     )
@@ -365,6 +377,9 @@ def transaction_view(db: Session, txn: Transaction) -> TransactionOut:
         scan_id=txn.scan_id,
         total_centavos=txn.total_centavos,
         created_at=txn.created_at,
+        created_by_name=names.get(txn.created_by) if txn.created_by else None,
+        voided_at=txn.voided_at,
+        voided_by_name=names.get(txn.voided_by) if txn.voided_by else None,
         items=[
             TransactionItemOut(
                 line_no=item.line_no,
@@ -381,3 +396,116 @@ def transaction_view(db: Session, txn: Transaction) -> TransactionOut:
             for item in txn.items
         ],
     )
+
+
+def list_transactions(
+    db: Session, store_id: UUID, txn_type: str | None, page: int
+) -> tuple[list[TransactionSummaryOut], int]:
+    """One page (newest first) of this store's transactions, plus the total count."""
+    where = [Transaction.store_id == store_id]
+    if txn_type:
+        where.append(Transaction.type == txn_type)
+    total = db.scalar(select(func.count()).select_from(Transaction).where(*where)) or 0
+    item_count = (
+        select(func.count())
+        .where(TransactionItem.transaction_id == Transaction.id)
+        .correlate(Transaction)
+        .scalar_subquery()
+    )
+    rows = db.execute(
+        select(Transaction, item_count)
+        .where(*where)
+        .order_by(Transaction.created_at.desc(), Transaction.id.desc())
+        .offset((page - 1) * PAGE_SIZE)
+        .limit(PAGE_SIZE)
+    ).all()
+    return [
+        TransactionSummaryOut(
+            id=t.id,
+            type=t.type,
+            status=t.status,
+            total_centavos=t.total_centavos,
+            item_count=count,
+            created_at=t.created_at,
+        )
+        for t, count in rows
+    ], total
+
+
+# ---------- void ----------
+
+
+class AlreadyVoided(Conflict):
+    code = "already_voided"
+
+
+def void_transaction(db: Session, current: CurrentMember, transaction_id: UUID) -> Transaction:
+    """Undo a saved transaction without deleting anything, in ONE database transaction:
+    status becomes "voided" (with who and when), and every stock movement it made gets
+    a reversing movement (a sale's stock comes back; a stock-in's goes out again).
+
+    Stock may go below 0 when voiding a stock-in whose items were already sold; that is
+    the true count, so it isn't blocked.
+
+    Assumes the caller checked the role (manager/secretary).
+    @raises NotFound (also for another store's transaction), AlreadyVoided
+    """
+    # Lock the transaction first: a second void at the same moment waits here, then
+    # sees "voided". (The unique (transaction_item_id, is_reversal) key is a backstop.)
+    txn = db.scalar(
+        select(Transaction)
+        .where(Transaction.id == transaction_id, Transaction.store_id == current.store_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if txn is None:
+        raise NotFound("Transaction not found")
+    if txn.status == "voided":
+        raise AlreadyVoided("This transaction is already voided")
+
+    movements = list(
+        db.scalars(
+            select(StockMovement).where(
+                StockMovement.transaction_id == txn.id, StockMovement.is_reversal.is_(False)
+            )
+        )
+    )
+    # Same lock order as saving (product id), so a void and a sale can't deadlock.
+    products = {
+        p.id: p
+        for p in db.scalars(
+            select(Product)
+            .where(
+                Product.store_id == current.store_id,
+                Product.id.in_({m.product_id for m in movements}),
+            )
+            .order_by(Product.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    }
+    for m in sorted(movements, key=lambda m: (m.product_id, m.id)):
+        product = products[m.product_id]
+        new_stock = product.stock_qty - m.qty_change
+        if abs(new_stock) > MAX_STOCK:
+            raise Invalid(f'Voiding would put "{product.name}" stock out of range')
+        product.stock_qty = new_stock
+        db.add(
+            StockMovement(
+                store_id=txn.store_id,
+                product_id=m.product_id,
+                transaction_id=txn.id,
+                transaction_item_id=m.transaction_item_id,
+                is_reversal=True,
+                qty_change=-m.qty_change,
+                stock_after=new_stock,
+                created_by=current.user.id,
+            )
+        )
+
+    txn.status = "voided"
+    txn.voided_at = datetime.now(UTC)
+    txn.voided_by = current.user.id
+    db.commit()
+    db.refresh(txn)
+    return txn
