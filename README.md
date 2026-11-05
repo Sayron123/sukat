@@ -12,10 +12,13 @@ sukat/
 ├── api/                  # Backend: FastAPI + SQLAlchemy + Alembic (Python, uv)
 │   ├── app/
 │   │   ├── main.py       # FastAPI app entry point
-│   │   ├── core/         # config, db session, base model, health route
-│   │   ├── auth/         # users, signup/login, JWT, role checks
-│   │   ├── stores/       # stores, staff, invites
-│   │   └── products/  inventory/  sales/  insights/  ai/   # empty for now
+│   │   ├── core/         # config, db, base model, errors, storage, /health
+│   │   ├── auth/         # accounts, login, JWT, role checks
+│   │   ├── stores/       # staff and invites
+│   │   ├── products/     # products, aliases, units, starter catalog
+│   │   ├── inventory/    # photo upload, scans, transactions, stock
+│   │   └── ai/           # AI list reader
+│   │   (each feature: models.py, schemas.py, service.py, router.py)
 │   ├── alembic/          # database migrations
 │   ├── tests/            # pytest tests
 │   ├── pyproject.toml    # Python deps
@@ -23,7 +26,7 @@ sukat/
 ├── web/                  # Frontend: Next.js 16 + TypeScript + Tailwind (PWA)
 │   ├── src/app/
 │   └── .env.example
-├── docs/                 # What and why for each phase (phase-0.md, phase-1.md)
+├── docs/                 # api-structure.md + what and why for each phase
 └── docker-compose.yml    # PostgreSQL 16
 ```
 
@@ -47,7 +50,7 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host 0.0.0.0
 ```
 
-API runs at http://localhost:8000. Check http://localhost:8000/health.
+API runs at http://localhost:8000 (endpoints under `/v1`; list at http://localhost:8000/docs). Check http://localhost:8000/health.
 
 **3. Start the web app** (new terminal)
 
