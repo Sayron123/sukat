@@ -7,8 +7,16 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    /** The parsed JSON error body, for errors that carry more than a message. */
+    public body: unknown = null,
   ) {
     super(message);
+  }
+
+  /** Machine-readable reason from the API (e.g. "negative_stock"), if any. */
+  get code(): string | null {
+    const b = this.body as { code?: unknown } | null;
+    return typeof b?.code === "string" ? b.code : null;
   }
 }
 
@@ -33,6 +41,6 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError("Please log in again.", 401);
   }
   const body: unknown = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(errorMessage(body, "Something went wrong"), res.status);
+  if (!res.ok) throw new ApiError(errorMessage(body, "Something went wrong"), res.status, body);
   return body as T;
 }

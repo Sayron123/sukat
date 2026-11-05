@@ -5,7 +5,12 @@ import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api-client";
 import type { ProductPage } from "@/lib/types";
 
-export type PickedProduct = { id: string; name: string; base_unit: string };
+export type PickedProduct = {
+  id: string;
+  name: string;
+  base_unit: string;
+  price_centavos: number | null;
+};
 
 /**
  * Search box that picks one of the store's products. Shows up to 6 matches by name or
@@ -34,7 +39,15 @@ export function ProductPicker({
       const q = text.trim();
       api<ProductPage>(`products?${new URLSearchParams(q ? { q } : {})}`)
         .then((page) => {
-          if (!stale) setResults(page.items.slice(0, 6));
+          if (!stale)
+            setResults(
+              page.items.slice(0, 6).map((p) => ({
+                id: p.id,
+                name: p.name,
+                base_unit: p.base_unit,
+                price_centavos: p.price_centavos,
+              })),
+            );
         })
         .catch(() => {
           if (!stale) setResults([]);
@@ -79,7 +92,7 @@ export function ProductPicker({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                  onPick({ id: p.id, name: p.name, base_unit: p.base_unit });
+                  onPick({ id: p.id, name: p.name, base_unit: p.base_unit, price_centavos: p.price_centavos });
                   setText(p.name);
                   setOpen(false);
                 }}

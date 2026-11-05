@@ -4,18 +4,23 @@ import { Field, Select } from "@/components/ui";
 import { formatPeso } from "@/lib/format";
 import { CATEGORIES } from "@/lib/types";
 
-import { type EditLine, REASON_TEXT, lineProblem, lineTotal } from "./lines";
-import { ProductPicker } from "./product-picker";
+import { type EditLine, REASON_TEXT, editLine, lineProblem, lineTotal, priceDiffers } from "./lines";
+import { type PickedProduct, ProductPicker } from "./product-picker";
 
 /**
  * One editable line on the review screen.
  * - Amber border + "Check" tag: the AI was unsure (until the user edits the line).
- * - "New" tag: saving will create this product.
+ * - "New" tag: saving will create this product (stock in only).
+ * - "Price differs" tag: a sale price that isn't the product's usual price.
+ *
+ * @param canCreate whether "Add as new product" is offered (stock in + manager/secretary)
+ * @param isSale sale mode: prices default to the product's price, no new products
  */
 export function ReviewLineCard({
   line,
   index,
   canCreate,
+  isSale,
   showErrors,
   onChange,
   onRemove,
@@ -23,14 +28,27 @@ export function ReviewLineCard({
   line: EditLine;
   index: number;
   canCreate: boolean;
+  isSale: boolean;
   showErrors: boolean;
   onChange: (next: EditLine) => void;
   onRemove: () => void;
 }) {
   const needsCheck = line.checkReasons.length > 0 && !line.touched;
+  const differs = isSale && priceDiffers(line);
   const problem = showErrors ? lineProblem(line) : null;
   const total = lineTotal(line);
-  const update = (patch: Partial<EditLine>) => onChange({ ...line, ...patch, touched: true });
+  const update = (patch: Partial<EditLine>) => onChange(editLine(line, patch));
+
+  function pickProduct(p: PickedProduct) {
+    const patch: Partial<EditLine> = { product: p };
+    // Sale with no price yet: use the product's price when the unit is its base unit.
+    // (For other units the server fills in the converted price when saving.)
+    if (isSale && (!line.price.trim() || line.priceFromProduct) && p.price_centavos !== null && line.unit === p.base_unit) {
+      patch.price = (p.price_centavos / 100).toFixed(2);
+      patch.priceFromProduct = true;
+    }
+    update(patch);
+  }
   const id = (name: string) => `line-${line.key}-${name}`;
 
   return (
@@ -47,6 +65,11 @@ export function ReviewLineCard({
         <div className="flex shrink-0 items-center gap-1">
           {line.newProduct && (
             <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-white">New</span>
+          )}
+          {differs && (
+            <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">
+              Price differs
+            </span>
           )}
           {needsCheck && (
             <span className="rounded-full bg-amber/15 px-2 py-0.5 text-xs font-medium text-amber">Check</span>
@@ -104,7 +127,7 @@ export function ReviewLineCard({
         <ProductPicker
           value={line.product}
           invalid={problem === "Pick a product"}
-          onPick={(p) => update({ product: p })}
+          onPick={pickProduct}
           onAddNew={
             canCreate
               ? (name) => update({ product: null, newProduct: { name, category: "Others", base_unit: line.unit || "pc" } })
@@ -141,6 +164,12 @@ export function ReviewLineCard({
           </span>
         </div>
       </div>
+
+      {differs && line.expectedPrice !== null && (
+        <p className="mt-2 text-xs text-amber">
+          Usual price: {formatPeso(line.expectedPrice)} per {line.unit}
+        </p>
+      )}
 
       {problem && (
         <p role="alert" className="mt-2 text-sm text-red">

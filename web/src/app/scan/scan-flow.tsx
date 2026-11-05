@@ -6,12 +6,47 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Card, GhostButton } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
-import { formatPeso, formatQty, pesosToCentavos } from "@/lib/format";
+import { formatPeso, formatQty } from "@/lib/format";
 import { newRequestId } from "@/lib/request-id";
-import { canEditProducts, type Me, type Scan, type Transaction, type UploadUrl } from "@/lib/types";
+import { takePendingPhoto } from "@/lib/pending-photo";
+import {
+  canEditProducts,
+  type Me,
+  type NegativeStockItem,
+  type Scan,
+  type ScanMode,
+  type Transaction,
+  type UploadUrl,
+} from "@/lib/types";
 
-import { type EditLine, lineProblem, lineTotal, toEditLine } from "./lines";
+import { type EditLine, lineProblem, lineTotal, priceToSend, toEditLine } from "./lines";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+
 import { ReviewLineCard } from "./review-line";
+
+/** Words that differ between a delivery (stock in) and a sale. */
+const TEXT = {
+  stock_in: {
+    title: "Scan stock in",
+    pickHelp: "Take a photo of the delivery list. Lay it flat, fill the frame, and avoid shadows.",
+    reading: "Reading list…",
+    readFailed: "Couldn’t read the list",
+    review: "Check the list",
+    save: "Save stock in",
+    saved: "Stock saved",
+    again: "Scan another list",
+  },
+  sale: {
+    title: "Scan receipt",
+    pickHelp: "Take a photo of the sales receipt or order slip. Lay it flat and fill the frame.",
+    reading: "Reading receipt…",
+    readFailed: "Couldn’t read the receipt",
+    review: "Check the sale",
+    save: "Save sale",
+    saved: "Sale saved",
+    again: "Scan another receipt",
+  },
+} as const;
 
 type Step =
   | { name: "pick"; error?: string }
@@ -24,17 +59,27 @@ type Step =
 const POLL_MS = 3000;
 
 /**
- * Scan Stock In: photo -> compress -> upload -> AI reads -> review/edit -> save.
+ * Scan flow for both modes: photo -> compress -> upload -> AI reads -> review -> save.
+ * "stock_in" adds stock (new products allowed for managers/secretaries); "sale" removes
+ * stock (existing products only, prices default to the product's price).
  *
  * Saving uses a client_request_id made once per review, so pressing Save again after a
- * dropped connection can never add the stock twice.
+ * dropped connection can never save twice.
  */
-export function ScanFlow() {
+export function ScanFlow({ mode }: { mode: ScanMode }) {
+  const text = TEXT[mode];
   const [step, setStep] = useState<Step>({ name: "pick" });
   const [me, setMe] = useState<Me | null>(null);
 
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
+  }, []);
+
+  // A photo taken from the home page's "Scan Receipt" button: start with it right away.
+  useEffect(() => {
+    const file = takePendingPhoto();
+    if (file) void startWithFile(file);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on arrival
   }, []);
 
   async function startWithFile(file: File) {
@@ -63,7 +108,7 @@ export function ScanFlow() {
   async function read(photoKey: string) {
     setStep({ name: "reading", photoKey });
     try {
-      const scan = await api<Scan>("scans", { method: "POST", body: JSON.stringify({ photo_key: photoKey, type: "stock_in" }) });
+      const scan = await api<Scan>("scans", { method: "POST", body: JSON.stringify({ photo_key: photoKey, type: mode }) });
       showScan(scan, photoKey);
     } catch (e) {
       setStep({
@@ -108,13 +153,13 @@ export function ScanFlow() {
 
   switch (step.name) {
     case "pick":
-      return <PickPhoto error={step.error} onFile={startWithFile} />;
+      return <PickPhoto title={text.title} help={text.pickHelp} error={step.error} onFile={startWithFile} />;
     case "uploading":
       return <Busy title="Uploading photo…" />;
     case "reading":
       return (
         <Busy
-          title="Reading list…"
+          title={text.reading}
           note="This can take up to a minute."
           error={step.error}
           onRetry={step.error ? () => read(step.photoKey) : undefined}
@@ -124,7 +169,7 @@ export function ScanFlow() {
     case "failed":
       return (
         <Card className="flex flex-col gap-3">
-          <h1 className="text-xl font-semibold text-text">Couldn’t read the list</h1>
+          <h1 className="text-xl font-semibold text-text">{text.readFailed}</h1>
           <p className="text-muted">{step.scan.error_message ?? "Something went wrong."}</p>
           {step.scan.retryable && <Button onClick={() => retry(step.scan)}>Try again</Button>}
           <GhostButton onClick={() => setStep({ name: "pick" })}>Take another photo</GhostButton>
@@ -134,17 +179,28 @@ export function ScanFlow() {
       return (
         <Review
           scan={step.scan}
-          canCreate={canEditProducts(me?.role)}
+          mode={mode}
+          canCreate={mode === "stock_in" && canEditProducts(me?.role)}
           onSaved={(txn) => setStep({ name: "done", txn })}
           onCancel={() => setStep({ name: "pick" })}
         />
       );
     case "done":
-      return <Done txn={step.txn} onAgain={() => setStep({ name: "pick" })} />;
+      return <Done txn={step.txn} mode={mode} onAgain={() => setStep({ name: "pick" })} />;
   }
 }
 
-function PickPhoto({ error, onFile }: { error?: string; onFile: (f: File) => void }) {
+function PickPhoto({
+  title,
+  help,
+  error,
+  onFile,
+}: {
+  title: string;
+  help: string;
+  error?: string;
+  onFile: (f: File) => void;
+}) {
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
   const take = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,10 +211,8 @@ function PickPhoto({ error, onFile }: { error?: string; onFile: (f: File) => voi
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold text-text">Scan stock in</h1>
-        <p className="mt-1 text-sm text-muted">
-          Take a photo of the delivery list. Lay it flat, fill the frame, and avoid shadows.
-        </p>
+        <h1 className="text-2xl font-semibold text-text">{title}</h1>
+        <p className="mt-1 text-sm text-muted">{help}</p>
       </div>
       {error && (
         <p role="alert" className="rounded-button bg-red/10 px-3 py-2 text-sm text-red">
@@ -210,15 +264,18 @@ function Busy({
 
 function Review({
   scan,
+  mode,
   canCreate,
   onSaved,
   onCancel,
 }: {
   scan: Scan;
+  mode: ScanMode;
   canCreate: boolean;
   onSaved: (txn: Transaction) => void;
   onCancel: () => void;
 }) {
+  const text = TEXT[mode];
   const [lines, setLines] = useState<EditLine[]>(() => scan.lines.map(toEditLine));
   // One id per review. Kept in sessionStorage so a page reload mid-save reuses it.
   const [requestId] = useState(() => {
@@ -236,12 +293,19 @@ function Review({
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the server says this sale would take stock below 0.
+  const [negative, setNegative] = useState<NegativeStockItem[] | null>(null);
 
   const checks = lines.filter((l) => l.checkReasons.length > 0 && !l.touched).length;
   const total = lines.reduce((sum, l) => sum + (lineTotal(l) ?? 0), 0);
   const blockedNew = !canCreate && lines.some((l) => l.newProduct);
 
-  async function save() {
+  /**
+   * Send the save. `confirm` is true only after the user accepted the negative-stock
+   * warning; the same requestId is reused, which is safe because the refused attempt
+   * saved nothing.
+   */
+  async function save(confirm = false) {
     setShowErrors(true);
     if (lines.length === 0) return setError("Add at least one line, or start over.");
     if (lines.some((l) => lineProblem(l))) return setError("Fix the lines marked in red.");
@@ -253,15 +317,16 @@ function Review({
         method: "POST",
         body: JSON.stringify({
           client_request_id: requestId,
-          type: "stock_in",
+          type: mode,
           scan_id: scan.id,
+          confirm,
           lines: lines.map((l) => ({
             ...(l.newProduct
               ? { new_product: { name: l.newProduct.name.trim(), category: l.newProduct.category, base_unit: l.newProduct.base_unit.trim() } }
               : { product_id: l.product!.id }),
             qty: l.qty.trim(),
             unit: l.unit.trim(),
-            unit_price_centavos: pesosToCentavos(l.price) ?? null,
+            unit_price_centavos: priceToSend(l),
             scan_line: l.scanLine,
           })),
         }),
@@ -269,19 +334,25 @@ function Review({
       try {
         sessionStorage.removeItem(`sukat-save-${scan.id}`);
       } catch {}
+      setNegative(null);
       onSaved(txn);
     } catch (e) {
+      setSaving(false);
+      if (e instanceof ApiError && e.code === "negative_stock") {
+        setNegative((e.body as { products: NegativeStockItem[] }).products);
+        return;
+      }
+      setNegative(null);
       // Same requestId on the next tap: if this save actually went through, the server
       // returns it instead of saving again.
       setError(e instanceof ApiError ? e.message : "Could not save. Check your connection and tap Save again.");
-      setSaving(false);
     }
   }
 
   return (
     <div className="flex flex-col gap-4 pb-28">
       <div>
-        <h1 className="text-2xl font-semibold text-text">Check the list</h1>
+        <h1 className="text-2xl font-semibold text-text">{text.review}</h1>
         <p className="mt-1 text-sm text-muted">
           {lines.length} line{lines.length === 1 ? "" : "s"}
           {checks > 0 && <span className="text-amber"> · {checks} to check</span>}
@@ -295,6 +366,7 @@ function Review({
             line={line}
             index={i}
             canCreate={canCreate}
+            isSale={mode === "sale"}
             showErrors={showErrors}
             onChange={(next) => setLines(lines.map((l) => (l.key === line.key ? next : l)))}
             onRemove={() => setLines(lines.filter((l) => l.key !== line.key))}
@@ -312,24 +384,57 @@ function Review({
               {error}
             </p>
           )}
-          <Button className="w-full" disabled={saving} onClick={save}>
-            {saving ? "Saving…" : `Save stock in${total ? ` · ${formatPeso(total)}` : ""}`}
+          <Button className="w-full" disabled={saving} onClick={() => save()}>
+            {saving ? "Saving…" : `${text.save}${total ? ` · ${formatPeso(total)}` : ""}`}
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={negative !== null}
+        title="Not enough stock recorded"
+        confirmLabel="Save anyway"
+        busy={saving}
+        onConfirm={() => save(true)}
+        onCancel={() => setNegative(null)}
+      >
+        <p>This sale would take these below 0:</p>
+        <ul className="mt-2 flex flex-col gap-1">
+          {(negative ?? []).map((p) => (
+            <li key={p.product_id} className="text-text">
+              <span className="font-medium">{p.name}</span>: {formatQty(p.stock)} → {formatQty(p.stock_after)}{" "}
+              {p.base_unit}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2">
+          Save anyway if the delivery hasn’t been recorded yet. Otherwise go back and check the quantities.
+        </p>
+      </ConfirmDialog>
     </div>
   );
 }
 
-function Done({ txn, onAgain }: { txn: Transaction; onAgain: () => void }) {
+function Done({ txn, mode, onAgain }: { txn: Transaction; mode: ScanMode; onAgain: () => void }) {
+  const text = TEXT[mode];
+  const sign = mode === "sale" ? "−" : "+";
   return (
     <div className="flex flex-col gap-4">
       <Card role="status" className="text-center">
-        <p className="text-lg font-semibold text-green">Stock saved</p>
-        <p className="mt-1 text-sm text-muted">
-          {txn.items.length} item{txn.items.length === 1 ? "" : "s"}
-          {txn.total_centavos > 0 && ` · ${formatPeso(txn.total_centavos)}`}
-        </p>
+        <p className="text-lg font-semibold text-green">{text.saved}</p>
+        {mode === "sale" ? (
+          <>
+            <p className="mt-2 text-3xl font-semibold text-text">{formatPeso(txn.total_centavos)}</p>
+            <p className="mt-1 text-sm text-muted">
+              {txn.items.length} item{txn.items.length === 1 ? "" : "s"}
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-muted">
+            {txn.items.length} item{txn.items.length === 1 ? "" : "s"}
+            {txn.total_centavos > 0 && ` · ${formatPeso(txn.total_centavos)}`}
+          </p>
+        )}
       </Card>
       <Card padded={false}>
         <ul className="divide-y divide-border">
@@ -338,7 +443,8 @@ function Done({ txn, onAgain }: { txn: Transaction; onAgain: () => void }) {
               <div className="min-w-0">
                 <p className="font-medium text-text">{item.product_name}</p>
                 <p className="text-sm text-muted">
-                  +{formatQty(item.qty)} {item.unit}
+                  {sign}
+                  {formatQty(item.qty)} {item.unit}
                   {item.unit !== item.base_unit && ` (${formatQty(item.qty_base)} ${item.base_unit})`}
                 </p>
               </div>
@@ -349,7 +455,13 @@ function Done({ txn, onAgain }: { txn: Transaction; onAgain: () => void }) {
           ))}
         </ul>
       </Card>
-      <Button onClick={onAgain}>Scan another list</Button>
+      <Button onClick={onAgain}>{text.again}</Button>
+      <Link
+        href={`/transactions/${txn.id}`}
+        className="flex h-11 items-center justify-center rounded-button border border-border bg-background text-sm font-medium text-text hover:bg-surface"
+      >
+        View details
+      </Link>
       <Link
         href="/stock"
         className="flex h-11 items-center justify-center rounded-button border border-border bg-background text-sm font-medium text-text hover:bg-surface"

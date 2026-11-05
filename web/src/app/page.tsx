@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui";
 
 import { ApiStatus } from "./api-status";
+import { ScanReceiptButton } from "./scan-receipt-button";
 
 export default function Home() {
   return (
@@ -13,10 +14,13 @@ export default function Home() {
         <div className="mt-4">
           <ApiStatus />
         </div>
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6">
+          <ScanReceiptButton />
+        </div>
+        <div className="mt-3 flex gap-3">
           <Link
             href="/login"
-            className="flex h-11 flex-1 items-center justify-center rounded-button bg-accent font-medium text-white hover:bg-accent-pressed"
+            className="flex h-11 flex-1 items-center justify-center rounded-button border border-border bg-background font-medium text-text hover:bg-surface"
           >
             Log in
           </Link>

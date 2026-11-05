@@ -98,10 +98,13 @@ export type ReviewLine = {
   unit: string;
   qty_base: string | null;
   unit_price_centavos: number | null;
+  price_source: "receipt" | "product" | null;
+  expected_unit_price_centavos: number | null;
   line_total_centavos: number | null;
   confidence: number;
   needs_check: boolean;
   check_reasons: CheckReason[];
+  warnings: "price_differs"[];
 };
 
 export type Scan = {
@@ -128,13 +131,44 @@ export type TransactionItem = {
   stock_after: string;
 };
 
+export type ScanMode = "stock_in" | "sale";
+
 export type Transaction = {
   id: string;
-  type: string;
-  status: string;
+  type: ScanMode;
+  status: "saved" | "voided";
   client_request_id: string;
   scan_id: string | null;
   total_centavos: number;
   items: TransactionItem[];
   created_at: string;
+  created_by_name: string | null;
+  voided_at: string | null;
+  voided_by_name: string | null;
+};
+
+export type TransactionSummary = {
+  id: string;
+  type: ScanMode;
+  status: "saved" | "voided";
+  total_centavos: number;
+  item_count: number;
+  created_at: string;
+};
+
+export type TransactionPage = {
+  items: TransactionSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+};
+
+/** Body of a 409 with code "negative_stock" (a sale that would take stock below 0). */
+export type NegativeStockItem = {
+  product_id: string;
+  name: string;
+  base_unit: string;
+  stock: string;
+  stock_after: string;
 };

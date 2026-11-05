@@ -13,10 +13,20 @@ export function Card({
   );
 }
 
-export function Button({ className = "", ...props }: ComponentProps<"button">) {
+const BUTTON_COLORS = {
+  primary: "bg-accent hover:bg-accent-pressed active:bg-accent-pressed",
+  danger: "bg-red hover:bg-red/90 active:bg-red/90",
+} as const;
+
+/** Filled button. Use `variant` for color (passing bg-* classes would conflict). */
+export function Button({
+  className = "",
+  variant = "primary",
+  ...props
+}: ComponentProps<"button"> & { variant?: keyof typeof BUTTON_COLORS }) {
   return (
     <button
-      className={`h-11 rounded-button bg-accent px-4 font-medium text-white hover:bg-accent-pressed active:bg-accent-pressed disabled:opacity-60 ${className}`}
+      className={`h-11 rounded-button px-4 font-medium text-white disabled:opacity-60 ${BUTTON_COLORS[variant]} ${className}`}
       {...props}
     />
   );
