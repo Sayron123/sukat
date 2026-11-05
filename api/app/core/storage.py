@@ -61,7 +61,7 @@ class LocalStorage:
         )
         return PresignedUpload(
             key=key,
-            url=f"{self.public_api_url}/uploads/local/{quote(key)}?{query}",
+            url=f"{self.public_api_url}/v1/uploads/local/{quote(key)}?{query}",
             expires_in=expires_in,
             headers={"Content-Type": content_type},
         )

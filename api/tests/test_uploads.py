@@ -20,9 +20,8 @@ def _upload_url(api, headers, size=JPEG_SIZE, content_type="image/jpeg"):
 
 
 def _put(api, up, body=JPEG, content_type=None):
-    path = urlsplit(up["upload_url"])
     return api.put(
-        f"{path.path}?{path.query}",
+        up["upload_url"],  # full URL, exactly as the phone uses it
         content=body,
         headers={"Content-Type": content_type or up["headers"]["Content-Type"]},
     )

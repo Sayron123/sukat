@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { isSameOrigin } from "@/lib/server/auth-route";
-import { API_URL, getToken } from "@/lib/server/backend";
+import { API_PREFIX, API_URL, getToken } from "@/lib/server/backend";
 
 /**
  * Same-origin proxy from the browser to the FastAPI backend.
@@ -39,7 +39,7 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/${joined}${req.nextUrl.search}`, {
+    res = await fetch(`${API_URL}${API_PREFIX}/${joined}${req.nextUrl.search}`, {
       method: req.method,
       cache: "no-store",
       headers: {

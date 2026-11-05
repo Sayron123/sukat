@@ -11,7 +11,7 @@ from app.inventory.models import Scan, StockMovement, Transaction, TransactionIt
 from app.inventory.schemas import TransactionIn
 from app.inventory.stock_service import alias_from_raw, save_stock_in
 from app.products.models import Product, ProductAlias
-from tests.conftest import auth_header, make_product, scan_line, upload_photo
+from tests.conftest import API_BASE_URL, auth_header, make_product, scan_line, upload_photo
 
 
 def _rid() -> str:
@@ -441,7 +441,7 @@ def test_concurrent_repeats_of_a_scan_save_return_first_result(
     }
 
     def post(_):
-        with TestClient(app) as client:
+        with TestClient(app, base_url=API_BASE_URL) as client:
             return client.post("/transactions", json=body, headers=manager)
 
     with ThreadPoolExecutor(4) as pool:

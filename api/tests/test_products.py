@@ -147,7 +147,9 @@ def test_catalog_lists_items_and_marks_imported(api, manager):
 
     api.post("/products/import", json={"keys": ["portland-cement-40kg"]}, headers=manager)
     marked = {
-        i["key"] for i in api.get("/products/catalog", headers=manager).json() if i["already_in_store"]
+        i["key"]
+        for i in api.get("/products/catalog", headers=manager).json()
+        if i["already_in_store"]
     }
     assert marked == {"portland-cement-40kg"}
 

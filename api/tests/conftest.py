@@ -22,6 +22,8 @@ from app.main import app
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://sukat:sukat@localhost:5432/sukat_test"
 )
+API_BASE_URL = "http://testserver/v1"
+
 TABLES = [
     "stock_movements",
     "transaction_items",
@@ -93,7 +95,8 @@ def api(db_sessionmaker: sessionmaker[Session], storage: LocalStorage) -> Genera
 
     app.dependency_overrides[get_db] = _get_test_db
     app.dependency_overrides[get_storage] = lambda: storage
-    with TestClient(app) as client:
+    # Relative paths like "/auth/signup" go to /v1/auth/signup, like the real clients.
+    with TestClient(app, base_url=API_BASE_URL) as client:
         yield client
     app.dependency_overrides.clear()
 
