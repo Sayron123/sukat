@@ -2,10 +2,16 @@
 
 import { useEffect, useId, useState } from "react";
 
+import { Icon } from "@/components/icons";
 import { api } from "@/lib/api-client";
 import type { ProductPage } from "@/lib/types";
 
-export type PickedProduct = { id: string; name: string; base_unit: string };
+export type PickedProduct = {
+  id: string;
+  name: string;
+  base_unit: string;
+  price_centavos: number | null;
+};
 
 /**
  * Search box that picks one of the store's products. Shows up to 6 matches by name or
@@ -16,11 +22,13 @@ export function ProductPicker({
   onPick,
   onAddNew,
   invalid,
+  label = "Product",
 }: {
   value: PickedProduct | null;
   onPick: (p: PickedProduct) => void;
   onAddNew?: (name: string) => void;
   invalid?: boolean;
+  label?: string;
 }) {
   const listId = useId();
   const [text, setText] = useState(value?.name ?? "");
@@ -34,7 +42,15 @@ export function ProductPicker({
       const q = text.trim();
       api<ProductPage>(`products?${new URLSearchParams(q ? { q } : {})}`)
         .then((page) => {
-          if (!stale) setResults(page.items.slice(0, 6));
+          if (!stale)
+            setResults(
+              page.items.slice(0, 6).map((p) => ({
+                id: p.id,
+                name: p.name,
+                base_unit: p.base_unit,
+                price_centavos: p.price_centavos,
+              })),
+            );
         })
         .catch(() => {
           if (!stale) setResults([]);
@@ -52,10 +68,10 @@ export function ProductPicker({
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
-        aria-label="Product"
+        aria-label={label}
         aria-invalid={invalid || undefined}
         value={text}
-        placeholder="Search product"
+        placeholder="Pick a product"
         onFocus={() => setOpen(true)}
         // Delay so a tap on a result registers before the list closes.
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -63,15 +79,16 @@ export function ProductPicker({
           setText(e.target.value);
           setOpen(true);
         }}
-        className={`h-11 w-full min-w-0 rounded-button border bg-background px-3 text-text outline-none focus:ring-2 focus:ring-accent/30 ${
-          invalid ? "border-red" : "border-border focus:border-accent"
+        // Looks like the line's bold title; underlined while typing or when missing.
+        className={`h-9 w-full min-w-0 border-b bg-transparent text-base font-bold text-text outline-none placeholder:font-semibold focus:border-text ${
+          invalid ? "border-red placeholder:text-red" : "border-transparent placeholder:text-subtle"
         }`}
       />
       {open && (results.length > 0 || (onAddNew && text.trim())) && (
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 top-12 z-20 max-h-72 overflow-y-auto rounded-button border border-border bg-background shadow-lg"
+          className="absolute inset-x-0 top-10 z-20 max-h-72 overflow-y-auto rounded-button border border-border bg-background shadow-lg"
         >
           {results.map((p) => (
             <li key={p.id} role="option" aria-selected={value?.id === p.id}>
@@ -79,7 +96,7 @@ export function ProductPicker({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                  onPick({ id: p.id, name: p.name, base_unit: p.base_unit });
+                  onPick({ id: p.id, name: p.name, base_unit: p.base_unit, price_centavos: p.price_centavos });
                   setText(p.name);
                   setOpen(false);
                 }}
@@ -99,9 +116,10 @@ export function ProductPicker({
                   onAddNew(text.trim());
                   setOpen(false);
                 }}
-                className="flex min-h-11 w-full items-center px-3 py-2 text-left font-medium text-accent hover:bg-surface"
+                className="flex min-h-11 w-full items-center gap-1.5 px-3 py-2 text-left font-semibold text-text hover:bg-surface"
               >
-                + Add &quot;{text.trim()}&quot; as new product
+                <Icon name="plus" size={18} />
+                Add &quot;{text.trim()}&quot; as new product
               </button>
             </li>
           )}

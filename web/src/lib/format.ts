@@ -29,3 +29,21 @@ export function centavosToInput(centavos: number | null): string {
   if (centavos === null) return "";
   return `${Math.trunc(centavos / 100)}.${String(centavos % 100).padStart(2, "0")}`;
 }
+
+/** "Nov 5, 2026, 5:26 AM" in the phone's time zone, from an ISO timestamp. */
+export function formatWhen(iso: string): string {
+  return new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** "Today, 10:32 AM", "Yesterday, 4:20 PM" or "Nov 3, 9:15 AM" (year added if not this year). */
+export function formatShortWhen(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
+  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const daysAgo = Math.round((dayStart(now) - dayStart(d)) / 86_400_000);
+  if (daysAgo === 0) return `Today, ${time}`;
+  if (daysAgo === 1) return `Yesterday, ${time}`;
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const date = d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: sameYear ? undefined : "numeric" });
+  return `${date}, ${time}`;
+}

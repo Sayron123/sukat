@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 
-import { AppNav } from "@/components/app-nav";
-import { Card } from "@/components/ui";
+import { AppPage } from "@/components/app-page";
+import { PageHeader } from "@/components/page-header";
+import { Avatar, Badge, Card, Notice } from "@/components/ui";
 import { backendFetch, getToken } from "@/lib/server/backend";
 
 export const metadata: Metadata = { title: "Staff · Sukat" };
 
-type Me = { full_name: string; store_name: string; role: string };
 type Staff = {
   member_id: string;
   email: string;
@@ -19,14 +18,9 @@ type Staff = {
 
 export default function StaffPage() {
   return (
-    <>
-      <AppNav active="staff" />
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <Suspense fallback={<p className="text-muted">Loading staff…</p>}>
-          <StaffContent />
-        </Suspense>
-      </main>
-    </>
+    <AppPage>
+      <StaffContent />
+    </AppPage>
   );
 }
 
@@ -48,64 +42,53 @@ async function StaffContent() {
   // Expired, invalid, or deactivated: the cookie is no longer useful.
   if (meRes.status === 401) redirect("/login");
   if (!meRes.ok) throw new Error("Could not load your account");
-  const me = (await meRes.json()) as Me;
+  const staff = staffRes.ok ? ((await staffRes.json()) as Staff[]) : null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-text">{me.store_name}</h1>
-          <p className="text-sm text-muted">
-            {me.full_name} · <span className="capitalize">{me.role}</span>
-          </p>
-        </div>
-      </header>
-
-      <Card padded={false}>
-        <h2 className="border-b border-border px-6 py-4 font-semibold text-text">Staff</h2>
-        {staffRes.status === 403 ? (
-          <p className="px-6 py-4 text-sm text-muted">
-            Only managers and secretaries can see the staff list.
-          </p>
-        ) : !staffRes.ok ? (
-          <p className="px-6 py-4 text-sm text-red">Could not load staff.</p>
-        ) : (
-          <StaffList staff={(await staffRes.json()) as Staff[]} />
-        )}
-      </Card>
-    </div>
+    <>
+      <PageHeader
+        eyebrow={staff ? `${staff.length} ${staff.length === 1 ? "person" : "people"}` : " "}
+        title="Staff"
+        back="/more"
+      />
+      {staffRes.status === 403 ? (
+        <Card className="text-sm text-muted">Only managers and secretaries can see the staff list.</Card>
+      ) : !staff ? (
+        <p className="text-sm text-red">Could not load staff.</p>
+      ) : (
+        <StaffList staff={staff} />
+      )}
+      <Notice icon="users" title="Roles control access" className="mt-5">
+        Managers and secretaries can edit products and void sales. Members can scan sales and stock.
+      </Notice>
+    </>
   );
 }
 
 function ApiDown() {
   return (
-    <Card>
-      <h1 className="text-lg font-semibold text-text">API not reachable</h1>
-      <p className="mt-1 text-sm text-muted">
+    <>
+      <PageHeader title="Staff" back="/more" />
+      <Notice title="API not reachable">
         The Sukat server is not responding. Check that it is running, then reload this page.
-      </p>
-    </Card>
+      </Notice>
+    </>
   );
 }
 
 function StaffList({ staff }: { staff: Staff[] }) {
   return (
-    <ul className="divide-y divide-border">
+    <ul className="rounded-card border border-border px-4 py-1">
       {staff.map((s) => (
-        <li key={s.member_id} className="flex items-center justify-between gap-4 px-6 py-4">
-          <div className="min-w-0">
-            <p className="truncate font-medium text-text">{s.full_name}</p>
-            <p className="truncate text-sm text-muted">{s.email}</p>
+        <li key={s.member_id} className="flex min-h-[84px] items-center gap-2.5">
+          <Avatar name={s.full_name} />
+          <div className="min-w-0 flex-1">
+            <b className="block truncate text-base text-text">{s.full_name}</b>
+            <small className="mt-1 block truncate text-[13px] text-muted">{s.email}</small>
           </div>
-          <div className="flex shrink-0 items-center gap-2 text-sm">
-            <span className="capitalize text-muted">{s.role}</span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                s.active ? "bg-green/10 text-green" : "bg-red/10 text-red"
-              }`}
-            >
-              {s.active ? "Active" : "Inactive"}
-            </span>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <Badge className="capitalize">{s.role}</Badge>
+            {!s.active && <Badge tone="red">Inactive</Badge>}
           </div>
         </li>
       ))}

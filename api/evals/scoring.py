@@ -1,18 +1,24 @@
 """Scoring AI-read lines against expected lines. Pure functions, unit-tested."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from decimal import Decimal
 from uuid import UUID
 
 from app.ai.schemas import ScanLine
 from app.products.units import normalize_unit
 
+# Sentinel: the expected file says nothing about price, so price isn't scored.
+NOT_SCORED = object()
+
 
 @dataclass(frozen=True)
 class ExpectedLine:
-    product_id: UUID | None  # None = the item is not in the catalog (a "new" product)
+    product_id: UUID | None  # None = the item is not in the catalog / store
     qty: Decimal
     unit: str
+    # Price per unit as WRITTEN on the photo, in centavos: an int, None ("no price
+    # written", so the AI must return none), or NOT_SCORED.
+    unit_price_centavos: object = NOT_SCORED
 
 
 @dataclass
@@ -23,22 +29,16 @@ class CaseScore:
     qty_ok: int = 0
     unit_ok: int = 0
     all_ok: int = 0
+    price_checked: int = 0  # paired lines whose expected price is given
+    price_ok: int = 0
     missing: int = 0  # expected lines with no predicted line
     extra: int = 0  # predicted lines with no expected line
     notes: list[str] = field(default_factory=list)
 
     def add(self, other: "CaseScore") -> None:
-        for name in (
-            "expected",
-            "predicted",
-            "product_ok",
-            "qty_ok",
-            "unit_ok",
-            "all_ok",
-            "missing",
-            "extra",
-        ):
-            setattr(self, name, getattr(self, name) + getattr(other, name))
+        for f in fields(self):
+            if f.name != "notes":
+                setattr(self, f.name, getattr(self, f.name) + getattr(other, f.name))
 
 
 def pair_lines(
@@ -66,6 +66,8 @@ def pair_lines(
 
 
 def score_case(expected: list[ExpectedLine], predicted: list[ScanLine]) -> CaseScore:
+    """Product / qty / unit for every expected line; price only where the expected
+    file gives one. Prices are compared as read from the photo (before any default)."""
     s = CaseScore(expected=len(expected), predicted=len(predicted))
     used = 0
     for exp, got in pair_lines(expected, predicted):
@@ -81,10 +83,19 @@ def score_case(expected: list[ExpectedLine], predicted: list[ScanLine]) -> CaseS
         s.qty_ok += qty
         s.unit_ok += unit
         s.all_ok += product and qty and unit
-        if not (product and qty and unit):
+        problems = []
+        if not product:
+            problems.append("wrong product")
+        if exp.unit_price_centavos is not NOT_SCORED:
+            s.price_checked += 1
+            if got.unit_price_centavos == exp.unit_price_centavos:
+                s.price_ok += 1
+            else:
+                problems.append(f"price {got.unit_price_centavos} != {exp.unit_price_centavos}")
+        if problems or not (qty and unit):
             s.notes.append(
-                f'"{got.raw_text}": got {got.qty} {got.unit}'
-                f"{'' if product else ' (wrong product)'}; expected {exp.qty} {exp.unit}"
+                f'"{got.raw_text}": got {got.qty} {got.unit}; expected {exp.qty} {exp.unit}'
+                + (f" ({', '.join(problems)})" if problems else "")
             )
     s.extra = len(predicted) - used
     return s

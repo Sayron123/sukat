@@ -1,4 +1,5 @@
-"""Saving a stock-in: one database transaction that records what arrived and updates stock.
+"""Saving stock-ins and sales: one database transaction that records the lines and
+updates stock (up for stock in, down for a sale).
 
 Guarantees:
 - Idempotent: the same client_request_id saves once; repeats get the first result.
@@ -9,6 +10,7 @@ Guarantees:
 
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -18,7 +20,8 @@ from sqlalchemy.orm import Session
 
 from app.ai.schemas import ScanLine
 from app.auth.deps import CurrentMember
-from app.core.errors import Conflict, Forbidden, Invalid, NotFound
+from app.auth.models import User
+from app.core.errors import AppError, Conflict, Forbidden, Invalid, NotFound
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.scan_service import line_total, quantize_qty
 from app.inventory.schemas import (
@@ -26,13 +29,23 @@ from app.inventory.schemas import (
     TransactionIn,
     TransactionItemOut,
     TransactionOut,
+    TransactionSummaryOut,
 )
+from app.products.constants import PAGE_SIZE
 from app.products.models import Product, ProductAlias
+from app.products.pricing import priced_line
 from app.products.units import UnitConversionError, convert, is_unit_word, normalize_unit
 from app.stores.models import Role
 
-MAX_STOCK = Decimal("999999999.999")  # NUMERIC(12,3)
+MAX_STOCK = Decimal("999999999.999")  # NUMERIC(12,3) limit, both directions
 WRITER_ROLES = {Role.MANAGER, Role.SECRETARY}
+
+
+class NegativeStock(Conflict):
+    """A sale would take some stock below 0. The client shows the list and can resend
+    with confirm=true (same client_request_id: nothing was saved)."""
+
+    code = "negative_stock"
 
 
 class ScanAlreadySaved(Conflict):
@@ -83,7 +96,9 @@ class SaveResult:
     created: bool  # False when this client_request_id was already saved
 
 
-def _load_scan(db: Session, current: CurrentMember, scan_id: UUID) -> tuple[Scan, list[ScanLine]]:
+def _load_scan(
+    db: Session, current: CurrentMember, scan_id: UUID, txn_type: str
+) -> tuple[Scan, list[ScanLine]]:
     scan = db.scalar(
         select(Scan)
         .where(Scan.id == scan_id, Scan.store_id == current.store_id)
@@ -91,8 +106,9 @@ def _load_scan(db: Session, current: CurrentMember, scan_id: UUID) -> tuple[Scan
     )
     if scan is None:
         raise NotFound("Scan not found")
-    if scan.type != "stock_in":
-        raise Conflict("This scan is not a stock-in list")
+    if scan.type != txn_type:
+        kind = "sale receipt" if scan.type == "sale" else "stock-in list"
+        raise Conflict(f"This scan is a {kind}")
     if scan.status == "saved":
         raise ScanAlreadySaved("This scan is already saved")
     if scan.status != "read":
@@ -129,14 +145,22 @@ def _get_or_create_product(db: Session, store_id: UUID, new: NewProductIn) -> Pr
     return product
 
 
-def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> SaveResult:
-    """Save a stock-in. Commits on success; on any error nothing is saved.
+def save_transaction(db: Session, current: CurrentMember, body: TransactionIn) -> SaveResult:
+    """Save a stock-in (adds stock) or a sale (removes stock). Commits on success; on any
+    error nothing is saved.
+
+    Sale rules: existing products only (checked by the schema); a line without a price
+    uses the product's price for that unit; if any product's stock would go below 0,
+    NegativeStock is raised unless body.confirm is true.
 
     Assumes `body` passed schema validation (positive qty, one product choice per line).
-    @raises AppError (NotFound/Conflict/Forbidden/Invalid/ScanAlreadySaved) with a message for
-        the phone to show; IntegrityError if the same client_request_id won a race
+    @raises AppError (NotFound/Conflict/Forbidden/Invalid/NegativeStock/ScanAlreadySaved)
+        with a message for the phone to show; IntegrityError if the same
+        client_request_id won a race
     """
     sid = current.store_id
+    is_sale = body.type == "sale"
+    sign = -1 if is_sale else 1
     existing = find_existing(db, sid, body.client_request_id)
     if existing is not None:
         return SaveResult(existing, created=False)
@@ -146,14 +170,16 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
 
     # Check (and lock) the scan before anything is written, so a wrong scan id gets a
     # clear 404 instead of a foreign-key error.
-    scan, scan_lines = (None, []) if body.scan_id is None else _load_scan(db, current, body.scan_id)
+    scan, scan_lines = (
+        (None, []) if body.scan_id is None else _load_scan(db, current, body.scan_id, body.type)
+    )
 
     # Insert the transaction before touching stock. If the same client_request_id is being
     # saved right now by another request, this INSERT waits for it and then fails on the
     # unique key (the endpoint then returns the first result).
     txn = Transaction(
         store_id=sid,
-        type="stock_in",
+        type=body.type,
         client_request_id=body.client_request_id,
         scan_id=body.scan_id,
         created_by=current.user.id,
@@ -161,7 +187,7 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
     db.add(txn)
     db.flush()
 
-    # Resolve each line to a product id (creating new products first).
+    # Resolve each line to a product id (creating new products first; stock-in only).
     product_ids: list[UUID] = []
     for line in body.lines:
         if line.new_product is not None:
@@ -183,6 +209,7 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
             .execution_options(populate_existing=True)
         )
     }
+    stock_before = {pid: p.stock_qty for pid, p in locked.items()}
 
     total = 0
     learned: set[str] = set()
@@ -201,11 +228,16 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
             raise Invalid(f"Line {no}: {e}") from None
         if qty_base <= 0:
             raise Invalid(f"Line {no}: quantity is too small for {product.base_unit}")
-        new_stock = product.stock_qty + qty_base
-        if new_stock > MAX_STOCK:
-            raise Invalid(f"Line {no}: stock would be too large")
+        change = sign * qty_base
+        new_stock = product.stock_qty + change
+        if abs(new_stock) > MAX_STOCK:
+            raise Invalid(f"Line {no}: stock would be out of range")
 
-        amount = line_total(line.qty, line.unit_price_centavos)
+        unit_price = line.unit_price_centavos
+        if is_sale and unit_price is None:
+            unit_price, amount = priced_line(product, product.price_centavos, line.qty, line.unit)
+        else:
+            amount = line_total(line.qty, unit_price)  # written price, used as written
         total += amount or 0
         item = TransactionItem(
             store_id=sid,
@@ -217,7 +249,7 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
             qty=quantize_qty(line.qty),
             unit=normalize_unit(line.unit),
             qty_base=qty_base,
-            unit_price_centavos=line.unit_price_centavos,
+            unit_price_centavos=unit_price,
             line_total_centavos=amount,
         )
         db.add(item)
@@ -229,7 +261,7 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
                 product_id=pid,
                 transaction_id=txn.id,
                 transaction_item_id=item.id,
-                qty_change=qty_base,
+                qty_change=change,
                 stock_after=new_stock,
                 created_by=current.user.id,
             )
@@ -237,6 +269,25 @@ def save_stock_in(db: Session, current: CurrentMember, body: TransactionIn) -> S
 
         if can_learn and line.scan_line is not None and 0 <= line.scan_line < len(scan_lines):
             _learn_alias(db, sid, product, scan_lines[line.scan_line], learned)
+
+    if is_sale and not body.confirm:
+        short = [p for pid, p in locked.items() if p.stock_qty < 0]
+        if short:
+            raise NegativeStock(
+                "Some stock would go below 0. Check the quantities, or confirm to save anyway.",
+                extra={
+                    "products": [
+                        {
+                            "product_id": str(p.id),
+                            "name": p.name,
+                            "base_unit": p.base_unit,
+                            "stock": str(stock_before[p.id]),
+                            "stock_after": str(p.stock_qty),
+                        }
+                        for p in sorted(short, key=lambda p: p.name.lower())
+                    ]
+                },
+            )
 
     txn.total_centavos = total
     if scan is not None:
@@ -270,16 +321,16 @@ def _learn_alias(
 # ---------- used by the router ----------
 
 
-def save_stock_in_once(db: Session, current: CurrentMember, body: TransactionIn) -> SaveResult:
-    """save_stock_in, plus the concurrent-repeat case: when the same request is being
+def save_transaction_once(db: Session, current: CurrentMember, body: TransactionIn) -> SaveResult:
+    """save_transaction, plus the concurrent-repeat case: when the same request is being
     saved by another request at the same moment, this one ends with a unique-key error
     on client_request_id (or "scan already saved" after waiting on the scan lock). If
     the other one saved, return its result (created=False) instead of an error.
 
-    @raises AppError subclasses as save_stock_in; Conflict if the race can't be resolved
+    @raises AppError subclasses as save_transaction; Conflict if the race can't be resolved
     """
     try:
-        return save_stock_in(db, current, body)
+        return save_transaction(db, current, body)
     except (IntegrityError, ScanAlreadySaved) as e:
         db.rollback()
         existing = find_existing(db, current.store_id, body.client_request_id)
@@ -288,6 +339,13 @@ def save_stock_in_once(db: Session, current: CurrentMember, body: TransactionIn)
         if isinstance(e, ScanAlreadySaved):
             raise
         raise Conflict("Could not save because of a conflict. Please try again.") from None
+    except AppError:
+        # Refused (e.g. negative_stock). Must come after the clause above, because
+        # ScanAlreadySaved is an AppError too. Roll back now so the transaction row and
+        # product locks are released before the phone resends with confirm=true,
+        # instead of whenever the request's session gets closed.
+        db.rollback()
+        raise
 
 
 def get_transaction(db: Session, store_id: UUID, transaction_id: UUID) -> Transaction:
@@ -303,13 +361,21 @@ def get_transaction(db: Session, store_id: UUID, transaction_id: UUID) -> Transa
 
 
 def transaction_view(db: Session, txn: Transaction) -> TransactionOut:
-    """Built from what is stored, so a repeated request gets exactly the same answer."""
+    """Built from what is stored, so a repeated request gets exactly the same answer.
+    `stock_after` per line is from the original movement (not the void reversal)."""
     pids = {item.product_id for item in txn.items}
     products = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_(pids)))}
     stock_after = dict(
         db.execute(
             select(StockMovement.transaction_item_id, StockMovement.stock_after).where(
-                StockMovement.transaction_id == txn.id
+                StockMovement.transaction_id == txn.id, StockMovement.is_reversal.is_(False)
+            )
+        ).all()
+    )
+    names = dict(
+        db.execute(
+            select(User.id, User.full_name).where(
+                User.id.in_({u for u in (txn.created_by, txn.voided_by) if u})
             )
         ).all()
     )
@@ -321,6 +387,9 @@ def transaction_view(db: Session, txn: Transaction) -> TransactionOut:
         scan_id=txn.scan_id,
         total_centavos=txn.total_centavos,
         created_at=txn.created_at,
+        created_by_name=names.get(txn.created_by) if txn.created_by else None,
+        voided_at=txn.voided_at,
+        voided_by_name=names.get(txn.voided_by) if txn.voided_by else None,
         items=[
             TransactionItemOut(
                 line_no=item.line_no,
@@ -337,3 +406,117 @@ def transaction_view(db: Session, txn: Transaction) -> TransactionOut:
             for item in txn.items
         ],
     )
+
+
+def list_transactions(
+    db: Session, store_id: UUID, txn_type: str | None, page: int
+) -> tuple[list[TransactionSummaryOut], int]:
+    """One page (newest first) of this store's transactions, plus the total count."""
+    where = [Transaction.store_id == store_id]
+    if txn_type:
+        where.append(Transaction.type == txn_type)
+    total = db.scalar(select(func.count()).select_from(Transaction).where(*where)) or 0
+    item_count = (
+        select(func.count())
+        .where(TransactionItem.transaction_id == Transaction.id)
+        .correlate(Transaction)
+        .scalar_subquery()
+    )
+    rows = db.execute(
+        select(Transaction, item_count)
+        .where(*where)
+        .order_by(Transaction.created_at.desc(), Transaction.id.desc())
+        .offset((page - 1) * PAGE_SIZE)
+        .limit(PAGE_SIZE)
+    ).all()
+    return [
+        TransactionSummaryOut(
+            id=t.id,
+            type=t.type,
+            status=t.status,
+            total_centavos=t.total_centavos,
+            item_count=count,
+            created_at=t.created_at,
+        )
+        for t, count in rows
+    ], total
+
+
+# ---------- void ----------
+
+
+class AlreadyVoided(Conflict):
+    code = "already_voided"
+
+
+def void_transaction(db: Session, current: CurrentMember, transaction_id: UUID) -> Transaction:
+    """Undo a saved transaction without deleting anything, in ONE database transaction:
+    status becomes "voided" (with who and when), and every stock movement it made gets
+    a reversing movement (a sale's stock comes back; a stock-in's goes out again).
+
+    Stock may go below 0 when voiding a stock-in whose items were already sold; that is
+    the true count, so it isn't blocked.
+
+    Assumes the caller checked the role (manager/secretary).
+    @raises NotFound (also for another store's transaction), AlreadyVoided
+    """
+    # Lock the transaction first: a second void at the same moment waits here, then
+    # sees "voided". (The unique (transaction_item_id, is_reversal) key is a backstop.)
+    txn = db.scalar(
+        select(Transaction)
+        .where(Transaction.id == transaction_id, Transaction.store_id == current.store_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if txn is None:
+        raise NotFound("Transaction not found")
+    if txn.status == "voided":
+        db.rollback()  # release the row lock right away
+        raise AlreadyVoided("This transaction is already voided")
+
+    movements = list(
+        db.scalars(
+            select(StockMovement).where(
+                StockMovement.transaction_id == txn.id, StockMovement.is_reversal.is_(False)
+            )
+        )
+    )
+    # Same lock order as saving (product id), so a void and a sale can't deadlock.
+    products = {
+        p.id: p
+        for p in db.scalars(
+            select(Product)
+            .where(
+                Product.store_id == current.store_id,
+                Product.id.in_({m.product_id for m in movements}),
+            )
+            .order_by(Product.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    }
+    for m in sorted(movements, key=lambda m: (m.product_id, m.id)):
+        product = products[m.product_id]
+        new_stock = product.stock_qty - m.qty_change
+        if abs(new_stock) > MAX_STOCK:
+            raise Invalid(f'Voiding would put "{product.name}" stock out of range')
+        product.stock_qty = new_stock
+        db.add(
+            StockMovement(
+                store_id=txn.store_id,
+                product_id=m.product_id,
+                transaction_id=txn.id,
+                transaction_item_id=m.transaction_item_id,
+                is_reversal=True,
+                qty_change=-m.qty_change,
+                stock_after=new_stock,
+                created_by=current.user.id,
+            )
+        )
+
+    txn.status = "voided"
+    txn.voided_at = datetime.now(UTC)
+    txn.voided_by = current.user.id
+    db.commit()
+    db.refresh(txn)
+    return txn

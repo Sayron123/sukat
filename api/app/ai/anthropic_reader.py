@@ -16,13 +16,15 @@ from app.ai.errors import AIReadError
 from app.ai.schemas import RAW_RESULT_SCHEMA, AIUsageInfo, CatalogEntry, ReadResult
 from app.core.config import settings
 
-PROMPT_PATH = Path(__file__).parent / "prompts" / "read_list.md"
+PROMPTS_DIR = Path(__file__).parent / "prompts"
+# One prompt per scan type, each in its own file so they can be improved separately.
+PROMPT_FILES: dict[str, str] = {"stock_in": "read_stock_in.md", "sale": "read_sale.md"}
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
 @cache
-def _system_prompt() -> str:
-    return PROMPT_PATH.read_text(encoding="utf-8")
+def system_prompt(scan_type: str) -> str:
+    return (PROMPTS_DIR / PROMPT_FILES[scan_type]).read_text(encoding="utf-8")
 
 
 def _usage(response: Any) -> AIUsageInfo:
@@ -66,7 +68,7 @@ class AnthropicVisionReader:
                 # Order matters for caching: fixed prompt, then this store's product list
                 # (cached), then the photo, which changes every time.
                 system=[
-                    {"type": "text", "text": _system_prompt()},
+                    {"type": "text", "text": system_prompt(scan_type)},
                     {
                         "type": "text",
                         "text": catalog_text(refs),

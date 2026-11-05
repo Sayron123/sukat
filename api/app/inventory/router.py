@@ -3,7 +3,8 @@
 Thin: check access, call scan_service / stock_service, shape the response.
 """
 
-from typing import Annotated
+import math
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
@@ -11,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from app.ai.base import VisionReader
 from app.ai.provider import get_vision_reader
-from app.auth.deps import CurrentMemberDep, DbSession
+from app.auth.deps import CurrentMember, CurrentMemberDep, DbSession, require_role
 from app.core.config import settings
 from app.core.errors import AppError, BadRequest, Forbidden, NotFound
 from app.core.storage import LocalStorage, Storage, get_storage
@@ -22,13 +23,18 @@ from app.inventory.schemas import (
     ScanOut,
     TransactionIn,
     TransactionOut,
+    TransactionPage,
     UploadUrlIn,
     UploadUrlOut,
 )
+from app.products.constants import PAGE_SIZE
+from app.stores.models import Role
 
 router = APIRouter()
 
 StorageDep = Annotated[Storage, Depends(get_storage)]
+# Voiding is limited to managers and secretaries; everyone can scan and save.
+Writer = Annotated[CurrentMember, Depends(require_role(Role.MANAGER, Role.SECRETARY))]
 ReaderDep = Annotated[VisionReader, Depends(get_vision_reader)]
 
 
@@ -136,11 +142,41 @@ def retry_scan(
 def create_transaction(
     body: TransactionIn, response: Response, current: CurrentMemberDep, db: DbSession
 ) -> TransactionOut:
-    """Save a stock-in. Any staff member can save; creating new products needs a
-    manager or secretary. 201 on the first save, 200 with the same body on a repeat."""
-    result = stock_service.save_stock_in_once(db, current, body)
+    """Save a stock-in or a sale. Any staff member can save; creating new products (stock
+    in only) needs a manager or secretary. A sale that would take stock below 0 gets 409
+    with code "negative_stock" and the product list, unless confirm is true.
+    201 on the first save, 200 with the same body on a repeat."""
+    result = stock_service.save_transaction_once(db, current, body)
     response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
     return stock_service.transaction_view(db, result.transaction)
+
+
+@router.get("/transactions", response_model=TransactionPage, tags=["transactions"])
+def list_transactions(
+    current: CurrentMemberDep,
+    db: DbSession,
+    type: Literal["stock_in", "sale"] | None = None,  # noqa: A002 - query param name
+    page: Annotated[int, Query(ge=1, le=10_000)] = 1,
+) -> TransactionPage:
+    """This store's transactions, newest first, 20 per page."""
+    rows, total = stock_service.list_transactions(db, current.store_id, type, page)
+    return TransactionPage(
+        items=rows,
+        total=total,
+        page=page,
+        page_size=PAGE_SIZE,
+        pages=max(1, math.ceil(total / PAGE_SIZE)),
+    )
+
+
+@router.post(
+    "/transactions/{transaction_id}/void", response_model=TransactionOut, tags=["transactions"]
+)
+def void_transaction(transaction_id: UUID, current: Writer, db: DbSession) -> TransactionOut:
+    """Void a saved transaction (manager or secretary): nothing is deleted; stock is
+    restored with reversing movements, and who/when is recorded. 409 if already voided."""
+    txn = stock_service.void_transaction(db, current, transaction_id)
+    return stock_service.transaction_view(db, txn)
 
 
 @router.get("/transactions/{transaction_id}", response_model=TransactionOut, tags=["transactions"])

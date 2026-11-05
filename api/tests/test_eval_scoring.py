@@ -78,10 +78,80 @@ def test_runner_end_to_end_with_fake_reader(tmp_path, monkeypatch, capsys):
             return ReadResult(lines, AIUsageInfo("fake", input_tokens=1000, output_tokens=100))
 
     monkeypatch.setattr(run_eval, "CASES_DIR", tmp_path)
-    monkeypatch.setattr(run_eval, "AnthropicVisionReader", FakeReader)
+    monkeypatch.setattr(run_eval, "get_vision_reader", FakeReader)
     monkeypatch.setattr("sys.argv", ["run_eval", "--verbose"])
     run_eval.main()
     out = capsys.readouterr().out
     assert "dr-001" in out and "TOTAL" in out
     assert "100.0%" in out and " 50.0%" in out  # product right; qty 1 of 2
     assert "got 3 bx; expected 2 box" in out and "Cost: ₱" in out
+
+
+def test_sale_prices_are_scored_only_when_given():
+    from evals.scoring import NOT_SCORED
+
+    s = score_case(
+        [
+            ExpectedLine(A, Decimal("1"), "bag", 26000),  # written ₱260
+            ExpectedLine(B, Decimal("1"), "kg", None),  # no price written
+            ExpectedLine(C, Decimal("1"), "pc", NOT_SCORED),
+        ],
+        [
+            scan_line(A, qty=Decimal("1"), unit="bag", unit_price_centavos=26000),
+            scan_line(B, qty=Decimal("1"), unit="kg", unit_price_centavos=8500),  # invented
+            scan_line(C, qty=Decimal("1"), unit="pc", unit_price_centavos=999),
+        ],
+    )
+    assert (s.price_checked, s.price_ok) == (2, 1)
+    assert s.all_ok == 3  # price is its own column, not part of "all 3"
+    assert any("price 8500 != None" in n for n in s.notes)
+
+
+def test_example_sale_case_loads():
+    from pathlib import Path
+
+    from evals.scoring import NOT_SCORED
+
+    _, ids = catalog_entries()
+    scan_type, lines = load_expected(Path("evals/cases/_example_sale.json"), ids)
+    assert scan_type == "sale"
+    assert [line.unit_price_centavos for line in lines] == [26000, 8500, None, NOT_SCORED]
+    assert lines[3].product_id is None
+
+
+def test_runner_reports_sale_and_stock_in_separately(tmp_path, monkeypatch, capsys):
+    import json
+
+    from app.ai.schemas import AIUsageInfo, ReadResult
+    from evals import run_eval
+
+    _, ids = catalog_entries()
+    cement = "portland-cement-40kg"
+    for name, kind in (("in-001", "stock_in"), ("sale-001", "sale")):
+        (tmp_path / f"{name}.jpg").write_bytes(b"\xff\xd8\xff\xe0fake")
+        line = {"product": cement, "qty": 2, "unit": "bag"}
+        if kind == "sale":
+            line["unit_price"] = 260
+        (tmp_path / f"{name}.json").write_text(json.dumps({"type": kind, "lines": [line]}))
+
+    seen = []
+
+    class FakeReader:
+        def read_list(self, image, media_type, catalog, scan_type):
+            seen.append(scan_type)
+            line = scan_line(ids[cement], qty=Decimal("2"), unit="bag", unit_price_centavos=26000)
+            return ReadResult([line], AIUsageInfo("fake", input_tokens=10, output_tokens=5))
+
+    monkeypatch.setattr(run_eval, "CASES_DIR", tmp_path)
+    monkeypatch.setattr(run_eval, "get_vision_reader", FakeReader)
+    monkeypatch.setattr("sys.argv", ["run_eval"])
+    run_eval.main()
+    out = capsys.readouterr().out
+    assert sorted(seen) == ["sale", "stock_in"]  # each case read with its own prompt
+    assert "TOTAL stock_in" in out and "TOTAL sale" in out
+    assert "sale-001 (sale)" in out and "in-001 (in)" in out
+
+    monkeypatch.setattr("sys.argv", ["run_eval", "--type", "sale"])
+    seen.clear()
+    run_eval.main()
+    assert seen == ["sale"]

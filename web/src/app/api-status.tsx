@@ -32,7 +32,7 @@ export function ApiStatus() {
   };
 
   return (
-    <p role="status" className="flex items-center gap-2 text-text">
+    <p role="status" className="flex items-center gap-2">
       <span className={`h-2.5 w-2.5 rounded-full ${styles[status].dot}`} aria-hidden />
       {styles[status].text}
     </p>

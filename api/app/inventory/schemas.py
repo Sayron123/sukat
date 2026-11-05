@@ -46,9 +46,18 @@ class TransactionIn(BaseModel):
     # Made on the phone when the review screen opens (a UUID). Sending the same id again
     # never saves twice.
     client_request_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-    type: Literal["stock_in"] = "stock_in"
+    type: Literal["stock_in", "sale"] = "stock_in"
     scan_id: UUID | None = None
     lines: list[TransactionLineIn] = Field(min_length=1, max_length=200)
+    # Sales only: save even if some stock would go below 0 (stores sometimes sell before
+    # recording the delivery). Without it, such a sale is refused with the list.
+    confirm: bool = False
+
+    @model_validator(mode="after")
+    def _sale_rules(self) -> "TransactionIn":
+        if self.type == "sale" and any(line.new_product for line in self.lines):
+            raise ValueError("a sale can only include existing products")
+        return self
 
 
 class TransactionItemOut(BaseModel):
@@ -73,6 +82,26 @@ class TransactionOut(BaseModel):
     total_centavos: int
     items: list[TransactionItemOut]
     created_at: datetime
+    created_by_name: str | None
+    voided_at: datetime | None
+    voided_by_name: str | None
+
+
+class TransactionSummaryOut(BaseModel):
+    id: UUID
+    type: str
+    status: str
+    total_centavos: int
+    item_count: int
+    created_at: datetime
+
+
+class TransactionPage(BaseModel):
+    items: list[TransactionSummaryOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
 
 
 # ---------- photo upload ----------
@@ -114,10 +143,15 @@ class ReviewLineOut(BaseModel):
     unit: str
     qty_base: Decimal | None
     unit_price_centavos: int | None
+    # "receipt" = written on the photo, "product" = filled in from the product's price.
+    price_source: Literal["receipt", "product"] | None
+    # Sales only: the product's price for this unit, to compare with a written price.
+    expected_unit_price_centavos: int | None
     line_total_centavos: int | None
     confidence: float
     needs_check: bool
-    check_reasons: list[str]
+    check_reasons: list[str]  # must be looked at (amber "Check")
+    warnings: list[str]  # worth a look, e.g. "price_differs"
 
 
 class ScanOut(BaseModel):

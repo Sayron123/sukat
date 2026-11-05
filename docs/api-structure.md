@@ -50,7 +50,7 @@ All paths start with `/v1`, except `GET /health`. The live list with request/res
 | auth | `POST /auth/signup`, `POST /auth/login`, `GET /auth/me` |
 | stores (staff) | `POST /staff/invites`, `POST /staff/invites/accept`, `GET /staff`, `GET /staff/{id}`, `POST /staff/{id}/deactivate` |
 | products | `GET/POST /products`, `GET /products/catalog`, `POST /products/import`, `GET/PATCH /products/{id}`, `POST /products/{id}/archive`, `POST /products/{id}/unarchive` |
-| inventory | `POST /scans/upload-url`, `PUT /uploads/local/{key}` (dev only), `POST /scans`, `GET /scans/{id}`, `POST /scans/{id}/retry`, `POST /transactions`, `GET /transactions/{id}` |
+| inventory | `POST /scans/upload-url`, `PUT /uploads/local/{key}` (dev only), `POST /scans` (stock_in or sale), `GET /scans/{id}`, `POST /scans/{id}/retry`, `GET/POST /transactions`, `GET /transactions/{id}`, `POST /transactions/{id}/void` |
 
 ## Adding something new
 

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { PageHeader } from "@/components/page-header";
+import { Loading } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import type { Product } from "@/lib/types";
 
@@ -21,7 +23,13 @@ export function EditProduct({ id }: { id: string }) {
     );
   }, [id]);
 
-  if (error) return <p className="text-red">{error}</p>;
-  if (!product) return <p className="text-muted">Loading…</p>;
+  if (error)
+    return (
+      <>
+        <PageHeader eyebrow="Product details" title="Edit product" back="/stock" />
+        <p className="text-red">{error}</p>
+      </>
+    );
+  if (!product) return <Loading />;
   return <ProductForm product={product} />;
 }

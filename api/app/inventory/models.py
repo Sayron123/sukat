@@ -11,7 +11,9 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
+    DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -19,6 +21,7 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -81,6 +84,10 @@ class Transaction(Base):
         CheckConstraint(f"type IN {_in(TRANSACTION_TYPES)}", name="type"),
         CheckConstraint(f"status IN {_in(TRANSACTION_STATUSES)}", name="status"),
         CheckConstraint("total_centavos >= 0", name="total_not_negative"),
+        # A voided transaction always records when; a saved one never has a void time.
+        CheckConstraint(
+            "(status = 'voided') = (voided_at IS NOT NULL)", name="voided_at_matches_status"
+        ),
         Index("ix_transactions_store_id_created_at", "store_id", "created_at"),
     )
 
@@ -98,6 +105,12 @@ class Transaction(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = created_at_col()
+    # Voiding never deletes anything: it records who and when, and adds reversing
+    # stock movements.
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    voided_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     items: Mapped[list["TransactionItem"]] = relationship(
         back_populates="transaction",
@@ -158,6 +171,7 @@ class StockMovement(Base):
             ondelete="CASCADE",
         ),
         CheckConstraint("qty_change <> 0", name="qty_change_not_zero"),
+        UniqueConstraint("transaction_item_id", "is_reversal"),
         Index("ix_stock_movements_product_id_created_at", "product_id", "created_at"),
     )
 
@@ -168,7 +182,11 @@ class StockMovement(Base):
     product_id: Mapped[UUID] = mapped_column(nullable=False)
     transaction_id: Mapped[UUID] = mapped_column(nullable=False, index=True)
     # The line that caused this movement (NULL for future whole-transaction adjustments).
-    transaction_item_id: Mapped[UUID | None] = mapped_column(nullable=True, unique=True)
+    # Points to its line by (transaction_item_id, store_id): see the composite FK above.
+    transaction_item_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    # True for the movement that undoes a line when its transaction is voided. With the
+    # unique (transaction_item_id, is_reversal) below, a line can be undone at most once.
+    is_reversal: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
     qty_change: Mapped[Decimal] = mapped_column(Qty, nullable=False)
     stock_after: Mapped[Decimal] = mapped_column(Qty, nullable=False)
     created_by: Mapped[UUID | None] = mapped_column(

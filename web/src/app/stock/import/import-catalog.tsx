@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { Button, Card } from "@/components/ui";
+import { ActionDock } from "@/components/action-dock";
+import { PageHeader } from "@/components/page-header";
+import { Badge, Button, Loading, Notice, SearchBox } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { CATEGORIES, type CatalogItem, type ImportResult } from "@/lib/types";
 
@@ -59,99 +60,105 @@ export function ImportCatalog() {
     }
   }
 
-  if (error && !items) return <p className="text-red">{error}</p>;
-  if (!items) return <p className="text-muted">Loading…</p>;
+  const header = <PageHeader eyebrow="Starter items" title="Import products" back="/stock" />;
+  if (error && !items)
+    return (
+      <>
+        {header}
+        <p className="text-red">{error}</p>
+      </>
+    );
+  if (!items)
+    return (
+      <>
+        {header}
+        <Loading />
+      </>
+    );
 
   return (
-    <div className="flex flex-col gap-4 pb-24">
-      <div>
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-text">Import starter items</h1>
-          <Link href="/stock" className="text-sm font-medium text-accent hover:underline">
-            Done
-          </Link>
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          Pick what your store sells. You can set prices and edit names after.
-        </p>
-      </div>
+    <>
+      {header}
+      <p className="-mt-2 mb-5 text-sm text-muted">
+        Pick what your store sells. You can set prices and edit names after.
+      </p>
 
       {result && (
-        <Card role="status" className="text-sm text-text">
-          Added {result.created} product{result.created === 1 ? "" : "s"}.
-          {result.skipped.length > 0 && ` ${result.skipped.length} already in your store.`}
-          {result.dropped_aliases.length > 0 &&
-            ` ${result.dropped_aliases.length} other name(s) were left off because another product uses them.`}
-        </Card>
+        <Notice role="status" icon="check" title={`Added ${result.created} product${result.created === 1 ? "" : "s"}`} className="mb-5">
+          {result.skipped.length === 0 && result.dropped_aliases.length === 0
+            ? "They are now in your stock list."
+            : [
+                result.skipped.length > 0 && `${result.skipped.length} already in your store.`,
+                result.dropped_aliases.length > 0 &&
+                  `${result.dropped_aliases.length} other name(s) were left off because another product uses them.`,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+        </Notice>
       )}
 
-      <input
-        type="search"
+      <SearchBox
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
         placeholder="Filter items"
         aria-label="Filter items"
-        className="h-11 rounded-button border border-border bg-background px-3 text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
       />
 
       {groups.map(({ category, items: group }) => {
         const selectable = group.filter((i) => !i.already_in_store).map((i) => i.key);
         const allOn = selectable.length > 0 && selectable.every((k) => selected.has(k));
         return (
-          <Card key={category} padded={false}>
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h2 className="font-semibold text-text">{category}</h2>
+          <section key={category} className="mt-6">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-[13px] font-bold text-subtle uppercase">{category}</h2>
               {selectable.length > 0 && (
                 <button
                   type="button"
                   onClick={() => toggle(selectable, !allOn)}
-                  className="text-sm font-medium text-accent hover:underline"
+                  className="min-h-10 text-[13px] font-semibold text-muted underline"
                 >
                   {allOn ? "Clear" : "Select all"}
                 </button>
               )}
             </div>
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-border rounded-card border border-border px-4">
               {group.map((item) => (
                 <li key={item.key}>
                   <label
-                    className={`flex min-h-11 items-center gap-3 px-4 py-2 ${item.already_in_store ? "opacity-60" : "cursor-pointer"}`}
+                    className={`flex min-h-16 items-center gap-3 py-2 ${item.already_in_store ? "opacity-60" : "cursor-pointer"}`}
                   >
                     <input
                       type="checkbox"
-                      className="h-5 w-5 shrink-0 accent-accent"
+                      className="h-5 w-5 shrink-0 accent-text"
                       checked={item.already_in_store || selected.has(item.key)}
                       disabled={item.already_in_store}
                       onChange={(e) => toggle([item.key], e.target.checked)}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-text">{item.name}</span>
-                      <span className="block truncate text-xs text-muted">
+                      <b className="block text-[15px] text-text">{item.name}</b>
+                      <small className="mt-0.5 block truncate text-[13px] text-muted">
                         {item.base_unit} · {item.aliases.slice(0, 3).join(", ")}
-                      </span>
+                      </small>
                     </span>
-                    {item.already_in_store && <span className="text-xs text-green">Added</span>}
+                    {item.already_in_store && <Badge tone="green">Added</Badge>}
                   </label>
                 </li>
               ))}
             </ul>
-          </Card>
+          </section>
         );
       })}
 
-      {error && (
-        <p role="alert" className="text-sm text-red">
-          {error}
-        </p>
-      )}
-
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-4">
-        <div className="mx-auto max-w-2xl">
-          <Button type="button" className="w-full" disabled={selected.size === 0 || saving} onClick={runImport}>
-            {saving ? "Importing…" : `Import ${selected.size} item${selected.size === 1 ? "" : "s"}`}
-          </Button>
-        </div>
-      </div>
-    </div>
+      <ActionDock>
+        {error && (
+          <p role="alert" className="text-sm text-red">
+            {error}
+          </p>
+        )}
+        <Button type="button" size="lg" disabled={selected.size === 0 || saving} onClick={runImport}>
+          {saving ? "Importing…" : `Import ${selected.size} item${selected.size === 1 ? "" : "s"}`}
+        </Button>
+      </ActionDock>
+    </>
   );
 }

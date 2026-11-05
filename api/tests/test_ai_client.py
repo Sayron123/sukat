@@ -10,7 +10,7 @@ import anthropic
 import httpx2
 import pytest
 
-from app.ai.anthropic_reader import AnthropicVisionReader, _system_prompt
+from app.ai.anthropic_reader import AnthropicVisionReader, system_prompt
 from app.ai.convert import catalog_refs, catalog_text
 from app.ai.errors import AIReadError
 from app.ai.pricing import cost_centavos
@@ -93,7 +93,7 @@ def test_request_shape():
     assert req["output_config"]["effort"] == settings.AI_EFFORT
     assert req["fallbacks"] == "default" and req["betas"] == ["server-side-fallback-2026-07-01"]
     prompt, products = req["system"]
-    assert prompt["text"] == _system_prompt() and "cache_control" not in prompt
+    assert prompt["text"] == system_prompt("stock_in") and "cache_control" not in prompt
     assert products["cache_control"] == {"type": "ephemeral"}  # product list is cached
     assert (
         "P2 | Portland Cement 40kg | unit: bag | also: sem, semento | 1 kg = 0.025 bag"
@@ -229,9 +229,18 @@ def test_cost_centavos():
     assert cost_centavos(usage) == Decimal("35960.0000")
 
 
+def test_sale_scans_use_the_sale_prompt():
+    client = FakeClient(_response([_line()]))
+    AnthropicVisionReader(client).read_list(b"\xff\xd8img", "image/jpeg", CATALOG, "sale")
+    req = client.calls[0]
+    assert req["system"][0]["text"] == system_prompt("sale") != system_prompt("stock_in")
+    assert "customer sale" in req["messages"][0]["content"][1]["text"]
+
+
 def test_missing_unit_is_not_guessed_from_the_product():
     # Audit H1: an empty unit stays empty (the review then asks staff for it).
     result, _ = _read(_response([_line(unit="")]))
     line = result.lines[0]
     assert line.product_id == CEMENT.product_id and line.unit == ""
-    assert "If no unit is written, return an empty string" in _system_prompt()
+    for scan_type in ("stock_in", "sale"):
+        assert "If no unit is written, return an empty string" in system_prompt(scan_type)

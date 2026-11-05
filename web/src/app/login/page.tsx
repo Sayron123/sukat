@@ -7,9 +7,10 @@ export const metadata: Metadata = { title: "Log in · Sukat" };
 export default function LoginPage() {
   return (
     <AuthForm
-      title="Log in"
+      title="Welcome back"
+      subtitle="Sign in to continue to your store."
       endpoint="/api/auth/login"
-      submitLabel="Log in"
+      submitLabel="Sign In"
       fields={[
         { name: "email", label: "Email", type: "email", autoComplete: "email" },
         {
@@ -19,7 +20,7 @@ export default function LoginPage() {
           autoComplete: "current-password",
         },
       ]}
-      footer={{ text: "New to Sukat?", href: "/signup", link: "Create a store" }}
+      footer={{ text: "New store? Sign up here", href: "/signup" }}
     />
   );
 }
