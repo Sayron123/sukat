@@ -28,11 +28,18 @@ Unit tests use a fake AI. This folder checks the **real** model on **real photos
 }
 ```
 
+- `type`: `"stock_in"` (delivery list) or `"sale"` (sales receipt / order slip). Each type is read with its own prompt (`app/ai/prompts/read_stock_in.md` or `read_sale.md`).
 - `product`: the item's `key` from `app/products/seed_catalog.json` (or its exact name). Use `"new:<name>"` for an item that isn't in the catalog: the right answer is then "no match".
 - `qty` and `unit`: **as written on the list** (2 box, not 50 kg).
 - List the lines in the order they appear. Leave out totals and other non-item rows.
 
-`cases/_example.json` shows the format (it has no photo, so it's skipped).
+- `unit_price` (optional, best for sales): the price **per unit as written**, in pesos. Use `null` when no price is written (the AI must then return none, not guess). Leave it out to not score price for that line.
+
+`cases/_example.json` (stock in) and `cases/_example_sale.json` (sale) show the format. They have no photo, so they're skipped.
+
+### Sale receipts
+
+Use real receipts from the store: handwritten resibo, printed delivery receipts, customer order slips. Name them `sale-001.jpg` + `sale-001.json` with `"type": "sale"`. For an item the store doesn't carry, use `"new:<name>"`: on a sale the right answer is "no match" (sales never create products).
 
 ## Run it
 
@@ -41,15 +48,20 @@ cd api
 uv run python -m evals.run_eval
 ```
 
-Options: `--case dr-001` runs only matching cases; `--verbose` prints every wrong line.
+Options: `--case dr-001` runs only matching cases; `--type sale` runs only sale receipts; `--verbose` prints every wrong line.
 
 It needs an API key (`ANTHROPIC_API_KEY` in `api/.env`), and **each run costs money**. The total cost is printed at the end. The AI sees the whole starter catalog as the store's product list.
 
 ## Reading the results
 
 ```
-case                      lines  product     qty    unit   all 3  miss extra
-dr-001-handwritten            8   87.5%  100.0%  100.0%   87.5%     0     0
+case                       lines  product     qty    unit   all 3   price  miss extra
+dr-001 (in)                    8   87.5%  100.0%  100.0%   87.5%       -     0     0
+sale-001 (sale)                5  100.0%  100.0%  100.0%  100.0%   80.0%     0     0
+-------------------------------------------------------------------------------
+TOTAL stock_in                 8   87.5%  100.0%  100.0%   87.5%       -     0     0
+TOTAL sale                     5  100.0%  100.0%  100.0%  100.0%   80.0%     0     0
+TOTAL                         13   92.3%  100.0%  100.0%   92.3%   80.0%     0     0
 ```
 
 | Column | Meaning |
@@ -58,6 +70,7 @@ dr-001-handwritten            8   87.5%  100.0%  100.0%   87.5%     0     0
 | `qty` | Read the exact quantity. |
 | `unit` | Read the right unit (spellings like `bx`/`box` count as the same). |
 | `all 3` | Product, qty and unit all right: the line needs no fixing. |
+| `price` | Read the written price correctly (only lines whose expected file gives `unit_price`). |
 | `miss` | Lines on the photo the AI didn't return. |
 | `extra` | Lines the AI returned that aren't on the photo (for example a total row). |
 

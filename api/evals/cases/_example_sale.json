@@ -1,0 +1,10 @@
+{
+  "type": "sale",
+  "note": "Example only (no photo, so the runner skips it). Copy for a real case: sale-001.jpg + sale-001.json.",
+  "lines": [
+    { "product": "portland-cement-40kg", "qty": 5, "unit": "bag", "unit_price": 260 },
+    { "product": "common-wire-nail-4in", "qty": 2, "unit": "kg", "unit_price": 85 },
+    { "product": "deformed-bar-10mm-x-6m", "qty": 10, "unit": "pc", "unit_price": null },
+    { "product": "new:Steel Pipe 2in", "qty": 1, "unit": "pc" }
+  ]
+}
