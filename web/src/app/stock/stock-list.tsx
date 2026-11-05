@@ -139,13 +139,9 @@ export function StockList() {
               );
               return (
                 <li key={p.id}>
-                  {canEdit ? (
-                    <Link href={`/stock/${p.id}`} className="block rounded-card hover:bg-surface">
-                      {row}
-                    </Link>
-                  ) : (
-                    row
-                  )}
+                  <Link href={`/stock/${p.id}`} className="block rounded-card hover:bg-surface">
+                    {row}
+                  </Link>
                 </li>
               );
             })}

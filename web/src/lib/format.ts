@@ -1,3 +1,5 @@
+import { STORE_TZ, addDays, storeDate } from "./dates";
+
 /** "₱1,250.50" from 125050 centavos; "No price" when null. */
 export function formatPeso(centavos: number | null): string {
   if (centavos === null) return "No price";
@@ -30,20 +32,32 @@ export function centavosToInput(centavos: number | null): string {
   return `${Math.trunc(centavos / 100)}.${String(centavos % 100).padStart(2, "0")}`;
 }
 
-/** "Nov 5, 2026, 5:26 AM" in the phone's time zone, from an ISO timestamp. */
+/** "Nov 5, 2026, 5:26 AM" in store time (Asia/Manila), from an ISO timestamp. */
 export function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(iso).toLocaleString("en-PH", { timeZone: STORE_TZ, dateStyle: "medium", timeStyle: "short" });
 }
 
-/** "Today, 10:32 AM", "Yesterday, 4:20 PM" or "Nov 3, 9:15 AM" (year added if not this year). */
+/** "10:32 AM" in store time. */
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-PH", { timeZone: STORE_TZ, hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * "Today, 10:32 AM", "Yesterday, 4:20 PM" or "Nov 3, 9:15 AM" (year added if not this
+ * year). Store time (Asia/Manila), so every screen and report agree on what "today" is.
+ */
 export function formatShortWhen(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
-  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const daysAgo = Math.round((dayStart(now) - dayStart(d)) / 86_400_000);
-  if (daysAgo === 0) return `Today, ${time}`;
-  if (daysAgo === 1) return `Yesterday, ${time}`;
-  const sameYear = d.getFullYear() === now.getFullYear();
-  const date = d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: sameYear ? undefined : "numeric" });
+  const time = formatTime(iso);
+  const day = storeDate(d);
+  const today = storeDate(now);
+  if (day === today) return `Today, ${time}`;
+  if (day === addDays(today, -1)) return `Yesterday, ${time}`;
+  const date = d.toLocaleDateString("en-PH", {
+    timeZone: STORE_TZ,
+    month: "short",
+    day: "numeric",
+    year: day.slice(0, 4) === today.slice(0, 4) ? undefined : "numeric",
+  });
   return `${date}, ${time}`;
 }

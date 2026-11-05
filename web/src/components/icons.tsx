@@ -59,6 +59,12 @@ const PATHS = {
       <path d="M12 8v5l3 2" />
     </>
   ),
+  edit: (
+    <>
+      <path d="m4 17-.5 3.5L7 20l11-11-3-3L4 17Z" />
+      <path d="m13.5 7.5 3 3" />
+    </>
+  ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
   check: <path d="m5 12 4 4L19 6" />,
   image: (

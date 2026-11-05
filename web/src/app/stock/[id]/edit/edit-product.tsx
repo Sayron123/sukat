@@ -7,7 +7,7 @@ import { Loading } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import type { Product } from "@/lib/types";
 
-import { ProductForm } from "../product-form";
+import { ProductForm } from "../../product-form";
 
 export function EditProduct({ id }: { id: string }) {
   const [product, setProduct] = useState<Product | null>(null);
@@ -26,7 +26,7 @@ export function EditProduct({ id }: { id: string }) {
   if (error)
     return (
       <>
-        <PageHeader eyebrow="Product details" title="Edit product" back="/stock" />
+        <PageHeader eyebrow="Product details" title="Edit product" back={`/stock/${id}`} />
         <p className="text-red">{error}</p>
       </>
     );
