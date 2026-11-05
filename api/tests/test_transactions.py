@@ -557,6 +557,7 @@ def test_database_refuses_movement_pointing_at_another_stores_line(api, db, mana
             transaction_item_id=a_item.id,
             qty_change=Decimal("1"),
             stock_after=Decimal("2"),
+            created_by=b_txn.created_by,
         )
     )
     with pytest.raises(IntegrityError) as e:
