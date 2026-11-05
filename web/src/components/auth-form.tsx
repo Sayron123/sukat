@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
+
+import { hardNavigate } from "@/lib/hard-navigate";
 
 import { Button, Card, Field } from "./ui";
 
@@ -29,7 +30,6 @@ export function AuthForm({
   submitLabel: string;
   footer: { text: string; href: string; link: string };
 }) {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   // Keep submit disabled until JavaScript has loaded, so the browser never falls back to a
@@ -57,8 +57,7 @@ export function AuthForm({
         setError(data?.error ?? "Something went wrong");
         return;
       }
-      router.push("/staff");
-      router.refresh();
+      hardNavigate("/stock");
     } catch {
       setError("Network error. Please try again.");
     } finally {
