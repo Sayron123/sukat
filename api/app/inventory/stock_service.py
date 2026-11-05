@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.ai.schemas import ScanLine
 from app.auth.deps import CurrentMember
 from app.auth.models import User
-from app.core.errors import Conflict, Forbidden, Invalid, NotFound
+from app.core.errors import AppError, Conflict, Forbidden, Invalid, NotFound
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.scan_service import line_total, quantize_qty
 from app.inventory.schemas import (
@@ -336,6 +336,13 @@ def save_transaction_once(db: Session, current: CurrentMember, body: Transaction
         if isinstance(e, ScanAlreadySaved):
             raise
         raise Conflict("Could not save because of a conflict. Please try again.") from None
+    except AppError:
+        # Refused (e.g. negative_stock). Must come after the clause above, because
+        # ScanAlreadySaved is an AppError too. Roll back now so the transaction row and
+        # product locks are released before the phone resends with confirm=true,
+        # instead of whenever the request's session gets closed.
+        db.rollback()
+        raise
 
 
 def get_transaction(db: Session, store_id: UUID, transaction_id: UUID) -> Transaction:
@@ -461,6 +468,7 @@ def void_transaction(db: Session, current: CurrentMember, transaction_id: UUID) 
     if txn is None:
         raise NotFound("Transaction not found")
     if txn.status == "voided":
+        db.rollback()  # release the row lock right away
         raise AlreadyVoided("This transaction is already voided")
 
     movements = list(

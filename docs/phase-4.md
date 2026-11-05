@@ -86,3 +86,17 @@ Removing the negative-stock check or the void's row lock on purpose makes tests 
 - One `ScanFlow` with a `mode` ("stock_in" or "sale") instead of two copies.
 - A price the phone filled in from the product is sent as "no price", so the server uses its exact rule. This was found in testing: the screen showed ₱3,162.50 but ₱3,165.00 was saved, because the rounded ₱0.09/g was sent back as if written.
 - The confirm dialog uses the browser's built-in `<dialog>` element (keyboard, focus and screen reader support for free).
+
+## Step 8 — Fixes from code review
+
+| Problem found | Why it mattered | Fix |
+|---|---|---|
+| A refused save (e.g. "not enough stock") kept its database locks until the request finished cleaning up. | "Save anyway" is sent right after, and would wait on those locks. | The service rolls back the moment it refuses (same for "already voided"). A test checks the product row is free while the refused request's session is still open. |
+| "Scan Receipt" relied on the scan page mounting fresh to pick up the photo. | Next.js can keep a visited page alive; then the photo would be ignored. | The scan page listens for new photos, so it works either way. |
+| The date formatter lived inside a page and another page imported it from there. | Pages shouldn't depend on each other. | Moved to `web/src/lib/format.ts`. |
+
+Found and fixed earlier in this phase (by tests):
+- A default-priced line **saved** for more than the review showed (₱45.00 vs ₱42.50).
+- Small-unit totals were rounded twice.
+
+**Known limit:** voiding a scanned sale leaves its scan marked "saved", so the same photo can't be saved again. To redo a voided sale, take a new photo.

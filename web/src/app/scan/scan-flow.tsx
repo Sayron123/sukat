@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { Button, Card, GhostButton } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
 import { formatPeso, formatQty } from "@/lib/format";
 import { newRequestId } from "@/lib/request-id";
-import { takePendingPhoto } from "@/lib/pending-photo";
+import { watchPendingPhoto } from "@/lib/pending-photo";
 import {
   canEditProducts,
   type Me,
@@ -75,12 +75,10 @@ export function ScanFlow({ mode }: { mode: ScanMode }) {
     api<Me>("auth/me").then(setMe, () => {});
   }, []);
 
-  // A photo taken from the home page's "Scan Receipt" button: start with it right away.
-  useEffect(() => {
-    const file = takePendingPhoto();
-    if (file) void startWithFile(file);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on arrival
-  }, []);
+  // A photo taken with the home page's "Scan Receipt" button: start with it right away,
+  // whether this page just mounted or was still alive from an earlier visit.
+  const onPendingPhoto = useEffectEvent((file: File) => void startWithFile(file));
+  useEffect(() => watchPendingPhoto(onPendingPhoto), []);
 
   async function startWithFile(file: File) {
     setStep({ name: "uploading" });

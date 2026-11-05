@@ -312,3 +312,36 @@ def test_concurrent_sales_all_count(db, db_sessionmaker, manager, cement):
         db.scalars(select(StockMovement.stock_after).where(StockMovement.qty_change < 0))
     )
     assert afters == [Decimal(i) for i in range(10 - n, 10)]  # each sale saw the previous
+
+
+def test_refused_sale_releases_its_locks_immediately(db_sessionmaker, manager, cement):
+    """After a negative_stock refusal, the product row must not stay locked while the
+    request's session is still open, or the phone's 'Save anyway' would have to wait."""
+    from fastapi.security import HTTPAuthorizationCredentials
+    from sqlalchemy import text
+
+    from app.auth.deps import get_current_member
+    from app.core.errors import AppError
+    from app.inventory.schemas import TransactionIn
+    from app.inventory.stock_service import save_transaction_once
+
+    token = manager["Authorization"].split(" ", 1)[1]
+    with db_sessionmaker() as a, db_sessionmaker() as b:
+        current = get_current_member(
+            a, HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+        )
+        body = TransactionIn.model_validate(
+            {
+                "client_request_id": _rid(),
+                "type": "sale",
+                "lines": [{"product_id": cement["id"], "qty": "99", "unit": "bag"}],
+            }
+        )
+        with pytest.raises(AppError) as refused:
+            save_transaction_once(a, current, body)
+        assert refused.value.code == "negative_stock"
+        # Session `a` is still open. NOWAIT fails at once if the row is still locked.
+        b.execute(
+            text("SELECT 1 FROM products WHERE id = :id FOR UPDATE NOWAIT"), {"id": cement["id"]}
+        )
+        b.rollback()

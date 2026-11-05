@@ -6,10 +6,9 @@ import { useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button, Card } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
-import { formatPeso, formatQty } from "@/lib/format";
+import { formatPeso, formatQty, formatWhen } from "@/lib/format";
 import { canEditProducts, type Me, type Transaction } from "@/lib/types";
 
-import { formatWhen } from "../transaction-list";
 
 /**
  * One sale or stock-in, with a Void button for managers and secretaries. Voiding asks

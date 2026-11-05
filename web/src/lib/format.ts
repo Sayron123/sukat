@@ -29,3 +29,8 @@ export function centavosToInput(centavos: number | null): string {
   if (centavos === null) return "";
   return `${Math.trunc(centavos / 100)}.${String(centavos % 100).padStart(2, "0")}`;
 }
+
+/** "Nov 5, 2026, 5:26 AM" in the phone's time zone, from an ISO timestamp. */
+export function formatWhen(iso: string): string {
+  return new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+}

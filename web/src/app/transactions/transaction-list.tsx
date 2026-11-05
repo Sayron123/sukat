@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Card, Chip } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
-import { formatPeso } from "@/lib/format";
+import { formatPeso, formatWhen } from "@/lib/format";
 import type { ScanMode, TransactionPage } from "@/lib/types";
 
 const FILTERS: { label: string; type: ScanMode | null }[] = [
@@ -13,10 +13,6 @@ const FILTERS: { label: string; type: ScanMode | null }[] = [
   { label: "Sales", type: "sale" },
   { label: "Stock in", type: "stock_in" },
 ];
-
-export function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
-}
 
 /** Saved sales and stock-ins, newest first. */
 export function TransactionList() {
