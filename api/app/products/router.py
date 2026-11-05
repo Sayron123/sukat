@@ -8,11 +8,10 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.auth.deps import CurrentMember, CurrentMemberDep, DbSession, require_role
 from app.products import service
-from app.products.constants import PAGE_SIZE
+from app.products.constants import PAGE_SIZE, Category
 from app.products.models import Product
 from app.products.schemas import (
     CatalogItemOut,
-    Category,
     ConversionOut,
     ImportIn,
     ImportOut,

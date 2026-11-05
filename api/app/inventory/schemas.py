@@ -5,7 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.products.schemas import Category, Name, PriceCentavos, Unit
+from app.products.constants import Category
+from app.products.schemas import Name, PriceCentavos, Unit
 
 
 class NewProductIn(BaseModel):

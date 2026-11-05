@@ -66,6 +66,7 @@ Open http://localhost:3000. You should see **API connected**. Click **Create sto
 cd api
 uv run pytest          # run tests (needs the database running; uses a sukat_test DB)
 uv run ruff check .    # lint
+uv run pyright         # type check
 uv run alembic upgrade head   # apply migrations
 ```
 

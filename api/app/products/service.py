@@ -64,7 +64,7 @@ def search_products(
     `q` matches anywhere in the name or any alias, ignoring case and extra spaces.
     Exact name/alias matches come first, so "sem" puts cement on top.
     """
-    stmt: Select[tuple[Product]] = select(Product).where(Product.store_id == store_id)
+    stmt: Select[Product] = select(Product).where(Product.store_id == store_id)
     if not search.include_archived:
         stmt = stmt.where(Product.archived.is_(False))
     if search.category:

@@ -1,6 +1,9 @@
 """Fixed lists shared by models, schemas, the seed catalog, and tests."""
 
-CATEGORIES: tuple[str, ...] = (
+from typing import Literal, get_args
+
+# The category type; CATEGORIES is derived from it so the two can't drift apart.
+Category = Literal[
     "Cement",
     "Steel",
     "Wood",
@@ -11,7 +14,8 @@ CATEGORIES: tuple[str, ...] = (
     "Roofing",
     "Tools",
     "Others",
-)
+]
+CATEGORIES: tuple[str, ...] = get_args(Category)
 
 PAGE_SIZE = 20
 
