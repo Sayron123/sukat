@@ -75,6 +75,26 @@ def create_product(body: ProductCreate, current: Writer, db: DbSession) -> Produ
     return product_out(service.create_product(db, current.store_id, body))
 
 
+# Declared before /products/{product_id} so "catalog" isn't read as a product id.
+@router.get("/products/catalog", response_model=list[CatalogItemOut])
+def get_catalog(current: CurrentMemberDep, db: DbSession) -> list[CatalogItemOut]:
+    """All starter items, each marked if this store already has a product with that name."""
+    return [
+        CatalogItemOut(
+            key=item.key,
+            name=item.name,
+            category=item.category,
+            base_unit=item.base_unit,
+            aliases=item.aliases,
+            conversions=[
+                ConversionOut(from_unit=c.from_unit, factor=c.factor) for c in item.conversions
+            ],
+            already_in_store=in_store,
+        )
+        for item, in_store in service.catalog_for_store(db, current.store_id)
+    ]
+
+
 @router.get("/products/{product_id}", response_model=ProductOut)
 def get_product(product_id: UUID, current: CurrentMemberDep, db: DbSession) -> ProductOut:
     return product_out(service.get_product(db, current.store_id, product_id))
@@ -97,25 +117,6 @@ def archive_product(product_id: UUID, current: Writer, db: DbSession) -> Product
 @router.post("/products/{product_id}/unarchive", response_model=ProductOut)
 def unarchive_product(product_id: UUID, current: Writer, db: DbSession) -> ProductOut:
     return product_out(service.set_archived(db, current.store_id, product_id, False))
-
-
-@router.get("/catalog", response_model=list[CatalogItemOut])
-def get_catalog(current: CurrentMemberDep, db: DbSession) -> list[CatalogItemOut]:
-    """All starter items, each marked if this store already has a product with that name."""
-    return [
-        CatalogItemOut(
-            key=item.key,
-            name=item.name,
-            category=item.category,
-            base_unit=item.base_unit,
-            aliases=item.aliases,
-            conversions=[
-                ConversionOut(from_unit=c.from_unit, factor=c.factor) for c in item.conversions
-            ],
-            already_in_store=in_store,
-        )
-        for item, in_store in service.catalog_for_store(db, current.store_id)
-    ]
 
 
 @router.post("/products/import", response_model=ImportOut)

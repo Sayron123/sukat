@@ -27,7 +27,7 @@ def _member(api, manager):
         "/staff/invites", json={"email": "member@example.com", "role": "member"}, headers=manager
     ).json()
     token = api.post(
-        "/invites/accept",
+        "/staff/invites/accept",
         json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
     ).json()["access_token"]
     return auth_header(token)

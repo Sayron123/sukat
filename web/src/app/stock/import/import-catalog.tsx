@@ -17,7 +17,7 @@ export function ImportCatalog() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api<CatalogItem[]>("catalog").then(setItems, (e: unknown) =>
+    api<CatalogItem[]>("products/catalog").then(setItems, (e: unknown) =>
       setError(e instanceof ApiError ? e.message : "Could not load the catalog"),
     );
   }, []);
@@ -51,7 +51,7 @@ export function ImportCatalog() {
       });
       setResult(res);
       setSelected(new Set());
-      setItems(await api<CatalogItem[]>("catalog")); // refresh "Added" marks
+      setItems(await api<CatalogItem[]>("products/catalog")); // refresh "Added" marks
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Import failed");
     } finally {

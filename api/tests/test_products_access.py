@@ -12,7 +12,7 @@ def _join(api, manager_headers, email, role):
         "/staff/invites", json={"email": email, "role": role}, headers=manager_headers
     ).json()
     res = api.post(
-        "/invites/accept",
+        "/staff/invites/accept",
         json={"token": invite["token"], "password": "staff-pass-1", "full_name": role},
     )
     return auth_header(res.json()["access_token"])
@@ -79,7 +79,7 @@ def test_import_only_affects_own_store(api, stores):
     api.post("/products/import", json={"keys": ["hollow-block-4in"]}, headers=a["headers"])
     assert api.get("/products", headers=a["headers"]).json()["total"] == 2
     assert api.get("/products", headers=b["headers"]).json()["total"] == 1
-    b_catalog = api.get("/catalog", headers=b["headers"]).json()
+    b_catalog = api.get("/products/catalog", headers=b["headers"]).json()
     assert not next(i for i in b_catalog if i["key"] == "hollow-block-4in")["already_in_store"]
 
 
@@ -93,7 +93,7 @@ def test_member_is_read_only(api, stores):
 
     assert api.get("/products", headers=member).status_code == 200
     assert api.get(f"/products/{pid}", headers=member).status_code == 200
-    assert api.get("/catalog", headers=member).status_code == 200
+    assert api.get("/products/catalog", headers=member).status_code == 200
 
     body = {"name": "New", "category": "Others", "base_unit": "pc"}
     assert api.post("/products", json=body, headers=member).status_code == 403
@@ -126,7 +126,7 @@ def test_unauthenticated_is_401(api, stores):
     pid = stores["a"]["product"]["id"]
     assert api.get("/products").status_code == 401
     assert api.get(f"/products/{pid}").status_code == 401
-    assert api.get("/catalog").status_code == 401
+    assert api.get("/products/catalog").status_code == 401
     assert api.post("/products/import", json={"keys": ["hollow-block-4in"]}).status_code == 401
 
 

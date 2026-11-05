@@ -21,7 +21,12 @@ from app.auth.deps import CurrentMember
 from app.core.errors import Conflict, Forbidden, Invalid, NotFound
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.scan_service import line_total, quantize_qty
-from app.inventory.schemas import NewProductIn, TransactionIn
+from app.inventory.schemas import (
+    NewProductIn,
+    TransactionIn,
+    TransactionItemOut,
+    TransactionOut,
+)
 from app.products.models import Product, ProductAlias
 from app.products.units import UnitConversionError, convert, is_unit_word, normalize_unit
 from app.stores.models import Role
@@ -257,3 +262,75 @@ def _learn_alias(
     if taken is None:
         db.add(ProductAlias(store_id=store_id, product_id=product.id, alias=alias))
         learned.add(alias)
+
+
+# ---------- used by the router ----------
+
+
+def save_stock_in_once(db: Session, current: CurrentMember, body: TransactionIn) -> SaveResult:
+    """save_stock_in, plus the concurrent-repeat case: when the same request is being
+    saved by another request at the same moment, this one ends with a unique-key error
+    on client_request_id (or "scan already saved" after waiting on the scan lock). If
+    the other one saved, return its result (created=False) instead of an error.
+
+    @raises AppError subclasses as save_stock_in; Conflict if the race can't be resolved
+    """
+    try:
+        return save_stock_in(db, current, body)
+    except (IntegrityError, ScanAlreadySaved) as e:
+        db.rollback()
+        existing = find_existing(db, current.store_id, body.client_request_id)
+        if existing is not None:
+            return SaveResult(existing, created=False)
+        if isinstance(e, ScanAlreadySaved):
+            raise
+        raise Conflict("Could not save because of a conflict. Please try again.") from None
+
+
+def get_transaction(db: Session, store_id: UUID, transaction_id: UUID) -> Transaction:
+    """@raises NotFound also for another store's transaction"""
+    txn = db.scalar(
+        select(Transaction).where(
+            Transaction.id == transaction_id, Transaction.store_id == store_id
+        )
+    )
+    if txn is None:
+        raise NotFound("Transaction not found")
+    return txn
+
+
+def transaction_view(db: Session, txn: Transaction) -> TransactionOut:
+    """Built from what is stored, so a repeated request gets exactly the same answer."""
+    pids = {item.product_id for item in txn.items}
+    products = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_(pids)))}
+    stock_after = dict(
+        db.execute(
+            select(StockMovement.transaction_item_id, StockMovement.stock_after).where(
+                StockMovement.transaction_id == txn.id
+            )
+        ).all()
+    )
+    return TransactionOut(
+        id=txn.id,
+        type=txn.type,
+        status=txn.status,
+        client_request_id=txn.client_request_id,
+        scan_id=txn.scan_id,
+        total_centavos=txn.total_centavos,
+        created_at=txn.created_at,
+        items=[
+            TransactionItemOut(
+                line_no=item.line_no,
+                product_id=item.product_id,
+                product_name=products[item.product_id].name,
+                base_unit=products[item.product_id].base_unit,
+                qty=item.qty,
+                unit=item.unit,
+                qty_base=item.qty_base,
+                unit_price_centavos=item.unit_price_centavos,
+                line_total_centavos=item.line_total_centavos,
+                stock_after=stock_after[item.id],
+            )
+            for item in txn.items
+        ],
+    )

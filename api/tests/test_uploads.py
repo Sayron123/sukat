@@ -5,7 +5,7 @@ import pytest
 
 from app.core.config import settings
 from app.core.storage import R2Storage
-from app.inventory.uploads import key_belongs_to_store
+from app.inventory.scan_service import key_belongs_to_store
 
 JPEG = b"\xff\xd8\xff\xe0" + b"0" * 96  # 100 bytes that start like a JPEG
 JPEG_SIZE = len(JPEG)

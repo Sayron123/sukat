@@ -72,3 +72,59 @@ class TransactionOut(BaseModel):
     total_centavos: int
     items: list[TransactionItemOut]
     created_at: datetime
+
+
+# ---------- photo upload ----------
+
+
+class UploadUrlIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    content_type: Literal["image/jpeg", "image/png", "image/webp"] = "image/jpeg"
+    size_bytes: int = Field(gt=0)
+
+
+class UploadUrlOut(BaseModel):
+    photo_key: str
+    upload_url: str
+    method: str
+    headers: dict[str, str]
+    expires_in: int
+
+
+# ---------- scans ----------
+
+
+class ScanIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    photo_key: str
+    type: Literal["sale", "stock_in"] = "stock_in"
+
+
+class ReviewLineOut(BaseModel):
+    raw_text: str
+    product_id: UUID | None
+    product_name: str | None
+    base_unit: str | None
+    suggested_new_name: str | None
+    is_new: bool
+    qty: Decimal | None
+    unit: str
+    qty_base: Decimal | None
+    unit_price_centavos: int | None
+    line_total_centavos: int | None
+    confidence: float
+    needs_check: bool
+    check_reasons: list[str]
+
+
+class ScanOut(BaseModel):
+    id: UUID
+    type: str
+    status: str
+    error_message: str | None
+    retryable: bool
+    model: str | None
+    lines: list[ReviewLineOut]
+    created_at: datetime

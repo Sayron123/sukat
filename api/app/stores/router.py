@@ -39,7 +39,7 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession) -> InviteOut:
     )
 
 
-@router.post("/invites/accept", response_model=TokenOut)
+@router.post("/staff/invites/accept", response_model=TokenOut)
 def accept_invite(body: AcceptInviteIn, request: Request, db: DbSession) -> TokenOut:
     """Join a store with an invite token (no login needed)."""
     return service.accept_invite(db, body.token, body.password, body.full_name, client_ip(request))

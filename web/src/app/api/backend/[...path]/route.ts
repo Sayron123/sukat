@@ -10,7 +10,7 @@ import { API_URL, getToken } from "@/lib/server/backend";
  * client components call /api/backend/<path> and this handler adds the token.
  * Only the API areas the web app uses are allowed through.
  */
-const ALLOWED_PREFIXES = ["products", "catalog", "auth/me", "scans", "transactions"];
+const ALLOWED_PREFIXES = ["products", "auth/me", "scans", "transactions"];
 
 /**
  * Only plain segments like "products" or a UUID. Next.js decodes %2F and %2E inside a
