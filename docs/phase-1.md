@@ -129,3 +129,40 @@ Run tests (Postgres must be running): `cd api && uv run pytest`
 - Forms use `method="post"` and the button stays disabled until the page is ready. Without this, a fast click could put the password in the URL.
 - `API_URL` (server) and `NEXT_PUBLIC_API_URL` (browser) are in `web/.env.example`.
 - Invite and deactivate are API-only for now. They have no web screens yet.
+
+## Step 8 — Fixes from code review
+
+### Limit failed logins (rate limiting)
+
+**What**
+- `api/app/auth/rate_limit.py` and a new `auth_failures` table (migration `0002_auth_failures.py`).
+- Each failed login or invite-accept saves one row per key: `email:<email>` and `ip:<address>`.
+- If a key has too many failures in the last 15 minutes, the API answers **429 Too Many Requests**, even if the password is right. The `Retry-After` header says how many seconds to wait.
+- A correct password resets the email's counter.
+
+| Setting (`api/.env`) | Default | Meaning |
+|---|---|---|
+| `AUTH_FAILURE_WINDOW_MINUTES` | 15 | How far back to count |
+| `AUTH_MAX_FAILURES_PER_EMAIL` | 10 | Per account |
+| `AUTH_MAX_FAILURES_PER_IP` | 30 | Per network address |
+
+**Why**
+- Without a limit, an attacker can try passwords forever.
+- **Stored in Postgres, not memory**, so limits survive restarts and work with several API servers.
+- **Unknown emails are counted too**, so a 429 does not reveal which emails have accounts.
+- **Email limit is the main protection.** The IP can be faked unless the hosting proxy sets it correctly. The email can't be faked.
+- Trade-off: someone can block a person's login for 15 minutes by typing wrong passwords for their email. That is the usual price of this protection.
+
+**Deploying:** the API only trusts `X-Forwarded-For` from addresses in `FORWARDED_ALLOW_IPS` (uvicorn setting, default `127.0.0.1`). If Next.js runs on a different machine than the API, set `FORWARDED_ALLOW_IPS` to the Next.js server's address. Otherwise every user looks like the same IP.
+
+### Staff page when the API is down
+
+**What:** `/staff` shows "API not reachable" instead of an error screen.
+
+**Why:** `fetch()` doesn't return an error status when the server is off. It **throws**. The page now catches that.
+
+### Same-origin check behind HTTPS
+
+**What:** `isSameOrigin` (`web/src/lib/server/auth-route.ts`) compares only the **host** of the browser's `Origin` with the request's `x-forwarded-host` (or `host`).
+
+**Why:** on a real host, HTTPS usually ends at a proxy. The browser says `https://sukat.ph` but Next.js sees `http://`. Comparing the full origin blocked every login. Comparing the host is the same check Next.js uses for its own Server Actions.
