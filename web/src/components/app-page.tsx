@@ -4,7 +4,7 @@ import { AppNav } from "./app-nav";
 import { RequireSession } from "./require-session";
 
 /** Layout for signed-in pages: nav bar + session check + centered content column. */
-export function AppPage({ active, children }: { active: "stock" | "staff"; children: ReactNode }) {
+export function AppPage({ active, children }: { active: "stock" | "scan" | "staff"; children: ReactNode }) {
   return (
     <>
       <AppNav active={active} />

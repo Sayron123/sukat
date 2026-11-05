@@ -1,0 +1,10 @@
+{
+  "type": "stock_in",
+  "note": "Example only (no photo, so the runner skips it). Copy for a real case: dr-001.jpg + dr-001.json.",
+  "lines": [
+    { "product": "portland-cement-40kg", "qty": 10, "unit": "bag" },
+    { "product": "common-wire-nail-4in", "qty": 2, "unit": "box" },
+    { "product": "deformed-bar-10mm-x-6m", "qty": 20, "unit": "pc" },
+    { "product": "new:Deformed Bar 32mm x 6m", "qty": 5, "unit": "pc" }
+  ]
+}

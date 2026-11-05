@@ -29,10 +29,15 @@ _SYNONYMS: dict[str, str] = {
     **dict.fromkeys(("gal", "gals", "gallon", "gallons", "galon"), "gal"),
     **dict.fromkeys(("ft", "foot", "feet"), "ft"),
     **dict.fromkeys(("bag", "bags", "sako"), "bag"),
-    **dict.fromkeys(("box", "boxes", "kahon"), "box"),
-    **dict.fromkeys(("roll", "rolls", "rolyo"), "roll"),
-    **dict.fromkeys(("sheet", "sheets"), "sheet"),
+    **dict.fromkeys(("box", "boxes", "bx", "bxs", "kahon"), "box"),
+    **dict.fromkeys(("roll", "rolls", "rl", "rls", "rolyo"), "roll"),
+    **dict.fromkeys(("sheet", "sheets", "sht", "shts"), "sheet"),
 }
+
+# Every unit spelling we recognise after normalizing (used to strip units from text).
+KNOWN_UNITS: frozenset[str] = frozenset(
+    {*_SYNONYMS.values(), "cu.m", "can", "set", "pair", "tube", "pack"}
+)
 
 # Metric units: (dimension, size in the dimension's reference unit).
 _METRIC: dict[str, tuple[str, Decimal]] = {
@@ -113,3 +118,8 @@ def convert(product: ConvertibleProduct, qty: Decimal, unit: str) -> Decimal:
         f'Cannot convert "{unit}" to {base} for {product.name}. '
         f"Known units: {', '.join(known)}. Add a unit conversion to the product."
     )
+
+
+def is_unit_word(word: str) -> bool:
+    """True for a word that is a unit: "bx", "Kilos", "pcs." ..."""
+    return normalize_unit(word) in KNOWN_UNITS
