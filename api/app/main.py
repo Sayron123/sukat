@@ -8,6 +8,7 @@ from app.auth.router import router as auth_router
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.health import router as health_router
+from app.insights.router import router as insights_router
 from app.inventory.router import router as inventory_router
 from app.products.router import router as products_router
 from app.stores.router import router as stores_router
@@ -34,7 +35,13 @@ app.add_middleware(
 )
 
 v1 = APIRouter(prefix=API_PREFIX)
-for feature_router in (auth_router, stores_router, products_router, inventory_router):
+for feature_router in (
+    auth_router,
+    stores_router,
+    products_router,
+    inventory_router,
+    insights_router,
+):
     v1.include_router(feature_router)
 
 app.include_router(health_router)

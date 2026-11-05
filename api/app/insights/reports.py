@@ -17,13 +17,14 @@ from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from pydantic import ValidationError
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.auth.models import User
 from app.core.config import settings
-from app.core.errors import NotFound
+from app.core.errors import Invalid, NotFound
 from app.insights.schemas import (
     TOP_PRODUCTS_MAX,
     DateRange,
@@ -64,6 +65,23 @@ def utc_bounds(period: DateRange) -> tuple[datetime, datetime]:
     start = datetime.combine(period.start, time.min, STORE_TZ)
     end = datetime.combine(period.end + timedelta(days=1), time.min, STORE_TZ)
     return start.astimezone(UTC), end.astimezone(UTC)
+
+
+def make_range(start: date | None, end: date | None, default_today: bool) -> DateRange | None:
+    """Build a DateRange from optional query values.
+
+    Neither given: today (when default_today) or None (no date filter). One given: that
+    single day.
+    @raises Invalid for end before start or a range over 366 days
+    """
+    if start is None and end is None:
+        if not default_today:
+            return None
+        start = end = store_today()
+    try:
+        return DateRange(start=start or end, end=end or start)  # type: ignore[arg-type]
+    except ValidationError as e:
+        raise Invalid(e.errors()[0]["msg"].removeprefix("Value error, ")) from None
 
 
 def _in_range(column: InstrumentedAttribute[datetime], period: DateRange) -> ColumnElement[bool]:

@@ -4,6 +4,7 @@ Thin: check access, call scan_service / stock_service, shape the response.
 """
 
 import math
+from datetime import date
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from app.auth.deps import CurrentMember, CurrentMemberDep, DbSession, require_ro
 from app.core.config import settings
 from app.core.errors import AppError, BadRequest, Forbidden, NotFound
 from app.core.storage import LocalStorage, Storage, get_storage
+from app.insights import reports
 from app.inventory import scan_service, stock_service
 from app.inventory.scan_service import PHOTO_KEY_RE
 from app.inventory.schemas import (
@@ -155,11 +157,15 @@ def create_transaction(
 def list_transactions(
     current: CurrentMemberDep,
     db: DbSession,
-    type: Literal["stock_in", "sale"] | None = None,  # noqa: A002 - query param name
+    type: Literal["stock_in", "sale", "adjustment"] | None = None,  # noqa: A002 - query param
+    start: Annotated[date | None, Query(description="First day (Manila), YYYY-MM-DD")] = None,
+    end: Annotated[date | None, Query(description="Last day (Manila), included")] = None,
     page: Annotated[int, Query(ge=1, le=10_000)] = 1,
 ) -> TransactionPage:
-    """This store's transactions, newest first, 20 per page."""
-    rows, total = stock_service.list_transactions(db, current.store_id, type, page)
+    """This store's transactions, newest first, 20 per page. Optional Manila date range
+    (voided ones are listed too, marked "voided")."""
+    period = reports.make_range(start, end, default_today=False)
+    rows, total = stock_service.list_transactions(db, current.store_id, type, page, period)
     return TransactionPage(
         items=rows,
         total=total,
