@@ -135,3 +135,12 @@ def test_price_per_unit():
     assert price_per_unit(P(), 120002, "l") == 30001  # 30000.5 rounds half up
     assert price_per_unit(P(), 120000, "kg") is None
     assert price_per_unit(P(), None, "gal") is None
+
+
+def test_review_total_for_small_units_is_not_rounded_twice(api, manager, storage, reader):
+    nails = _nails(api, manager)  # ₱85.00 per kg
+    line = _scan(
+        api, manager, storage, reader, [scan_line(nails["id"], qty=Decimal("500"), unit="g")]
+    )["lines"][0]
+    assert line["unit_price_centavos"] == 9  # 8.5 centavos per gram, shown rounded
+    assert line["line_total_centavos"] == 4250  # but the total is exact: ₱42.50

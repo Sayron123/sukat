@@ -136,9 +136,11 @@ def retry_scan(
 def create_transaction(
     body: TransactionIn, response: Response, current: CurrentMemberDep, db: DbSession
 ) -> TransactionOut:
-    """Save a stock-in. Any staff member can save; creating new products needs a
-    manager or secretary. 201 on the first save, 200 with the same body on a repeat."""
-    result = stock_service.save_stock_in_once(db, current, body)
+    """Save a stock-in or a sale. Any staff member can save; creating new products (stock
+    in only) needs a manager or secretary. A sale that would take stock below 0 gets 409
+    with code "negative_stock" and the product list, unless confirm is true.
+    201 on the first save, 200 with the same body on a repeat."""
+    result = stock_service.save_transaction_once(db, current, body)
     response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
     return stock_service.transaction_view(db, result.transaction)
 

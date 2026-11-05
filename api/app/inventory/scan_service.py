@@ -20,7 +20,7 @@ from app.core.storage import Storage
 from app.inventory.models import Scan
 from app.inventory.schemas import ReviewLineOut, ScanOut
 from app.products.models import Product
-from app.products.pricing import price_per_unit
+from app.products.pricing import price_per_unit, priced_line
 from app.products.units import UnitConversionError, convert
 
 CONFIDENCE_THRESHOLD = 0.8
@@ -202,11 +202,14 @@ def review_line(line: ScanLine, products: dict[UUID, Product], scan_type: str) -
 
     unit_price = line.unit_price_centavos
     price_source = "receipt" if unit_price is not None else None
+    total = line_total(line.qty, unit_price)
     expected = None
     if is_sale and product is not None:
         expected = price_per_unit(product, product.price_centavos, line.unit)
-        if unit_price is None and expected is not None:
-            unit_price, price_source = expected, "product"
+        if unit_price is None and expected is not None and line.qty is not None:
+            # Same rule as saving, so the review total matches what gets saved.
+            unit_price, total = priced_line(product, product.price_centavos, line.qty, line.unit)
+            price_source = "product"
         elif unit_price is not None and expected is not None and unit_price != expected:
             warnings.append("price_differs")
 
@@ -223,7 +226,7 @@ def review_line(line: ScanLine, products: dict[UUID, Product], scan_type: str) -
         "unit_price_centavos": unit_price,
         "price_source": price_source,
         "expected_unit_price_centavos": expected,
-        "line_total_centavos": line_total(line.qty, unit_price),
+        "line_total_centavos": total,
         "confidence": line.confidence,
         "needs_check": bool(reasons),
         "check_reasons": reasons,

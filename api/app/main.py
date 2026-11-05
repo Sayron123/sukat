@@ -22,7 +22,7 @@ app = FastAPI(title="Sukat API", version="0.1.0")
 @app.exception_handler(AppError)
 def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     """Render business-rule errors the same way FastAPI renders HTTPException."""
-    return JSONResponse({"detail": exc.message}, status_code=exc.status_code, headers=exc.headers)
+    return JSONResponse(exc.body(), status_code=exc.status_code, headers=exc.headers)
 
 
 app.add_middleware(

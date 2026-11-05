@@ -46,9 +46,18 @@ class TransactionIn(BaseModel):
     # Made on the phone when the review screen opens (a UUID). Sending the same id again
     # never saves twice.
     client_request_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-    type: Literal["stock_in"] = "stock_in"
+    type: Literal["stock_in", "sale"] = "stock_in"
     scan_id: UUID | None = None
     lines: list[TransactionLineIn] = Field(min_length=1, max_length=200)
+    # Sales only: save even if some stock would go below 0 (stores sometimes sell before
+    # recording the delivery). Without it, such a sale is refused with the list.
+    confirm: bool = False
+
+    @model_validator(mode="after")
+    def _sale_rules(self) -> "TransactionIn":
+        if self.type == "sale" and any(line.new_product for line in self.lines):
+            raise ValueError("a sale can only include existing products")
+        return self
 
 
 class TransactionItemOut(BaseModel):

@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from app.auth.deps import get_current_member
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.schemas import TransactionIn
-from app.inventory.stock_service import alias_from_raw, save_stock_in
+from app.inventory.stock_service import alias_from_raw, save_transaction
 from app.products.models import Product, ProductAlias
 from tests.conftest import API_BASE_URL, auth_header, make_product, scan_line, upload_photo
 
@@ -59,7 +59,7 @@ def _save(api, headers, lines, rid=None, scan_id=None):
 # ---------- saving ----------
 
 
-def test_save_stock_in_updates_stock_and_records_everything(api, db, manager, nails, cement):
+def test_save_transaction_updates_stock_and_records_everything(api, db, manager, nails, cement):
     res = _save(
         api,
         manager,
@@ -209,7 +209,7 @@ def test_member_can_save_but_cannot_create_products(api, db, manager, nails):
 
 
 def _run_parallel(db_sessionmaker, token, bodies):
-    """Run save_stock_in for each body at the same moment, each in its own thread+session."""
+    """Run save_transaction for each body at the same moment, each in its own thread+session."""
     barrier = threading.Barrier(len(bodies))
     errors: list[BaseException] = []
     results = []
@@ -221,7 +221,9 @@ def _run_parallel(db_sessionmaker, token, bodies):
                     session, HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
                 )
                 barrier.wait()
-                results.append(save_stock_in(session, current, TransactionIn.model_validate(body)))
+                results.append(
+                    save_transaction(session, current, TransactionIn.model_validate(body))
+                )
             except BaseException as e:  # noqa: BLE001 - collected and checked below
                 session.rollback()
                 errors.append(e)
@@ -267,7 +269,7 @@ def test_locked_read_refreshes_a_product_already_in_the_session(
             "client_request_id": _rid(),
             "lines": [{"product_id": nails["id"], "qty": "2", "unit": "kg"}],
         }
-        save_stock_in(session, current, TransactionIn.model_validate(body))
+        save_transaction(session, current, TransactionIn.model_validate(body))
         assert stale.stock_qty == Decimal("7")  # the same object, refreshed under the lock
     assert _stock(db, nails["id"]) == Decimal("7")
 
