@@ -5,7 +5,7 @@ UNIQUE(store_id, client_request_id) makes saving a transaction idempotent.
 
 Revision ID: 0004
 Revises: 0003
-Create Date: 2026-11-05 02:39:27.320015
+Create Date: 2026-11-05 02:47:33.198340
 
 """
 
@@ -147,61 +147,6 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
-        "stock_movements",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
-        sa.Column("store_id", sa.Uuid(), nullable=False),
-        sa.Column("product_id", sa.Uuid(), nullable=False),
-        sa.Column("transaction_id", sa.Uuid(), nullable=False),
-        sa.Column("qty_change", sa.Numeric(precision=12, scale=3), nullable=False),
-        sa.Column("stock_after", sa.Numeric(precision=12, scale=3), nullable=False),
-        sa.Column("created_by", sa.Uuid(), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint("qty_change <> 0", name=op.f("ck_stock_movements_qty_change_not_zero")),
-        sa.ForeignKeyConstraint(
-            ["created_by"],
-            ["users.id"],
-            name=op.f("fk_stock_movements_created_by_users"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["product_id", "store_id"],
-            ["products.id", "products.store_id"],
-            name=op.f("fk_stock_movements_product_id_products"),
-        ),
-        sa.ForeignKeyConstraint(
-            ["store_id"],
-            ["stores.id"],
-            name=op.f("fk_stock_movements_store_id_stores"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["transaction_id", "store_id"],
-            ["transactions.id", "transactions.store_id"],
-            name=op.f("fk_stock_movements_transaction_id_transactions"),
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_stock_movements")),
-    )
-    op.create_index(
-        "ix_stock_movements_product_id_created_at",
-        "stock_movements",
-        ["product_id", "created_at"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_stock_movements_store_id"), "stock_movements", ["store_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_stock_movements_transaction_id"),
-        "stock_movements",
-        ["transaction_id"],
-        unique=False,
-    )
-    op.create_table(
         "transaction_items",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("store_id", sa.Uuid(), nullable=False),
@@ -244,18 +189,83 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_transaction_items_product_id"), "transaction_items", ["product_id"], unique=False
     )
+    op.create_table(
+        "stock_movements",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("store_id", sa.Uuid(), nullable=False),
+        sa.Column("product_id", sa.Uuid(), nullable=False),
+        sa.Column("transaction_id", sa.Uuid(), nullable=False),
+        sa.Column("transaction_item_id", sa.Uuid(), nullable=True),
+        sa.Column("qty_change", sa.Numeric(precision=12, scale=3), nullable=False),
+        sa.Column("stock_after", sa.Numeric(precision=12, scale=3), nullable=False),
+        sa.Column("created_by", sa.Uuid(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint("qty_change <> 0", name=op.f("ck_stock_movements_qty_change_not_zero")),
+        sa.ForeignKeyConstraint(
+            ["created_by"],
+            ["users.id"],
+            name=op.f("fk_stock_movements_created_by_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["product_id", "store_id"],
+            ["products.id", "products.store_id"],
+            name=op.f("fk_stock_movements_product_id_products"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["store_id"],
+            ["stores.id"],
+            name=op.f("fk_stock_movements_store_id_stores"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["transaction_id", "store_id"],
+            ["transactions.id", "transactions.store_id"],
+            name=op.f("fk_stock_movements_transaction_id_transactions"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["transaction_item_id"],
+            ["transaction_items.id"],
+            name=op.f("fk_stock_movements_transaction_item_id_transaction_items"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_stock_movements")),
+        sa.UniqueConstraint(
+            "transaction_item_id", name=op.f("uq_stock_movements_transaction_item_id")
+        ),
+    )
+    op.create_index(
+        "ix_stock_movements_product_id_created_at",
+        "stock_movements",
+        ["product_id", "created_at"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_stock_movements_store_id"), "stock_movements", ["store_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_stock_movements_transaction_id"),
+        "stock_movements",
+        ["transaction_id"],
+        unique=False,
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f("ix_transaction_items_product_id"), table_name="transaction_items")
-    op.drop_table("transaction_items")
     op.drop_index(op.f("ix_stock_movements_transaction_id"), table_name="stock_movements")
     op.drop_index(op.f("ix_stock_movements_store_id"), table_name="stock_movements")
     op.drop_index("ix_stock_movements_product_id_created_at", table_name="stock_movements")
     op.drop_table("stock_movements")
+    op.drop_index(op.f("ix_transaction_items_product_id"), table_name="transaction_items")
+    op.drop_table("transaction_items")
     op.drop_index("ix_transactions_store_id_created_at", table_name="transactions")
     op.drop_index(op.f("ix_transactions_scan_id"), table_name="transactions")
     op.drop_table("transactions")

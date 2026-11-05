@@ -159,6 +159,10 @@ class StockMovement(Base):
     )
     product_id: Mapped[UUID] = mapped_column(nullable=False)
     transaction_id: Mapped[UUID] = mapped_column(nullable=False, index=True)
+    # The line that caused this movement (NULL for future whole-transaction adjustments).
+    transaction_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("transaction_items.id", ondelete="CASCADE"), nullable=True, unique=True
+    )
     qty_change: Mapped[Decimal] = mapped_column(Qty, nullable=False)
     stock_after: Mapped[Decimal] = mapped_column(Qty, nullable=False)
     created_by: Mapped[UUID | None] = mapped_column(
