@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -27,6 +29,19 @@ class Settings(BaseSettings):
     AUTH_MAX_FAILURES_PER_EMAIL: int = 10
     AUTH_MAX_FAILURES_PER_IP: int = 30
 
+    # ----- Photo storage -----
+    # "local" saves uploads under LOCAL_UPLOAD_DIR (development); "r2" uses Cloudflare R2.
+    STORAGE_BACKEND: Literal["local", "r2"] = "local"
+    LOCAL_UPLOAD_DIR: str = "./uploads"
+    # Public base URL of this API; local upload URLs point here.
+    PUBLIC_API_URL: str = "http://localhost:8000"
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET: str = ""
+    UPLOAD_MAX_BYTES: int = 5 * 1024 * 1024
+    UPLOAD_URL_EXPIRE_SECONDS: int = 300
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
@@ -37,6 +52,10 @@ class Settings(BaseSettings):
             self.JWT_SECRET == DEV_JWT_SECRET or len(self.JWT_SECRET) < 32
         ):
             raise ValueError("Set JWT_SECRET to a random value of at least 32 characters.")
+        if self.STORAGE_BACKEND == "r2" and not all(
+            (self.R2_ACCOUNT_ID, self.R2_ACCESS_KEY_ID, self.R2_SECRET_ACCESS_KEY, self.R2_BUCKET)
+        ):
+            raise ValueError("STORAGE_BACKEND=r2 needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, ...")
         return self
 
 

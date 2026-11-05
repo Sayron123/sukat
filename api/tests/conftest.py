@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
 from app.core.db import get_db
+from app.core.storage import LocalStorage, get_storage
 from app.main import app
 
 TEST_DATABASE_URL = os.environ.get(
@@ -77,14 +78,21 @@ def db(db_sessionmaker: sessionmaker[Session]) -> Generator[Session]:
 
 
 @pytest.fixture
-def api(db_sessionmaker: sessionmaker[Session]) -> Generator[TestClient]:
-    """A test client whose requests use the test database."""
+def storage(tmp_path) -> LocalStorage:
+    """Photo storage in a temp folder, so tests never touch real files or R2."""
+    return LocalStorage(str(tmp_path / "uploads"), "http://testserver", "test-secret")
+
+
+@pytest.fixture
+def api(db_sessionmaker: sessionmaker[Session], storage: LocalStorage) -> Generator[TestClient]:
+    """A test client whose requests use the test database and temp storage."""
 
     def _get_test_db() -> Generator[Session]:
         with db_sessionmaker() as session:
             yield session
 
     app.dependency_overrides[get_db] = _get_test_db
+    app.dependency_overrides[get_storage] = lambda: storage
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()

@@ -34,3 +34,6 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Local photo uploads (STORAGE_BACKEND=local)
+api/uploads/
