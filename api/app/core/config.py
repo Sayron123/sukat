@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import model_validator
@@ -41,6 +42,23 @@ class Settings(BaseSettings):
     R2_BUCKET: str = ""
     UPLOAD_MAX_BYTES: int = 5 * 1024 * 1024
     UPLOAD_URL_EXPIRE_SECONDS: int = 300
+
+    # ----- AI (reading list photos) -----
+    # Leave empty to use the SDK's normal credential lookup (ANTHROPIC_API_KEY env, etc.).
+    ANTHROPIC_API_KEY: str = ""
+    AI_MODEL: str = "claude-opus-5-5"
+    AI_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
+    AI_TIMEOUT_SECONDS: float = 90.0
+    AI_MAX_RETRIES: int = 1
+    # Server-side refusal fallback ("default" routing). Turn off for models without it (Haiku).
+    AI_REFUSAL_FALLBACK: bool = True
+    # Prices in USD per million tokens, for the ai_usage cost log. Defaults match AI_MODEL;
+    # update them when you change the model.
+    AI_PRICE_INPUT_PER_MTOK_USD: Decimal = Decimal("4.00")
+    AI_PRICE_OUTPUT_PER_MTOK_USD: Decimal = Decimal("20.00")
+    AI_PRICE_CACHE_WRITE_PER_MTOK_USD: Decimal = Decimal("5.00")
+    AI_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.20")
+    USD_TO_PHP: Decimal = Decimal("58.00")
 
     @property
     def cors_origins_list(self) -> list[str]:

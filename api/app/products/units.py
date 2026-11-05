@@ -29,9 +29,9 @@ _SYNONYMS: dict[str, str] = {
     **dict.fromkeys(("gal", "gals", "gallon", "gallons", "galon"), "gal"),
     **dict.fromkeys(("ft", "foot", "feet"), "ft"),
     **dict.fromkeys(("bag", "bags", "sako"), "bag"),
-    **dict.fromkeys(("box", "boxes", "kahon"), "box"),
-    **dict.fromkeys(("roll", "rolls", "rolyo"), "roll"),
-    **dict.fromkeys(("sheet", "sheets"), "sheet"),
+    **dict.fromkeys(("box", "boxes", "bx", "bxs", "kahon"), "box"),
+    **dict.fromkeys(("roll", "rolls", "rl", "rls", "rolyo"), "roll"),
+    **dict.fromkeys(("sheet", "sheets", "sht", "shts"), "sheet"),
 }
 
 # Metric units: (dimension, size in the dimension's reference unit).

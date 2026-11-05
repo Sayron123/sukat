@@ -98,3 +98,4 @@ def test_normalize_unit():
     assert normalize_unit("pcs.") == "pc"
     assert normalize_unit("cu.m") == "cu.m"
     assert normalize_unit("Litro") == "l"
+    assert normalize_unit("BX") == "box"
