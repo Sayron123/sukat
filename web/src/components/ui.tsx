@@ -25,18 +25,70 @@ export function Button({ className = "", ...props }: ComponentProps<"button">) {
 export function Field({
   label,
   id,
+  wrapperClassName = "",
   ...props
-}: ComponentProps<"input"> & { label: string; id: string }) {
+}: ComponentProps<"input"> & { label: string; id: string; wrapperClassName?: string }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className={`flex min-w-0 flex-col gap-1 ${wrapperClassName}`}>
       <label htmlFor={id} className="text-sm font-medium text-text">
         {label}
       </label>
       <input
         id={id}
-        className="h-11 rounded-button border border-border bg-background px-3 text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
+        className="h-11 w-full min-w-0 rounded-button border border-border bg-background px-3 text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
         {...props}
       />
     </div>
+  );
+}
+
+export function Select({
+  label,
+  id,
+  children,
+  ...props
+}: ComponentProps<"select"> & { label: string; id: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-sm font-medium text-text">
+        {label}
+      </label>
+      <select
+        id={id}
+        className="h-11 rounded-button border border-border bg-background px-3 text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
+        {...props}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+/** Secondary (outlined) button. */
+export function GhostButton({ className = "", ...props }: ComponentProps<"button">) {
+  return (
+    <button
+      className={`h-11 rounded-button border border-border bg-background px-4 text-sm font-medium text-text hover:bg-surface disabled:opacity-60 ${className}`}
+      {...props}
+    />
+  );
+}
+
+export function Chip({
+  selected,
+  className = "",
+  ...props
+}: ComponentProps<"button"> & { selected: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      className={`h-9 shrink-0 rounded-full border px-3 text-sm font-medium ${
+        selected
+          ? "border-accent bg-accent text-white"
+          : "border-border bg-background text-text hover:bg-surface"
+      } ${className}`}
+      {...props}
+    />
   );
 }

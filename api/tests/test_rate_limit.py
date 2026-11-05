@@ -90,7 +90,7 @@ def test_invite_accept_wrong_password_is_limited(api, signup):
     ).json()["token"]
 
     def accept(pw):
-        return api.post("/invites/accept", json={"token": token, "password": pw})
+        return api.post("/staff/invites/accept", json={"token": token, "password": pw})
 
     for _ in range(3):
         assert accept("wrong-password").status_code == 401
@@ -101,7 +101,7 @@ def test_invite_accept_wrong_password_is_limited(api, signup):
 
 def test_bad_invite_tokens_are_limited_by_ip(api):
     for _ in range(5):
-        r = api.post("/invites/accept", json={"token": "nope", "password": "whatever-1"})
+        r = api.post("/staff/invites/accept", json={"token": "nope", "password": "whatever-1"})
         assert r.status_code == 400
-    r = api.post("/invites/accept", json={"token": "nope", "password": "whatever-1"})
+    r = api.post("/staff/invites/accept", json={"token": "nope", "password": "whatever-1"})
     assert r.status_code == 429

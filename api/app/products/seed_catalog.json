@@ -1,0 +1,2135 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "key": "portland-cement-40kg",
+      "name": "Portland Cement 40kg",
+      "category": "Cement",
+      "base_unit": "bag",
+      "aliases": [
+        "semento",
+        "sem",
+        "simento",
+        "cement",
+        "portland",
+        "cement 40kg"
+      ],
+      "conversions": [
+        {
+          "from_unit": "kg",
+          "factor": "0.025"
+        }
+      ]
+    },
+    {
+      "key": "white-cement",
+      "name": "White Cement",
+      "category": "Cement",
+      "base_unit": "kg",
+      "aliases": [
+        "white cement",
+        "puting semento",
+        "w cement"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "tile-adhesive-25kg",
+      "name": "Tile Adhesive 25kg",
+      "category": "Cement",
+      "base_unit": "bag",
+      "aliases": [
+        "tile adhesive",
+        "adhesive",
+        "tile cement"
+      ],
+      "conversions": [
+        {
+          "from_unit": "kg",
+          "factor": "0.04"
+        }
+      ]
+    },
+    {
+      "key": "tile-grout-2kg",
+      "name": "Tile Grout 2kg",
+      "category": "Cement",
+      "base_unit": "pack",
+      "aliases": [
+        "grout",
+        "tile grout"
+      ],
+      "conversions": [
+        {
+          "from_unit": "kg",
+          "factor": "0.5"
+        }
+      ]
+    },
+    {
+      "key": "skim-coat-20kg",
+      "name": "Skim Coat 20kg",
+      "category": "Cement",
+      "base_unit": "bag",
+      "aliases": [
+        "skimcoat",
+        "skim coat",
+        "skim"
+      ],
+      "conversions": [
+        {
+          "from_unit": "kg",
+          "factor": "0.05"
+        }
+      ]
+    },
+    {
+      "key": "hollow-block-4in",
+      "name": "Hollow Block 4\"",
+      "category": "Cement",
+      "base_unit": "pc",
+      "aliases": [
+        "chb 4",
+        "hollow block 4",
+        "hb 4",
+        "hollow blocks 4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "hollow-block-5in",
+      "name": "Hollow Block 5\"",
+      "category": "Cement",
+      "base_unit": "pc",
+      "aliases": [
+        "chb 5",
+        "hollow block 5",
+        "hb 5"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "hollow-block-6in",
+      "name": "Hollow Block 6\"",
+      "category": "Cement",
+      "base_unit": "pc",
+      "aliases": [
+        "chb 6",
+        "hollow block 6",
+        "hb 6"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "washed-sand",
+      "name": "Washed Sand",
+      "category": "Cement",
+      "base_unit": "cu.m",
+      "aliases": [
+        "buhangin",
+        "sand",
+        "washed sand",
+        "s1"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "fine-sand",
+      "name": "Fine Sand",
+      "category": "Cement",
+      "base_unit": "cu.m",
+      "aliases": [
+        "pinong buhangin",
+        "fine sand",
+        "buhangin pino"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "gravel-3-4",
+      "name": "Gravel 3/4",
+      "category": "Cement",
+      "base_unit": "cu.m",
+      "aliases": [
+        "graba",
+        "gravel",
+        "gravel 3/4",
+        "g1"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "gravel-3-8",
+      "name": "Gravel 3/8",
+      "category": "Cement",
+      "base_unit": "cu.m",
+      "aliases": [
+        "pea gravel",
+        "gravel 3/8",
+        "graba 3/8"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "escombro-filling-material",
+      "name": "Escombro (Filling Material)",
+      "category": "Cement",
+      "base_unit": "cu.m",
+      "aliases": [
+        "escombro",
+        "filling",
+        "panambak"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "hydrated-lime",
+      "name": "Hydrated Lime",
+      "category": "Cement",
+      "base_unit": "kg",
+      "aliases": [
+        "apog",
+        "lime",
+        "hydrated lime"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "deformed-bar-10mm-x-6m",
+      "name": "Deformed Bar 10mm x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "bakal 10mm",
+        "bakal 10",
+        "rebar 10mm",
+        "rebar 10",
+        "10mm",
+        "db 10"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "deformed-bar-12mm-x-6m",
+      "name": "Deformed Bar 12mm x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "bakal 12mm",
+        "bakal 12",
+        "rebar 12mm",
+        "rebar 12",
+        "12mm",
+        "db 12"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "deformed-bar-16mm-x-6m",
+      "name": "Deformed Bar 16mm x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "bakal 16mm",
+        "bakal 16",
+        "rebar 16mm",
+        "rebar 16",
+        "16mm",
+        "db 16"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "deformed-bar-20mm-x-6m",
+      "name": "Deformed Bar 20mm x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "bakal 20mm",
+        "bakal 20",
+        "rebar 20mm",
+        "rebar 20",
+        "20mm",
+        "db 20"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "deformed-bar-25mm-x-6m",
+      "name": "Deformed Bar 25mm x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "bakal 25mm",
+        "bakal 25",
+        "rebar 25mm",
+        "rebar 25",
+        "25mm",
+        "db 25"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "tie-wire-16",
+      "name": "Tie Wire #16",
+      "category": "Steel",
+      "base_unit": "kg",
+      "aliases": [
+        "alambre",
+        "tie wire",
+        "alambre 16",
+        "gi wire 16",
+        "tiewire"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "angle-bar-1in-x-1-8in-x-6m",
+      "name": "Angle Bar 1\" x 1/8\" x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "angle bar 1",
+        "anggulo 1",
+        "angle 1x1"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "angle-bar-1-1-2in-x-1-8in-x-6m",
+      "name": "Angle Bar 1-1/2\" x 1/8\" x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "angle bar 1 1/2",
+        "anggulo 1 1/2",
+        "angle 1.5"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "flat-bar-1in-x-1-8in-x-6m",
+      "name": "Flat Bar 1\" x 1/8\" x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "flat bar 1",
+        "flatbar 1",
+        "flat bar"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "tubular-1in-x-1in-x-6m-1-2mm",
+      "name": "Tubular 1\" x 1\" x 6m (1.2mm)",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "tubular 1x1",
+        "tubo 1x1",
+        "square tube 1x1"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "tubular-1in-x-2in-x-6m-1-2mm",
+      "name": "Tubular 1\" x 2\" x 6m (1.2mm)",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "tubular 1x2",
+        "tubo 1x2",
+        "square tube 1x2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "tubular-2in-x-2in-x-6m-1-2mm",
+      "name": "Tubular 2\" x 2\" x 6m (1.2mm)",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "tubular 2x2",
+        "tubo 2x2",
+        "square tube 2x2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "c-purlins-2in-x-3in-x-6m",
+      "name": "C-Purlins 2\" x 3\" x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "purlins 2x3",
+        "c purlins 2x3",
+        "purlin 2x3"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "c-purlins-2in-x-4in-x-6m",
+      "name": "C-Purlins 2\" x 4\" x 6m",
+      "category": "Steel",
+      "base_unit": "pc",
+      "aliases": [
+        "purlins 2x4",
+        "c purlins 2x4",
+        "purlin 2x4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "cyclone-wire-10-chain-link",
+      "name": "Cyclone Wire #10 (Chain Link)",
+      "category": "Steel",
+      "base_unit": "roll",
+      "aliases": [
+        "cyclone wire",
+        "cyclone",
+        "chain link"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "welding-rod-6013-1-8in",
+      "name": "Welding Rod 6013 1/8\"",
+      "category": "Steel",
+      "base_unit": "kg",
+      "aliases": [
+        "welding rod",
+        "rod 6013",
+        "electrode"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "ordinary-plywood-1-4in-4x8",
+      "name": "Ordinary Plywood 1/4\" (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "plywood 1/4",
+        "ply 1/4",
+        "ordinary 1/4",
+        "ordinary plywood 1/4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "ordinary-plywood-1-2in-4x8",
+      "name": "Ordinary Plywood 1/2\" (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "plywood 1/2",
+        "ply 1/2",
+        "ordinary 1/2",
+        "ordinary plywood 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "ordinary-plywood-3-4in-4x8",
+      "name": "Ordinary Plywood 3/4\" (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "plywood 3/4",
+        "ply 3/4",
+        "ordinary 3/4",
+        "ordinary plywood 3/4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "marine-plywood-1-4in-4x8",
+      "name": "Marine Plywood 1/4\" (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "marine 1/4",
+        "marine ply 1/4",
+        "marine plywood 1/4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "marine-plywood-1-2in-4x8",
+      "name": "Marine Plywood 1/2\" (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "marine 1/2",
+        "marine ply 1/2",
+        "marine plywood 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "marine-plywood-3-4in-4x8",
+      "name": "Marine Plywood 3/4\" (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "marine 3/4",
+        "marine ply 3/4",
+        "marine plywood 3/4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "phenolic-board-3-4in-4x8",
+      "name": "Phenolic Board 3/4\" (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "phenolic",
+        "phenolic 3/4",
+        "phenolic board"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "coco-lumber-2in-x-2in-x-8ft",
+      "name": "Coco Lumber 2\" x 2\" x 8ft",
+      "category": "Wood",
+      "base_unit": "pc",
+      "aliases": [
+        "coco 2x2x8",
+        "coco 2x2",
+        "coco lumber 2x2",
+        "niyog 2x2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "coco-lumber-2in-x-3in-x-8ft",
+      "name": "Coco Lumber 2\" x 3\" x 8ft",
+      "category": "Wood",
+      "base_unit": "pc",
+      "aliases": [
+        "coco 2x3x8",
+        "coco 2x3",
+        "coco lumber 2x3",
+        "niyog 2x3"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "coco-lumber-2in-x-4in-x-10ft",
+      "name": "Coco Lumber 2\" x 4\" x 10ft",
+      "category": "Wood",
+      "base_unit": "pc",
+      "aliases": [
+        "coco 2x4x10",
+        "coco 2x4",
+        "coco lumber 2x4",
+        "niyog 2x4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "good-lumber-1in-x-2in-x-8ft-kiln-dried",
+      "name": "Good Lumber 1\" x 2\" x 8ft (Kiln-dried)",
+      "category": "Wood",
+      "base_unit": "pc",
+      "aliases": [
+        "good lumber 1x2x8",
+        "lumber 1x2",
+        "kd 1x2",
+        "kahoy 1x2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "good-lumber-1in-x-4in-x-8ft-kiln-dried",
+      "name": "Good Lumber 1\" x 4\" x 8ft (Kiln-dried)",
+      "category": "Wood",
+      "base_unit": "pc",
+      "aliases": [
+        "good lumber 1x4x8",
+        "lumber 1x4",
+        "kd 1x4",
+        "kahoy 1x4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "good-lumber-2in-x-2in-x-8ft-kiln-dried",
+      "name": "Good Lumber 2\" x 2\" x 8ft (Kiln-dried)",
+      "category": "Wood",
+      "base_unit": "pc",
+      "aliases": [
+        "good lumber 2x2x8",
+        "lumber 2x2",
+        "kd 2x2",
+        "kahoy 2x2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "fiber-cement-board-4-5mm-4x8",
+      "name": "Fiber Cement Board 4.5mm (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "hardiflex 4.5",
+        "fiber cement 4.5",
+        "hardi 4.5"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "fiber-cement-board-6mm-4x8",
+      "name": "Fiber Cement Board 6mm (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "hardiflex 6",
+        "fiber cement 6",
+        "hardi 6"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "gypsum-board-9mm-4x8",
+      "name": "Gypsum Board 9mm (4x8)",
+      "category": "Wood",
+      "base_unit": "sheet",
+      "aliases": [
+        "gypsum",
+        "gypsum 9mm",
+        "gypsum board"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "common-wire-nail-1in",
+      "name": "Common Wire Nail 1\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "pako 1",
+        "cw 1",
+        "cwn 1",
+        "nail 1",
+        "pako 1 inch"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "common-wire-nail-1-1-2in",
+      "name": "Common Wire Nail 1-1/2\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "pako 1 1/2",
+        "cw 1 1/2",
+        "cwn 1 1/2",
+        "nail 1 1/2",
+        "pako 1 1/2 inch"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "common-wire-nail-2in",
+      "name": "Common Wire Nail 2\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "pako 2",
+        "cw 2",
+        "cwn 2",
+        "nail 2",
+        "pako 2 inch"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "common-wire-nail-2-1-2in",
+      "name": "Common Wire Nail 2-1/2\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "pako 2 1/2",
+        "cw 2 1/2",
+        "cwn 2 1/2",
+        "nail 2 1/2",
+        "pako 2 1/2 inch"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "common-wire-nail-3in",
+      "name": "Common Wire Nail 3\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "pako 3",
+        "cw 3",
+        "cwn 3",
+        "nail 3",
+        "pako 3 inch"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "common-wire-nail-4in",
+      "name": "Common Wire Nail 4\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "pako 4",
+        "cw 4",
+        "cwn 4",
+        "nail 4",
+        "pako 4 inch"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "concrete-nail-1in",
+      "name": "Concrete Nail 1\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "concrete nail 1",
+        "pako konkreto 1",
+        "cn 1"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "concrete-nail-2in",
+      "name": "Concrete Nail 2\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "concrete nail 2",
+        "pako konkreto 2",
+        "cn 2"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "concrete-nail-3in",
+      "name": "Concrete Nail 3\"",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "concrete nail 3",
+        "pako konkreto 3",
+        "cn 3"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "umbrella-nail-2-1-2in-roofing",
+      "name": "Umbrella Nail 2-1/2\" (Roofing)",
+      "category": "Nails & Screws",
+      "base_unit": "kg",
+      "aliases": [
+        "umbrella nail",
+        "pako yero",
+        "roofing nail"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "25"
+        }
+      ]
+    },
+    {
+      "key": "blind-rivet-1-8in",
+      "name": "Blind Rivet 1/8\"",
+      "category": "Nails & Screws",
+      "base_unit": "pc",
+      "aliases": [
+        "rivet",
+        "blind rivet",
+        "rivet 1/8"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "gypsum-screw-1in",
+      "name": "Gypsum Screw 1\"",
+      "category": "Nails & Screws",
+      "base_unit": "pc",
+      "aliases": [
+        "gypsum screw",
+        "black screw",
+        "turnilyo gypsum"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "tek-screw-2-1-2in-roofing",
+      "name": "Tek Screw 2-1/2\" (Roofing)",
+      "category": "Nails & Screws",
+      "base_unit": "pc",
+      "aliases": [
+        "tekscrew",
+        "tek screw",
+        "tex screw"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "wood-screw-1-1-2in",
+      "name": "Wood Screw 1-1/2\"",
+      "category": "Nails & Screws",
+      "base_unit": "pc",
+      "aliases": [
+        "wood screw",
+        "turnilyo",
+        "tornilyo"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "machine-bolt-with-nut-1-2in-x-4in",
+      "name": "Machine Bolt with Nut 1/2\" x 4\"",
+      "category": "Nails & Screws",
+      "base_unit": "pc",
+      "aliases": [
+        "machine bolt",
+        "bolt 1/2",
+        "perno 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "expansion-bolt-3-8in",
+      "name": "Expansion Bolt 3/8\"",
+      "category": "Nails & Screws",
+      "base_unit": "pc",
+      "aliases": [
+        "expansion bolt",
+        "anchor bolt",
+        "dyna bolt"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "plastic-wall-plug-6",
+      "name": "Plastic Wall Plug #6",
+      "category": "Nails & Screws",
+      "base_unit": "pc",
+      "aliases": [
+        "tox",
+        "tox 6",
+        "wall plug",
+        "plastic tox"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "latex-paint-semi-gloss-white",
+      "name": "Latex Paint Semi-Gloss White",
+      "category": "Paint",
+      "base_unit": "gal",
+      "aliases": [
+        "latex",
+        "semi gloss",
+        "pintura latex",
+        "latex white"
+      ],
+      "conversions": [
+        {
+          "from_unit": "l",
+          "factor": "0.25"
+        }
+      ]
+    },
+    {
+      "key": "latex-paint-flat-white",
+      "name": "Latex Paint Flat White",
+      "category": "Paint",
+      "base_unit": "gal",
+      "aliases": [
+        "flat latex",
+        "latex flat",
+        "pintura flat"
+      ],
+      "conversions": [
+        {
+          "from_unit": "l",
+          "factor": "0.25"
+        }
+      ]
+    },
+    {
+      "key": "quick-dry-enamel-white",
+      "name": "Quick Dry Enamel White",
+      "category": "Paint",
+      "base_unit": "gal",
+      "aliases": [
+        "qde",
+        "qde white",
+        "enamel",
+        "quick dry"
+      ],
+      "conversions": [
+        {
+          "from_unit": "l",
+          "factor": "0.25"
+        }
+      ]
+    },
+    {
+      "key": "flat-wall-enamel-white",
+      "name": "Flat Wall Enamel White",
+      "category": "Paint",
+      "base_unit": "gal",
+      "aliases": [
+        "fwe",
+        "flat wall",
+        "flat wall enamel"
+      ],
+      "conversions": [
+        {
+          "from_unit": "l",
+          "factor": "0.25"
+        }
+      ]
+    },
+    {
+      "key": "roof-paint-red",
+      "name": "Roof Paint Red",
+      "category": "Paint",
+      "base_unit": "gal",
+      "aliases": [
+        "roof paint",
+        "pintura bubong",
+        "roof red"
+      ],
+      "conversions": [
+        {
+          "from_unit": "l",
+          "factor": "0.25"
+        }
+      ]
+    },
+    {
+      "key": "red-oxide-primer",
+      "name": "Red Oxide Primer",
+      "category": "Paint",
+      "base_unit": "gal",
+      "aliases": [
+        "red oxide",
+        "primer",
+        "pang-ilalim"
+      ],
+      "conversions": [
+        {
+          "from_unit": "l",
+          "factor": "0.25"
+        }
+      ]
+    },
+    {
+      "key": "concrete-neutralizer",
+      "name": "Concrete Neutralizer",
+      "category": "Paint",
+      "base_unit": "gal",
+      "aliases": [
+        "neutralizer",
+        "concrete primer",
+        "masonry neutralizer"
+      ],
+      "conversions": [
+        {
+          "from_unit": "l",
+          "factor": "0.25"
+        }
+      ]
+    },
+    {
+      "key": "elastomeric-paint-white",
+      "name": "Elastomeric Paint White",
+      "category": "Paint",
+      "base_unit": "gal",
+      "aliases": [
+        "elastomeric",
+        "elasto",
+        "waterproof paint"
+      ],
+      "conversions": [
+        {
+          "from_unit": "l",
+          "factor": "0.25"
+        }
+      ]
+    },
+    {
+      "key": "clear-varnish",
+      "name": "Clear Varnish",
+      "category": "Paint",
+      "base_unit": "l",
+      "aliases": [
+        "varnish",
+        "barnis",
+        "clear varnish"
+      ],
+      "conversions": [
+        {
+          "from_unit": "gal",
+          "factor": "4"
+        }
+      ]
+    },
+    {
+      "key": "paint-thinner",
+      "name": "Paint Thinner",
+      "category": "Paint",
+      "base_unit": "l",
+      "aliases": [
+        "thinner",
+        "paint thinner",
+        "pang-thinner"
+      ],
+      "conversions": [
+        {
+          "from_unit": "gal",
+          "factor": "4"
+        }
+      ]
+    },
+    {
+      "key": "tinting-color",
+      "name": "Tinting Color",
+      "category": "Paint",
+      "base_unit": "pc",
+      "aliases": [
+        "tinting",
+        "tint",
+        "tinting color",
+        "kulay"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "polyester-putty",
+      "name": "Polyester Putty",
+      "category": "Paint",
+      "base_unit": "l",
+      "aliases": [
+        "polyester putty",
+        "body filler",
+        "masilya"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "paint-brush-1in",
+      "name": "Paint Brush 1\"",
+      "category": "Paint",
+      "base_unit": "pc",
+      "aliases": [
+        "brush 1",
+        "brotsa 1",
+        "paint brush 1"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "paint-brush-2in",
+      "name": "Paint Brush 2\"",
+      "category": "Paint",
+      "base_unit": "pc",
+      "aliases": [
+        "brush 2",
+        "brotsa 2",
+        "paint brush 2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "paint-roller-7in",
+      "name": "Paint Roller 7\"",
+      "category": "Paint",
+      "base_unit": "pc",
+      "aliases": [
+        "roller",
+        "paint roller",
+        "roller 7"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "masking-tape-1in",
+      "name": "Masking Tape 1\"",
+      "category": "Paint",
+      "base_unit": "roll",
+      "aliases": [
+        "masking tape",
+        "masking",
+        "masking 1"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "sandpaper-100",
+      "name": "Sandpaper #100",
+      "category": "Paint",
+      "base_unit": "pc",
+      "aliases": [
+        "liha 100",
+        "sandpaper 100",
+        "sp 100"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "thhn-wire-14-2-0mm",
+      "name": "THHN Wire #14 (2.0mm²)",
+      "category": "Electrical",
+      "base_unit": "m",
+      "aliases": [
+        "thhn 14",
+        "wire 14",
+        "kawad 14",
+        "thhn 2.0",
+        "wire 2.0"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "150"
+        },
+        {
+          "from_unit": "roll",
+          "factor": "150"
+        }
+      ]
+    },
+    {
+      "key": "thhn-wire-12-3-5mm",
+      "name": "THHN Wire #12 (3.5mm²)",
+      "category": "Electrical",
+      "base_unit": "m",
+      "aliases": [
+        "thhn 12",
+        "wire 12",
+        "kawad 12",
+        "thhn 3.5",
+        "wire 3.5"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "150"
+        },
+        {
+          "from_unit": "roll",
+          "factor": "150"
+        }
+      ]
+    },
+    {
+      "key": "thhn-wire-10-5-5mm",
+      "name": "THHN Wire #10 (5.5mm²)",
+      "category": "Electrical",
+      "base_unit": "m",
+      "aliases": [
+        "thhn 10",
+        "wire 10",
+        "kawad 10",
+        "thhn 5.5",
+        "wire 5.5"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "150"
+        },
+        {
+          "from_unit": "roll",
+          "factor": "150"
+        }
+      ]
+    },
+    {
+      "key": "thhn-wire-8-8-0mm",
+      "name": "THHN Wire #8 (8.0mm²)",
+      "category": "Electrical",
+      "base_unit": "m",
+      "aliases": [
+        "thhn 8",
+        "wire 8",
+        "kawad 8",
+        "thhn 8.0",
+        "wire 8.0"
+      ],
+      "conversions": [
+        {
+          "from_unit": "box",
+          "factor": "150"
+        },
+        {
+          "from_unit": "roll",
+          "factor": "150"
+        }
+      ]
+    },
+    {
+      "key": "pdx-wire-16-duplex",
+      "name": "PDX Wire #16 (Duplex)",
+      "category": "Electrical",
+      "base_unit": "m",
+      "aliases": [
+        "pdx",
+        "pdx 16",
+        "duplex wire",
+        "kawad pdx"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "electrical-tape",
+      "name": "Electrical Tape",
+      "category": "Electrical",
+      "base_unit": "roll",
+      "aliases": [
+        "electrical tape",
+        "tape",
+        "itim na tape"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-conduit-1-2in-x-3m",
+      "name": "PVC Conduit 1/2\" x 3m",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "conduit 1/2",
+        "pvc conduit",
+        "conduit"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "flexible-hose-1-2in-corrugated",
+      "name": "Flexible Hose 1/2\" (Corrugated)",
+      "category": "Electrical",
+      "base_unit": "m",
+      "aliases": [
+        "flexible hose",
+        "flex hose",
+        "corrugated"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "utility-box-2in-x-4in",
+      "name": "Utility Box 2\" x 4\"",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "utility box",
+        "util box",
+        "switch box"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "junction-box-4in-x-4in",
+      "name": "Junction Box 4\" x 4\"",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "junction box",
+        "jbox",
+        "j-box"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "switch-1-gang",
+      "name": "Switch 1-Gang",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "switch",
+        "1 gang",
+        "switch 1 gang"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "convenience-outlet-duplex",
+      "name": "Convenience Outlet Duplex",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "outlet",
+        "saksakan",
+        "convenience outlet"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "circuit-breaker-20a-plug-in",
+      "name": "Circuit Breaker 20A (Plug-in)",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "breaker 20",
+        "cb 20",
+        "20a breaker"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "circuit-breaker-30a-plug-in",
+      "name": "Circuit Breaker 30A (Plug-in)",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "breaker 30",
+        "cb 30",
+        "30a breaker"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "panel-board-4-branches",
+      "name": "Panel Board 4 Branches",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "panel board",
+        "panel",
+        "loadcenter"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "led-bulb-9w",
+      "name": "LED Bulb 9W",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "bulb 9w",
+        "led 9w",
+        "bumbilya 9"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "led-bulb-12w",
+      "name": "LED Bulb 12W",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "bulb 12w",
+        "led 12w",
+        "bumbilya 12"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "led-tube-18w-t8",
+      "name": "LED Tube 18W (T8)",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "led tube",
+        "tube 18w",
+        "t8"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "male-plug",
+      "name": "Male Plug",
+      "category": "Electrical",
+      "base_unit": "pc",
+      "aliases": [
+        "plug",
+        "male plug",
+        "saksak"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-sanitary-pipe-2in-x-3m-orange",
+      "name": "PVC Sanitary Pipe 2\" x 3m (Orange)",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "pvc 2",
+        "tubo 2 orange",
+        "sanitary pipe 2",
+        "orange 2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-sanitary-pipe-3in-x-3m-orange",
+      "name": "PVC Sanitary Pipe 3\" x 3m (Orange)",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "pvc 3",
+        "tubo 3 orange",
+        "sanitary pipe 3",
+        "orange 3"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-sanitary-pipe-4in-x-3m-orange",
+      "name": "PVC Sanitary Pipe 4\" x 3m (Orange)",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "pvc 4",
+        "tubo 4 orange",
+        "sanitary pipe 4",
+        "orange 4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-pressure-pipe-1-2in-x-3m-blue",
+      "name": "PVC Pressure Pipe 1/2\" x 3m (Blue)",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "pvc blue 1/2",
+        "tubo 1/2",
+        "blue pipe 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-pressure-pipe-3-4in-x-3m-blue",
+      "name": "PVC Pressure Pipe 3/4\" x 3m (Blue)",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "pvc blue 3/4",
+        "tubo 3/4",
+        "blue pipe 3/4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "ppr-pipe-20mm-x-4m",
+      "name": "PPR Pipe 20mm x 4m",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "ppr 20",
+        "ppr pipe",
+        "ppr"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "gi-pipe-1-2in-x-6m",
+      "name": "GI Pipe 1/2\" x 6m",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "gi pipe 1/2",
+        "gi pipe",
+        "tubong bakal 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-elbow-1-2in",
+      "name": "PVC Elbow 1/2\"",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "elbow 1/2",
+        "siko 1/2",
+        "elbow blue 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-tee-1-2in",
+      "name": "PVC Tee 1/2\"",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "tee 1/2",
+        "tee blue 1/2",
+        "t 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-coupling-1-2in",
+      "name": "PVC Coupling 1/2\"",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "coupling 1/2",
+        "kupling 1/2",
+        "coupling"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "sanitary-elbow-4in-90",
+      "name": "Sanitary Elbow 4\" (90°)",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "elbow 4",
+        "siko 4",
+        "sanitary elbow 4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "faucet-1-2in",
+      "name": "Faucet 1/2\"",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "gripo",
+        "faucet",
+        "faucet 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "gate-valve-1-2in",
+      "name": "Gate Valve 1/2\"",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "gate valve",
+        "valve 1/2",
+        "gate valve 1/2"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "teflon-tape",
+      "name": "Teflon Tape",
+      "category": "Plumbing",
+      "base_unit": "roll",
+      "aliases": [
+        "teflon",
+        "teflon tape",
+        "thread tape"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-solvent-cement-100cc",
+      "name": "PVC Solvent Cement 100cc",
+      "category": "Plumbing",
+      "base_unit": "can",
+      "aliases": [
+        "solvent",
+        "solvent cement",
+        "pvc glue"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "floor-drain-4in-x-4in",
+      "name": "Floor Drain 4\" x 4\"",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "floor drain",
+        "drain",
+        "fd 4x4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "garden-hose-1-2in",
+      "name": "Garden Hose 1/2\"",
+      "category": "Plumbing",
+      "base_unit": "m",
+      "aliases": [
+        "hose",
+        "garden hose",
+        "hos"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "shower-head",
+      "name": "Shower Head",
+      "category": "Plumbing",
+      "base_unit": "pc",
+      "aliases": [
+        "shower",
+        "shower head",
+        "dutsa"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "water-closet-set",
+      "name": "Water Closet Set",
+      "category": "Plumbing",
+      "base_unit": "set",
+      "aliases": [
+        "inidoro",
+        "water closet",
+        "toilet bowl",
+        "wc"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "corrugated-gi-sheet-ga-26-x-8ft",
+      "name": "Corrugated GI Sheet Ga.26 x 8ft",
+      "category": "Roofing",
+      "base_unit": "pc",
+      "aliases": [
+        "yero 8",
+        "yero 8ft",
+        "gi sheet 8",
+        "corrugated 8"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "corrugated-gi-sheet-ga-26-x-10ft",
+      "name": "Corrugated GI Sheet Ga.26 x 10ft",
+      "category": "Roofing",
+      "base_unit": "pc",
+      "aliases": [
+        "yero 10",
+        "yero 10ft",
+        "gi sheet 10",
+        "corrugated 10"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "corrugated-gi-sheet-ga-26-x-12ft",
+      "name": "Corrugated GI Sheet Ga.26 x 12ft",
+      "category": "Roofing",
+      "base_unit": "pc",
+      "aliases": [
+        "yero 12",
+        "yero 12ft",
+        "gi sheet 12",
+        "corrugated 12"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "long-span-roofing-rib-type-0-4mm-pre-painted",
+      "name": "Long Span Roofing Rib-Type 0.4mm (Pre-painted)",
+      "category": "Roofing",
+      "base_unit": "m",
+      "aliases": [
+        "long span",
+        "longspan",
+        "rib type"
+      ],
+      "conversions": [
+        {
+          "from_unit": "ft",
+          "factor": "0.3048"
+        }
+      ]
+    },
+    {
+      "key": "plain-gi-sheet-ga-26-3ft-x-8ft",
+      "name": "Plain GI Sheet Ga.26 (3ft x 8ft)",
+      "category": "Roofing",
+      "base_unit": "sheet",
+      "aliases": [
+        "plain yero",
+        "plain gi",
+        "plain sheet"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "ridge-roll-ga-26",
+      "name": "Ridge Roll Ga.26",
+      "category": "Roofing",
+      "base_unit": "pc",
+      "aliases": [
+        "ridge roll",
+        "ridge cap",
+        "palupo"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "roof-gutter-ga-26",
+      "name": "Roof Gutter Ga.26",
+      "category": "Roofing",
+      "base_unit": "m",
+      "aliases": [
+        "gutter",
+        "alulod",
+        "canal"
+      ],
+      "conversions": [
+        {
+          "from_unit": "ft",
+          "factor": "0.3048"
+        }
+      ]
+    },
+    {
+      "key": "roof-flashing-ga-26",
+      "name": "Roof Flashing Ga.26",
+      "category": "Roofing",
+      "base_unit": "m",
+      "aliases": [
+        "flashing",
+        "roof flashing",
+        "tapal bubong"
+      ],
+      "conversions": [
+        {
+          "from_unit": "ft",
+          "factor": "0.3048"
+        }
+      ]
+    },
+    {
+      "key": "rubberized-waterproof-sealant",
+      "name": "Rubberized Waterproof Sealant",
+      "category": "Roofing",
+      "base_unit": "can",
+      "aliases": [
+        "vulcaseal",
+        "sealant bubong",
+        "rubberized sealant"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "roof-insulation-foil-single-sided",
+      "name": "Roof Insulation Foil (Single-sided)",
+      "category": "Roofing",
+      "base_unit": "roll",
+      "aliases": [
+        "insulation",
+        "foil",
+        "roof foil"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "polycarbonate-sheet-clear-4ft-x-8ft",
+      "name": "Polycarbonate Sheet Clear (4ft x 8ft)",
+      "category": "Roofing",
+      "base_unit": "sheet",
+      "aliases": [
+        "polycarbonate",
+        "polycarb",
+        "clear sheet"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "fiberglass-translucent-roofing-8ft",
+      "name": "Fiberglass Translucent Roofing 8ft",
+      "category": "Roofing",
+      "base_unit": "pc",
+      "aliases": [
+        "fiberglass",
+        "translucent",
+        "skylight sheet"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "claw-hammer-16oz",
+      "name": "Claw Hammer 16oz",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "martilyo",
+        "hammer",
+        "claw hammer"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "hand-saw-22in",
+      "name": "Hand Saw 22\"",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "lagari",
+        "hand saw",
+        "saw"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "hacksaw-frame",
+      "name": "Hacksaw Frame",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "hacksaw",
+        "hacksaw frame",
+        "lagari bakal"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "hacksaw-blade-12in",
+      "name": "Hacksaw Blade 12\"",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "hacksaw blade",
+        "blade",
+        "talim lagari"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "measuring-tape-5m",
+      "name": "Measuring Tape 5m",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "metro",
+        "tape measure",
+        "measuring tape"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "spirit-level-24in",
+      "name": "Spirit Level 24\"",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "level",
+        "spirit level",
+        "level bar"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "masonry-trowel",
+      "name": "Masonry Trowel",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "kutsara",
+        "trowel",
+        "palitada"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "shovel-pointed",
+      "name": "Shovel (Pointed)",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "pala",
+        "shovel",
+        "pala matulis"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "wheelbarrow",
+      "name": "Wheelbarrow",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "kartilya",
+        "wheelbarrow",
+        "kariton"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "combination-pliers-8in",
+      "name": "Combination Pliers 8\"",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "plais",
+        "pliers",
+        "combination pliers"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "screwdriver-set",
+      "name": "Screwdriver Set",
+      "category": "Tools",
+      "base_unit": "set",
+      "aliases": [
+        "distornilyador",
+        "screwdriver",
+        "screw driver"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "cutting-disc-4in",
+      "name": "Cutting Disc 4\"",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "cutting disc",
+        "cut disc",
+        "disc 4"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "grinding-disc-4in",
+      "name": "Grinding Disc 4\"",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "grinding disc",
+        "grinding",
+        "panghasa"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "concrete-chisel-3-4in",
+      "name": "Concrete Chisel 3/4\"",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "pait",
+        "chisel",
+        "concrete chisel"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "steel-brush",
+      "name": "Steel Brush",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "steel brush",
+        "wire brush",
+        "eskoba bakal"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "cutter-knife",
+      "name": "Cutter Knife",
+      "category": "Tools",
+      "base_unit": "pc",
+      "aliases": [
+        "cutter",
+        "cutter knife",
+        "box cutter"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "contact-cement",
+      "name": "Contact Cement",
+      "category": "Others",
+      "base_unit": "can",
+      "aliases": [
+        "rugby",
+        "contact cement",
+        "pandikit"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "epoxy-a-b",
+      "name": "Epoxy (A+B)",
+      "category": "Others",
+      "base_unit": "set",
+      "aliases": [
+        "epoxy",
+        "epoxy a+b",
+        "pang-dikit epoxy"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "silicone-sealant-clear",
+      "name": "Silicone Sealant Clear",
+      "category": "Others",
+      "base_unit": "tube",
+      "aliases": [
+        "silicone",
+        "silicon",
+        "sealant"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "nylon-rope-1-4in",
+      "name": "Nylon Rope 1/4\"",
+      "category": "Others",
+      "base_unit": "m",
+      "aliases": [
+        "lubid",
+        "nylon rope",
+        "rope"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "padlock-40mm",
+      "name": "Padlock 40mm",
+      "category": "Others",
+      "base_unit": "pc",
+      "aliases": [
+        "kandado",
+        "padlock",
+        "padlock 40"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "door-hinge-3-1-2in",
+      "name": "Door Hinge 3-1/2\"",
+      "category": "Others",
+      "base_unit": "pair",
+      "aliases": [
+        "bisagra",
+        "hinge",
+        "door hinge"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "door-lockset-knob",
+      "name": "Door Lockset (Knob)",
+      "category": "Others",
+      "base_unit": "pc",
+      "aliases": [
+        "doorknob",
+        "door knob",
+        "lockset"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "cotton-work-gloves",
+      "name": "Cotton Work Gloves",
+      "category": "Others",
+      "base_unit": "pair",
+      "aliases": [
+        "gwantes",
+        "gloves",
+        "work gloves"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "empty-sack",
+      "name": "Empty Sack",
+      "category": "Others",
+      "base_unit": "pc",
+      "aliases": [
+        "sako",
+        "empty sack",
+        "sakong walang laman"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "pvc-spandrel-ceiling",
+      "name": "PVC Spandrel (Ceiling)",
+      "category": "Others",
+      "base_unit": "pc",
+      "aliases": [
+        "spandrel",
+        "pvc spandrel",
+        "kisame pvc"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "plastic-sheet-clear",
+      "name": "Plastic Sheet (Clear)",
+      "category": "Others",
+      "base_unit": "m",
+      "aliases": [
+        "plastic sheet",
+        "plastik",
+        "clear plastic"
+      ],
+      "conversions": []
+    },
+    {
+      "key": "plastic-pail-16l",
+      "name": "Plastic Pail 16L",
+      "category": "Others",
+      "base_unit": "pc",
+      "aliases": [
+        "balde",
+        "pail",
+        "timba"
+      ],
+      "conversions": []
+    }
+  ]
+}

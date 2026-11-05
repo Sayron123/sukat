@@ -13,11 +13,14 @@ dependencies = [
     "pwdlib[argon2]>=0.3.1",
     "pyjwt>=2.15.1",
     "email-validator>=2.3.0",
+    "anthropic>=2.5.0",
+    "boto3>=1.43.124",
 ]
 
 [dependency-groups]
 dev = [
     "httpx2>=2.16.0",
+    "pyright>=1.1.414",
     "pytest",
     "ruff",
 ]
@@ -31,3 +34,10 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.pyright]
+include = ["app", "evals"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
