@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     APP_ENV: str = "production"
 
     DATABASE_URL: str = "postgresql+psycopg://sukat:sukat@localhost:5432/sukat"
+    # Stores' local time zone. Reports take dates in this zone ("today" = a Manila day)
+    # and convert them to UTC for queries, because timestamps are stored in UTC.
+    STORE_TIMEZONE: str = "Asia/Manila"
     # Comma-separated list of allowed origins, e.g. "http://localhost:3000,http://127.0.0.1:3000"
     CORS_ORIGINS: str = "http://localhost:3000"
 
