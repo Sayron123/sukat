@@ -9,8 +9,14 @@ import { Avatar, Badge, Card } from "@/components/ui";
 import { TXN_TITLE } from "@/lib/labels";
 import { api } from "@/lib/api-client";
 import { STORE_TZ } from "@/lib/dates";
-import { formatPeso, formatShortWhen } from "@/lib/format";
-import type { LowStockItem, Me, SalesSummary, ScanToReview, TransactionPage } from "@/lib/types";
+import { formatCount, formatPeso, formatShortWhen } from "@/lib/format";
+import {
+  type LowStockItem,
+  type Me,
+  type SalesSummary,
+  type ScansToReview,
+  type TransactionPage,
+} from "@/lib/types";
 
 const RECENT = 5;
 const noopSubscribe = () => () => {};
@@ -19,8 +25,8 @@ const todayText = () =>
   new Date().toLocaleDateString("en-PH", { timeZone: STORE_TZ, weekday: "long", day: "numeric", month: "long" });
 
 /**
- * Home tab: today's sales (vs yesterday), low stock and photos to review, and recent
- * activity. Each card opens its full list.
+ * Home tab: today's sales (vs yesterday up to the same time), low stock and photos to
+ * review, and recent activity. Each card opens its full list.
  */
 export function HomeScreen() {
   const [me, setMe] = useState<Me | null>(null);
@@ -28,7 +34,7 @@ export function HomeScreen() {
   const [recent, setRecent] = useState<TransactionPage | null | "error">(null);
   const [sales, setSales] = useState<SalesSummary | null | "error">(null);
   const [low, setLow] = useState<number | null>(null);
-  const [toReview, setToReview] = useState<number | null>(null);
+  const [toReview, setToReview] = useState<string | null>(null);
 
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
@@ -36,7 +42,7 @@ export function HomeScreen() {
     // No dates = today in Manila (the server decides, so the phone's clock doesn't matter).
     api<SalesSummary>("reports/sales-summary").then(setSales, () => setSales("error"));
     api<LowStockItem[]>("reports/low-stock").then((r) => setLow(r.length), () => {});
-    api<ScanToReview[]>("reports/scans-to-review").then((r) => setToReview(r.length), () => {});
+    api<ScansToReview>("reports/scans-to-review").then((r) => setToReview(formatCount(r.items.length, r.has_more)), () => {});
   }, []);
 
   return (
@@ -69,7 +75,7 @@ export function HomeScreen() {
           {sales === "error"
             ? "Could not load sales."
             : sales
-              ? `${sales.sales_count} sale${sales.sales_count === 1 ? "" : "s"} today · yesterday ${formatPeso(sales.previous.total_centavos)}`
+              ? `${sales.sales_count} sale${sales.sales_count === 1 ? "" : "s"} today · ${sinceWhen(sales)} ${formatPeso(sales.previous.total_centavos)}`
               : " "}
         </span>
       </Link>
@@ -125,14 +131,22 @@ export function HomeScreen() {
   );
 }
 
-/** "+12%" (green), "−8%" (red) or "0%" against the day before; nothing to compare = no badge. */
+/**
+ * What today is compared with. While today isn't over, the server cuts yesterday at
+ * the same time of day (`previous.until`), so a quiet morning doesn't look like a drop.
+ */
+function sinceWhen(summary: SalesSummary): string {
+  return summary.previous.until ? "same time yesterday" : "yesterday";
+}
+
+/** "+12%" (green), "−8%" (red) or "0%" against yesterday; nothing to compare = no badge. */
 function ChangeBadge({ summary }: { summary: SalesSummary }) {
   const pct = summary.change_pct;
   if (pct === null) return null;
   const tone = pct > 0 ? "green" : pct < 0 ? "red" : "neutral";
   const text = `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${Math.abs(pct)}%`;
   return (
-    <Badge tone={tone} aria-label={`${text} compared with yesterday`}>
+    <Badge tone={tone} aria-label={`${text} compared with ${sinceWhen(summary)}`}>
       {text}
     </Badge>
   );
@@ -145,7 +159,8 @@ function StatusLink({
   label,
 }: {
   href: string;
-  count: number | null;
+  /** Already formatted ("3", "50+"); null while loading. */
+  count: number | string | null;
   tone: "red" | "amber";
   label: string;
 }) {
@@ -154,8 +169,8 @@ function StatusLink({
       href={href}
       className="flex min-h-[76px] items-center gap-2 rounded-card border border-border bg-background px-3 py-4 text-text hover:bg-surface min-[380px]:px-4"
     >
-      <Badge tone={count ? tone : "neutral"} className="min-w-7">
-        {count ?? "…"}
+      <Badge tone={count && count !== "0" ? tone : "neutral"} className="min-w-7">
+        {count === null ? "…" : count}
       </Badge>
       <span className="min-w-0 flex-1 text-[13px] font-semibold whitespace-nowrap">{label}</span>
       {/* The arrow doesn't fit on the narrowest phones; the whole card is the link. */}

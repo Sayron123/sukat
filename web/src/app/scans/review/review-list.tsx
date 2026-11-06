@@ -7,20 +7,25 @@ import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/page-header";
 import { Badge, Card, Loading } from "@/components/ui";
 import { api } from "@/lib/api-client";
-import { formatShortWhen } from "@/lib/format";
-import type { ScanToReview } from "@/lib/types";
+import { formatCount, formatShortWhen } from "@/lib/format";
+import type { ScansToReview } from "@/lib/types";
 
-/** Photos read in the last 7 days but not saved yet. Tap one to finish its review. */
+/**
+ * Photos from the last 7 days that were read but not saved, or couldn't be read.
+ * Tap one to finish its review (or try reading it again).
+ */
 export function ReviewList() {
-  const [items, setItems] = useState<ScanToReview[] | null | "error">(null);
+  const [list, setList] = useState<ScansToReview | null | "error">(null);
   useEffect(() => {
-    api<ScanToReview[]>("reports/scans-to-review").then(setItems, () => setItems("error"));
+    api<ScansToReview>("reports/scans-to-review").then(setList, () => setList("error"));
   }, []);
+  const items = list === null || list === "error" ? list : list.items;
+  const hasMore = list !== null && list !== "error" && list.has_more;
 
   return (
     <>
       <PageHeader
-        eyebrow={Array.isArray(items) ? `${items.length} photo${items.length === 1 ? "" : "s"}` : " "}
+        eyebrow={Array.isArray(items) ? photoCount(items.length, hasMore) : " "}
         title="Needs review"
         back="/"
       />
@@ -44,10 +49,13 @@ export function ReviewList() {
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
                     <b className="text-base text-text">{s.type === "sale" ? "Sale receipt" : "Delivery list"}</b>
-                    <Badge tone="amber">Review</Badge>
+                    {s.status === "failed" ? <Badge tone="red">Failed</Badge> : <Badge tone="amber">Review</Badge>}
                   </span>
                   <small className="mt-[5px] block truncate text-sm text-muted">
-                    {s.line_count} line{s.line_count === 1 ? "" : "s"} · {formatShortWhen(s.created_at)}
+                    {s.status === "failed"
+                      ? "Couldn’t read"
+                      : `${s.line_count} line${s.line_count === 1 ? "" : "s"}`}{" "}
+                    · {formatShortWhen(s.created_at)}
                     {s.created_by_name && ` · ${s.created_by_name}`}
                   </small>
                 </span>
@@ -57,6 +65,16 @@ export function ReviewList() {
           ))}
         </ul>
       )}
+      {Array.isArray(items) && hasMore && (
+        <p className="mt-4 text-sm text-muted">
+          Showing the newest {items.length}. Older ones appear here as these are saved or tried again.
+        </p>
+      )}
     </>
   );
+}
+
+/** "3 photos", or "50+ photos" when the API left older ones out. */
+function photoCount(n: number, more: boolean): string {
+  return `${formatCount(n, more)} photo${n === 1 && !more ? "" : "s"}`;
 }

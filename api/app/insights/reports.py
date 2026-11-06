@@ -18,7 +18,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -34,6 +34,7 @@ from app.insights.schemas import (
     MovementRow,
     PeriodSales,
     SalesSummary,
+    ScansToReview,
     ScanToReview,
     StockMismatch,
     TopBy,
@@ -41,11 +42,13 @@ from app.insights.schemas import (
     TopProducts,
 )
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
+from app.inventory.scan_service import stale_after_seconds
 from app.products.constants import PAGE_SIZE
 from app.products.models import Product
 
 STORE_TZ = ZoneInfo(settings.STORE_TIMEZONE)
 REVIEW_WINDOW_DAYS = 7  # unsaved scans older than this no longer count as "to review"
+# At most this many scans to review are returned; `has_more` says whether there were more.
 REVIEW_LIST_MAX = 50
 
 
@@ -104,23 +107,41 @@ def _saved_sales(store_id: UUID) -> list[ColumnElement[bool]]:
     ]
 
 
-def _period_sales(db: Session, store_id: UUID, period: DateRange) -> PeriodSales:
+def _period_sales(
+    db: Session, store_id: UUID, period: DateRange, until: datetime | None = None
+) -> PeriodSales:
+    """Saved sales in `period`; with `until`, only those before that moment."""
+    where = [*_saved_sales(store_id), _in_range(Transaction.created_at, period)]
+    if until is not None:
+        where.append(Transaction.created_at < until)
     total, count = db.execute(
-        select(func.coalesce(func.sum(Transaction.total_centavos), 0), func.count()).where(
-            *_saved_sales(store_id), _in_range(Transaction.created_at, period)
-        )
+        select(func.coalesce(func.sum(Transaction.total_centavos), 0), func.count()).where(*where)
     ).one()
-    return PeriodSales(range=period, total_centavos=int(total), sales_count=int(count))
+    return PeriodSales(range=period, until=until, total_centavos=int(total), sales_count=int(count))
 
 
-def sales_summary(db: Session, store_id: UUID, period: DateRange) -> SalesSummary:
+def sales_summary(
+    db: Session, store_id: UUID, period: DateRange, now: datetime | None = None
+) -> SalesSummary:
     """Total and number of sales in `period`, compared with the period of the same length
     just before it (today vs yesterday, this week vs last week).
 
+    When `period` ends today or later it isn't over yet, so the previous period is cut
+    at the same elapsed time: today 00:00-09:15 is compared with yesterday 00:00-09:15,
+    not with all of yesterday (which would show a drop every morning). Same for this
+    week Mon-Sun seen on a Wednesday: last week counts only up to the same point.
+
+    @param now: for tests (aware datetime); defaults to the current time
     @returns change_pct rounded to 1 decimal, or None when the previous total was 0
     """
+    now = now or datetime.now(UTC)
+    before = period.previous()
+    until = None
+    if period.end >= store_today(now):
+        elapsed = now - utc_bounds(period)[0]
+        until = utc_bounds(before)[0] + elapsed
     current = _period_sales(db, store_id, period)
-    previous = _period_sales(db, store_id, period.previous())
+    previous = _period_sales(db, store_id, before, until)
     change = (
         round((current.total_centavos - previous.total_centavos) * 100 / previous.total_centavos, 1)
         if previous.total_centavos
@@ -345,24 +366,44 @@ def stock_check(db: Session, store_id: UUID) -> list[StockMismatch]:
 # ---------- scans ----------
 
 
-def scans_to_review(db: Session, store_id: UUID, now: datetime | None = None) -> list[ScanToReview]:
-    """Photos read in the last 7 days but not saved yet, newest first (max 50).
-    Older unsaved scans are treated as abandoned."""
-    since = (now or datetime.now(UTC)) - timedelta(days=REVIEW_WINDOW_DAYS)
+def scans_to_review(db: Session, store_id: UUID, now: datetime | None = None) -> ScansToReview:
+    """Photos from the last 7 days that were read but not saved, or whose read failed in
+    a way "Try again" can fix, newest first (max 50, `has_more` if there were more).
+    Both mean a paper list that isn't recorded yet. Older unsaved scans are treated as
+    abandoned.
+
+    Failed means: the AI said retrying may help, or a read stuck in "pending" (cut off,
+    e.g. by a server restart), which the phone also shows as a failure to retry. A
+    failure retrying can't fix isn't listed: there is nothing to do with it.
+    """
+    now = now or datetime.now(UTC)
+    since = now - timedelta(days=REVIEW_WINDOW_DAYS)
+    stuck_before = now - timedelta(seconds=stale_after_seconds())
+    retryable = Scan.ai_result_json["retryable"].as_boolean().is_(True)
     rows = db.execute(
         select(Scan, User.full_name)
         .outerjoin(User, User.id == Scan.created_by)
-        .where(Scan.store_id == store_id, Scan.status == "read", Scan.created_at >= since)
+        .where(
+            Scan.store_id == store_id,
+            or_(
+                Scan.status == "read",
+                and_(Scan.status == "failed", retryable),
+                and_(Scan.status == "pending", Scan.updated_at < stuck_before),
+            ),
+            Scan.created_at >= since,
+        )
         .order_by(Scan.created_at.desc(), Scan.id.desc())
-        .limit(REVIEW_LIST_MAX)
+        .limit(REVIEW_LIST_MAX + 1)  # one extra row only to learn whether there are more
     ).all()
-    return [
+    items = [
         ScanToReview(
             scan_id=s.id,
             type=s.type,
+            status="read" if s.status == "read" else "failed",
             line_count=len((s.ai_result_json or {}).get("lines", [])),
             created_at=s.created_at,
             created_by_name=who,
         )
-        for s, who in rows
+        for s, who in rows[:REVIEW_LIST_MAX]
     ]
+    return ScansToReview(items=items, has_more=len(rows) > REVIEW_LIST_MAX)

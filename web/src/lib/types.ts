@@ -186,7 +186,9 @@ export type SalesSummary = {
   range: DateRange;
   total_centavos: number;
   sales_count: number;
-  previous: { range: DateRange; total_centavos: number; sales_count: number };
+  // Same length, just before `range`. When `range` ends today or later, only sales before
+  // `until` count (same elapsed time: yesterday until this time of day). Otherwise null.
+  previous: { range: DateRange; until: string | null; total_centavos: number; sales_count: number };
   change_pct: number | null; // null when the previous period had no sales
 };
 
@@ -224,10 +226,14 @@ export type MovementPage = {
   pages: number;
 };
 
+/** GET /reports/scans-to-review: the newest (at most 50); has_more when some were left out. */
+export type ScansToReview = { items: ScanToReview[]; has_more: boolean };
+
 export type ScanToReview = {
   scan_id: string;
   type: ScanMode;
-  line_count: number;
+  status: "read" | "failed"; // failed = the AI couldn't read it; reopening offers "Try again"
+  line_count: number; // 0 for a failed read
   created_at: string;
   created_by_name: string | null;
 };

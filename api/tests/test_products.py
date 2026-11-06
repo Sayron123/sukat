@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import select, update
 
 from app.products.catalog import load_catalog
@@ -231,7 +233,7 @@ def test_base_unit_cannot_change_while_there_is_stock(api, db, manager):
     db.commit()
     res = api.patch(f"/products/{p['id']}", json={"base_unit": "g"}, headers=manager)
     assert res.status_code == 409
-    assert "50 kg" in res.json()["detail"]
+    assert "Archive this product" in res.json()["detail"]
     assert api.get(f"/products/{p['id']}", headers=manager).json()["base_unit"] == "kg"
 
 
@@ -291,3 +293,100 @@ def test_archived_name_clash_says_archived(api, manager):
     assert res.status_code == 409 and "archived" in res.json()["detail"]
     imp = api.post("/products/import", json={"keys": ["portland-cement-40kg"]}, headers=manager)
     assert imp.json()["skipped"][0]["reason"] == "archived in store"
+
+
+# ---------- phase 5 audit fixes ----------
+
+
+def _move(api, headers, txn_type, product_id, qty, unit):
+    body = {
+        "client_request_id": uuid.uuid4().hex,
+        "type": txn_type,
+        "lines": [{"product_id": product_id, "qty": qty, "unit": unit}],
+    }
+    res = api.post("/transactions", json=body, headers=headers)
+    assert res.status_code == 201, res.text
+
+
+def test_base_unit_cannot_change_after_stock_has_moved(api, manager):
+    """Movements don't store a unit, so a later unit change would relabel old history
+    ("+10 roll" shown as "+10 m") and mix both units in best sellers."""
+    p = make_product(api, manager, name="Electrical Wire", category="Electrical", base_unit="roll")
+    _move(api, manager, "stock_in", p["id"], "10", "roll")
+    _move(api, manager, "sale", p["id"], "10", "roll")  # back to 0 stock
+    res = api.patch(f"/products/{p['id']}", json={"base_unit": "m"}, headers=manager)
+    assert res.status_code == 409
+    assert "after stock has moved" in res.json()["detail"]
+    assert api.get(f"/products/{p['id']}", headers=manager).json()["base_unit"] == "roll"
+
+
+def test_base_unit_can_change_before_any_movement(api, manager):
+    p = make_product(api, manager, name="Electrical Wire", category="Electrical", base_unit="roll")
+    res = api.patch(f"/products/{p['id']}", json={"base_unit": "m"}, headers=manager)
+    assert res.status_code == 200 and res.json()["base_unit"] == "m"
+
+
+def test_base_unit_change_with_stock_gives_the_archive_advice(api, manager):
+    """With stock on hand, "bring stock to 0 first" was a dead end: getting to 0 needs a
+    movement, and any movement blocks the change. The answer is the same either way."""
+    p = make_product(api, manager, name="Electrical Wire", category="Electrical", base_unit="roll")
+    _move(api, manager, "stock_in", p["id"], "10", "roll")
+    res = api.patch(f"/products/{p['id']}", json={"base_unit": "m"}, headers=manager)
+    assert res.status_code == 409
+    assert "Archive this product" in res.json()["detail"]
+    assert "Bring stock to 0" not in res.json()["detail"]
+
+
+def test_base_unit_change_waits_for_a_stock_save_in_progress(api, manager, db_sessionmaker):
+    """A sale or stock-in that holds the product's lock must finish first, so its
+    movement is seen and the change is refused (not saved over the new movement)."""
+    import threading
+
+    from app.inventory.models import StockMovement
+    from app.products.models import Product as ProductRow
+    from app.products.schemas import ProductUpdate
+    from app.products.service import update_product
+
+    wire = make_product(
+        api, manager, name="Electrical Wire", category="Electrical", base_unit="roll"
+    )
+    other = make_product(api, manager, name="Nylon Rope", category="Others", base_unit="m")
+    _move(api, manager, "stock_in", other["id"], "1", "m")  # a transaction to point at
+    me = api.get("/auth/me", headers=manager).json()
+    store_id, wire_id = uuid.UUID(me["store_id"]), uuid.UUID(wire["id"])
+
+    with db_sessionmaker() as saver:
+        # Like stock_service: lock the product, then write a movement (not committed yet).
+        saver.scalar(select(ProductRow).where(ProductRow.id == wire_id).with_for_update())
+        txn_id = saver.scalar(select(StockMovement.transaction_id))
+        saver.add(
+            StockMovement(
+                store_id=store_id,
+                product_id=wire_id,
+                transaction_id=txn_id,
+                qty_change=1,
+                stock_after=1,
+                created_by=uuid.UUID(me["user_id"]),
+            )
+        )
+        saver.flush()
+
+        outcome: list[object] = []
+
+        def change_unit() -> None:
+            with db_sessionmaker() as s:
+                try:
+                    update_product(s, store_id, wire_id, ProductUpdate(base_unit="m"))
+                    outcome.append("changed")
+                except Exception as e:  # noqa: BLE001 - the test inspects it below
+                    outcome.append(e)
+
+        worker = threading.Thread(target=change_unit)
+        worker.start()
+        worker.join(timeout=1)
+        saver.commit()  # the save finishes; only now may the unit change continue
+        worker.join(timeout=10)
+
+    assert not worker.is_alive()
+    assert len(outcome) == 1 and type(outcome[0]).__name__ == "Conflict", outcome
+    assert api.get(f"/products/{wire['id']}", headers=manager).json()["base_unit"] == "roll"

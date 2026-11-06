@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Invalid, NotFound
+from app.inventory.models import StockMovement, TransactionItem
 from app.products.catalog import CatalogItem, catalog_by_key, load_catalog
 from app.products.constants import PAGE_SIZE
 from app.products.models import Product, ProductAlias, UnitConversion
@@ -190,11 +191,24 @@ def create_product(db: Session, store_id: UUID, data: ProductCreate) -> Product:
     return product
 
 
+def _has_moved(db: Session, store_id: UUID, product_id: UUID) -> bool:
+    """True if any stock movement or transaction line (saved or voided) uses the product."""
+    moved = exists().where(
+        StockMovement.store_id == store_id, StockMovement.product_id == product_id
+    )
+    in_txn = exists().where(
+        TransactionItem.store_id == store_id, TransactionItem.product_id == product_id
+    )
+    return bool(db.scalar(select(or_(moved, in_txn))))
+
+
 def update_product(db: Session, store_id: UUID, product_id: UUID, data: ProductUpdate) -> Product:
     """Change only the fields present in `data`. Sent aliases/conversions replace the
     whole list. stock_qty is never changed here (only by stock movements). Commits.
 
-    @raises Conflict if the base unit changes while there is stock
+    @raises Conflict if the base unit changes while there is stock, or after any stock
+        movement or transaction line exists for the product (the same advice either way:
+        stock can only reach 0 through a movement, so "bring stock to 0" can't help)
     @raises Invalid if the base unit changes without re-sent conversions, or a
         conversion would use the base unit itself
     """
@@ -208,12 +222,19 @@ def update_product(db: Session, store_id: UUID, product_id: UUID, data: ProductU
         exclude_id=product.id,
     )
     if "base_unit" in fields and data.base_unit != product.base_unit:
+        # Lock the row first, like stock_service does when saving stock. A sale or
+        # stock-in in progress then finishes before the check below, so its movement is
+        # seen; one that starts later waits and then reads the new unit.
+        db.refresh(product, with_for_update=True)
         # stock_qty and every conversion factor are measured in the base unit, so changing
-        # it would silently re-interpret them (50 kg would become "50 g").
-        if product.stock_qty != 0:
+        # it would silently re-interpret them (50 kg would become "50 g"). Movements and
+        # transaction lines store quantities without a unit (the base unit of the time),
+        # so after a change history would show "+10 roll" as "+10 m" and best sellers
+        # would add rolls and metres together.
+        if product.stock_qty != 0 or _has_moved(db, store_id, product.id):
             raise Conflict(
-                f"Can't change the base unit while there is stock "
-                f"({product.stock_qty.normalize():f} {product.base_unit}). Bring stock to 0 first."
+                "Can't change the base unit after stock has moved. "
+                "Archive this product and add a new one with the new unit."
             )
         if product.conversions and data.conversions is None:
             raise Invalid(

@@ -3,6 +3,7 @@
  * YYYY-MM-DD strings, whatever time zone the phone is set to.
  */
 
+// Must match STORE_TIMEZONE in api/app/core/config.py: change both together.
 export const STORE_TZ = "Asia/Manila";
 
 /** "2026-11-05" for `when` in Manila. */

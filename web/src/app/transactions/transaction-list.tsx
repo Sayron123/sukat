@@ -44,23 +44,34 @@ export function TransactionList() {
   const [type, setType] = useState<TransactionType | null>(() => parseType(search.get("type")));
   const [custom, setCustom] = useState({ start: search.get("start") ?? "", end: search.get("end") ?? "" });
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<TransactionPage | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // The last answer and the query it belongs to. Only an answer for the current query is
+  // shown, so after a filter or page change the old rows and old errors disappear at
+  // once ("Loading…" until the new answer), instead of looking like the new result.
+  const [result, setResult] = useState<{ query: string; data?: TransactionPage; error?: string } | null>(null);
 
-  useEffect(() => {
-    const range = rangeFor(rangeKey, custom);
-    if (!range) return; // custom dates not complete yet
+  const range = rangeFor(rangeKey, custom);
+  let query: string | null = null; // null: custom dates not complete yet
+  if (range) {
     const params = new URLSearchParams({ page: String(page), start: range.start, end: range.end });
     if (type) params.set("type", type);
+    query = params.toString();
+  }
+  const current = result && result.query === query ? result : null;
+  const data = current?.data ?? null;
+  const error = current?.error ?? null;
+
+  useEffect(() => {
+    if (query === null) return;
     let stale = false;
-    api<TransactionPage>(`transactions?${params}`).then(
-      (res) => !stale && (setData(res), setError(null)),
-      (e: unknown) => !stale && setError(e instanceof ApiError ? e.message : "Could not load history"),
+    api<TransactionPage>(`transactions?${query}`).then(
+      (res) => !stale && setResult({ query, data: res }),
+      (e: unknown) =>
+        !stale && setResult({ query, error: e instanceof ApiError ? e.message : "Could not load history" }),
     );
     return () => {
       stale = true;
     };
-  }, [rangeKey, type, custom, page]);
+  }, [query]);
 
   /** Change a filter, start from page 1, and keep the URL in step (for Back and sharing). */
   function apply(next: { range?: RangeKey; type?: TransactionType | null; custom?: typeof custom }) {
@@ -129,7 +140,7 @@ export function TransactionList() {
       ) : rangeKey === "custom" && !rangeFor("custom", custom) ? (
         <p className="text-muted">Pick both dates.</p>
       ) : !data ? (
-        <p className="text-muted">Loading…</p>
+        !error && <p className="text-muted">Loading…</p>
       ) : data.items.length === 0 ? (
         <Card className="text-center text-muted">Nothing saved in these dates.</Card>
       ) : (

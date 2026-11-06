@@ -9,9 +9,13 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 MAX_RANGE_DAYS = 366
+# Dates outside these are refused. Year 1 or 9999 would overflow when turned into UTC
+# (or into the previous period), and no store has records that old or that far ahead.
+MIN_DATE = date(2000, 1, 1)
+MAX_DATE = date(2100, 12, 31)
 TOP_PRODUCTS_MAX = 50
 
 # What caused a stock movement: the transaction's type, or "void" for a movement that
@@ -29,6 +33,16 @@ class DateRange(BaseModel):
     start: date
     end: date
 
+    @field_validator("start", "end")
+    @classmethod
+    def _in_bounds(cls, day: date) -> date:
+        # A field validator (not the model one below) so that previous(), which may start
+        # before MIN_DATE, still passes when nested in PeriodSales: Pydantic re-runs
+        # "after" model validators on nested instances, but not field validators.
+        if not MIN_DATE <= day <= MAX_DATE:
+            raise ValueError(f"dates must be between {MIN_DATE} and {MAX_DATE}")
+        return day
+
     @model_validator(mode="after")
     def _check(self) -> "DateRange":
         if self.end < self.start:
@@ -42,8 +56,12 @@ class DateRange(BaseModel):
         return (self.end - self.start).days + 1
 
     def previous(self) -> "DateRange":
-        """The period of the same length just before this one (today -> yesterday)."""
-        return DateRange(
+        """The period of the same length just before this one (today -> yesterday).
+
+        Built without validation: before the earliest allowed range it starts in 1999,
+        which is fine to query (it just has no sales) and to return.
+        """
+        return DateRange.model_construct(
             start=self.start - timedelta(days=self.days), end=self.start - timedelta(days=1)
         )
 
@@ -53,6 +71,9 @@ class DateRange(BaseModel):
 
 class PeriodSales(BaseModel):
     range: DateRange
+    # Only sales before this moment (UTC) count; None = the whole range. Set on the
+    # previous period when the current one isn't over yet (it ends today or later).
+    until: datetime | None = None
     total_centavos: int  # sum of saved (not voided) sales
     sales_count: int
 
@@ -61,7 +82,9 @@ class SalesSummary(BaseModel):
     range: DateRange
     total_centavos: int
     sales_count: int
-    previous: PeriodSales  # same length, just before `range`
+    # Same length, just before `range`. When `range` ends today or later, cut at the same elapsed
+    # time (`previous.until`): at 9:15 AM, today is compared with yesterday until 9:15 AM.
+    previous: PeriodSales
     # Percent change of total_centavos vs previous, 1 decimal. None when previous was 0.
     change_pct: float | None
 
@@ -139,10 +162,18 @@ class StockMismatch(BaseModel):
 
 
 class ScanToReview(BaseModel):
-    """A photo that was read but not saved yet."""
+    """A photo that was read but not saved yet, or that couldn't be read."""
 
     scan_id: UUID
     type: Literal["sale", "stock_in"]
-    line_count: int
+    status: Literal["read", "failed"]  # failed = the AI couldn't read it; can be retried
+    line_count: int  # 0 for a failed read
     created_at: datetime
     created_by_name: str | None
+
+
+class ScansToReview(BaseModel):
+    """The newest scans to review, at most REVIEW_LIST_MAX (50) of them."""
+
+    items: list[ScanToReview]
+    has_more: bool  # True when older ones were left out, so the screen can say "50+"

@@ -21,7 +21,7 @@ from app.insights.schemas import (
     MovementKind,
     MovementPage,
     SalesSummary,
-    ScanToReview,
+    ScansToReview,
     StockMismatch,
     TopBy,
     TopProducts,
@@ -42,7 +42,8 @@ def sales_summary(
     current: CurrentMemberDep, db: DbSession, start: Start = None, end: End = None
 ) -> SalesSummary:
     """Sales total and count (voided excluded), with the previous period of the same
-    length. Defaults to today."""
+    length (cut at the same elapsed time when the range ends today or later, i.e. isn't
+    over yet). Defaults to today."""
     period = reports.make_range(start, end, default_today=True)
     assert period is not None
     return reports.sales_summary(db, current.store_id, period)
@@ -113,7 +114,9 @@ def stock_check(current: Manager, db: DbSession) -> list[StockMismatch]:
     return reports.stock_check(db, current.store_id)
 
 
-@router.get("/scans-to-review", response_model=list[ScanToReview])
-def scans_to_review(current: CurrentMemberDep, db: DbSession) -> list[ScanToReview]:
-    """Photos read in the last 7 days but not saved yet, newest first."""
+@router.get("/scans-to-review", response_model=ScansToReview)
+def scans_to_review(current: CurrentMemberDep, db: DbSession) -> ScansToReview:
+    """Photos from the last 7 days read but not saved yet, or whose read failed in a way
+    "Try again" can fix (including reads stuck mid-way), newest first. At most 50;
+    `has_more` is true when older ones were left out."""
     return reports.scans_to_review(db, current.store_id)

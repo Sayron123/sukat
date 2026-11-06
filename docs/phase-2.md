@@ -106,7 +106,7 @@ Otherwise it raises `UnitConversionError` with a message staff can read: which u
 | Problem found | Why it mattered | Fix |
 |---|---|---|
 | The proxy's allow-list could be skipped with `products/..%2F..%2Fstaff`. | Next.js decodes `%2F` inside a path segment, then `fetch()` resolves `..`, so the request reached `/staff`. | Each path segment must be plain letters, numbers, `-` or `_`. Anything else is 404. |
-| Changing a product's base unit from `kg` to `g` turned **50 kg into "50 g"**, and "1 box = 25" now meant grams. | Stock and conversion factors are measured in the base unit, so they silently changed meaning. | Base unit can only change when stock is 0, and the conversions must be sent again in the same request. |
+| Changing a product's base unit from `kg` to `g` turned **50 kg into "50 g"**, and "1 box = 25" now meant grams. | Stock and conversion factors are measured in the base unit, so they silently changed meaning. | Base unit can only change when stock is 0, and the conversions must be sent again in the same request. (Since Phase 5: not at all once the product has stock movements; see phase-5.md.) |
 | `GET /products?page=10000000000000000000` crashed with a 500 error. | The offset overflowed the database's number type. | `page` is limited to 1–10,000 (422 above that). |
 | A price above ₱20M gave a confusing error. | The form allowed 8 digits and the API message was technical. | Both now stop at ₱9,999,999.99 with a clear message. |
 | Re-using the name of an **archived** product said only "already exists". | Archived products are hidden, so the user couldn't find the clash. | The message says it's archived and suggests unarchiving. Import reports "archived in store". |
