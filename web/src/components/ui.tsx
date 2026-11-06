@@ -141,16 +141,30 @@ export function Field({
           compact ? "h-[42px]" : "h-12"
         } ${invalid ? "border-red focus-within:ring-red" : "border-line focus-within:border-text focus-within:ring-text"}`}
       >
-        {prefix && <span className="pl-3 text-sm text-muted">{prefix}</span>}
+        {/* ₱ and units: same size as the typed value so they read as one line with it,
+            muted so the number stays the main thing, a small gap instead of full padding. */}
+        {prefix && (
+          <span className={`shrink-0 text-muted select-none ${compact ? "pl-[7px] text-[13px]" : "pl-3"}`}>
+            {prefix}
+          </span>
+        )}
         <input
           id={id}
           aria-invalid={invalid || undefined}
           className={`h-full w-full min-w-0 bg-transparent text-text outline-none placeholder:text-subtle ${
-            compact ? "px-[7px] text-[13px] font-semibold" : "px-3"
+            compact ? "text-[13px] font-semibold" : ""
+          } ${prefix ? (compact ? "pl-1" : "pl-1.5") : compact ? "pl-[7px]" : "pl-3"} ${
+            suffix ? (compact ? "pr-1" : "pr-1.5") : compact ? "pr-[7px]" : "pr-3"
           }`}
           {...props}
         />
-        {suffix && <span className="pr-3 text-sm whitespace-nowrap text-muted">{suffix}</span>}
+        {suffix && (
+          <span
+            className={`shrink-0 whitespace-nowrap text-muted select-none ${compact ? "pr-[7px] text-[13px]" : "pr-3"}`}
+          >
+            {suffix}
+          </span>
+        )}
       </div>
       {hint && <p className="mt-1.5 text-[13px] leading-snug text-subtle">{hint}</p>}
     </div>
