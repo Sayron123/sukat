@@ -29,8 +29,13 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Keyboard focus: dark outline, as in the design. */
-:where(button, a, input, select, summary):focus-visible {
-  outline: 2px solid var(--color-text);
-  outline-offset: 2px;
+/* Keyboard focus: dark outline, as in the design. In the base layer so a component that
+   draws its own focus style (Field, SearchBox: a dark border on the whole box) can turn
+   this off with `outline-none`. Unlayered, it beat that class and drew a second outline
+   around the bare input, clipped into black bars beside the ₱ or the unit. */
+@layer base {
+  :where(button, a, input, select, summary):focus-visible {
+    outline: 2px solid var(--color-text);
+    outline-offset: 2px;
+  }
 }
