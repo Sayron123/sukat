@@ -59,6 +59,7 @@ class ToolOutcome:
     content: str  # JSON text sent back to the model
     data: BaseModel | None = None  # the report result (for the on-screen table/chart)
     error: str | None = None
+    args: BaseModel | None = None  # the validated input, e.g. which dates were asked
 
 
 # ---------- inputs (what the model may send) ----------
@@ -321,4 +322,6 @@ def run_tool(ctx: ToolContext, name: str, raw_input: Any) -> ToolOutcome:
     except AppError as e:  # e.g. bad date range, product of another store (not found)
         return _error(str(e))
     payload = _with_pesos(result.model_dump(mode="json"))
-    return ToolOutcome(ok=True, content=json.dumps(payload, ensure_ascii=False), data=result)
+    return ToolOutcome(
+        ok=True, content=json.dumps(payload, ensure_ascii=False), data=result, args=args
+    )

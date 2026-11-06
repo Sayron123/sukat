@@ -67,6 +67,15 @@ class Settings(BaseSettings):
     AI_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.20")
     USD_TO_PHP: Decimal = Decimal("58.00")
 
+    # ----- AI chat (Phase 6) -----
+    # Same model as the reader (AI_MODEL). Chat answers are short lookups: low effort.
+    AI_CHAT_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "low"
+    AI_CHAT_MAX_TOKENS: int = 8000  # per model call, reasoning included
+    AI_CHAT_TIMEOUT_SECONDS: float = 45.0  # for the whole question, all calls together
+    CHAT_MAX_TOOL_CALLS: int = 5  # per question
+    CHAT_QUESTIONS_PER_HOUR: int = 30  # per store
+    CHAT_HISTORY_MESSAGES: int = 10  # only the last N messages are sent to the model
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
