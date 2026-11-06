@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { ActionDock } from "@/components/action-dock";
@@ -74,9 +75,25 @@ const POLL_MS = 3000;
  * Saving uses a client_request_id made once per review, so pressing Save again after a
  * dropped connection can never save twice.
  */
-export function ScanFlow({ mode }: { mode: ScanMode }) {
+export function ScanFlow({
+  mode,
+  initialScan,
+  exitHref,
+}: {
+  mode: ScanMode;
+  /** Open an already-read scan straight on its review (from "Needs review"). */
+  initialScan?: Scan;
+  /** Where "back" on the review goes instead of the camera. */
+  exitHref?: string;
+}) {
   const text = TEXT[mode];
-  const [step, setStep] = useState<Step>({ name: "pick" });
+  const router = useRouter();
+  const [step, setStep] = useState<Step>(() => {
+    if (!initialScan) return { name: "pick" };
+    if (initialScan.status === "read") return { name: "review", scan: initialScan };
+    if (initialScan.status === "failed") return { name: "failed", scan: initialScan };
+    return { name: "pick", error: initialScan.status === "saved" ? "This photo was already saved." : undefined };
+  });
   const [me, setMe] = useState<Me | null>(null);
 
   useEffect(() => {
@@ -197,7 +214,7 @@ export function ScanFlow({ mode }: { mode: ScanMode }) {
           mode={mode}
           canCreate={mode === "stock_in" && canEditProducts(me?.role)}
           onSaved={(txn) => setStep({ name: "done", txn })}
-          onCancel={() => setStep({ name: "pick" })}
+          onCancel={() => (exitHref ? router.push(exitHref) : setStep({ name: "pick" }))}
         />
       );
     case "done":

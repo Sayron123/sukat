@@ -75,7 +75,7 @@ export function ProductForm({ product }: { product?: Product }) {
         method: product ? "PATCH" : "POST",
         body: JSON.stringify(body),
       });
-      router.push("/stock");
+      router.push(product ? `/stock/${product.id}` : "/stock");
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save");
@@ -100,7 +100,9 @@ export function ProductForm({ product }: { product?: Product }) {
 
   return (
     <>
-      <PageHeader eyebrow="Product details" title={product ? "Edit product" : "Add product"} back="/stock" />
+      <PageHeader eyebrow="Product details" title={product ? "Edit product" : "Add product"}
+        back={product ? `/stock/${product.id}` : "/stock"}
+      />
 
       {product?.archived && (
         <Notice icon="box" title="This product is archived" className="mb-5">

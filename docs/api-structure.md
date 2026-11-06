@@ -13,6 +13,7 @@ api/app/
 ├── stores/          # staff and invites
 ├── products/        # products, aliases, unit conversions, starter catalog
 ├── inventory/       # photo upload, scans, transactions, stock movements
+├── insights/        # reports: sales summary, low stock, stock history, stock check
 └── ai/              # AI list reader: interface, provider choice, Claude implementation
 ```
 
@@ -25,7 +26,7 @@ Every feature folder has the same files:
 | `service.py` | Business rules and queries. Functions take `db` and `store_id` and raise `AppError`s | import FastAPI or read the HTTP request |
 | `router.py` | HTTP endpoints: role check, read input, call the service, shape the response | contain business rules |
 
-`inventory/` is bigger, so it has two services: `scan_service.py` (photos, AI reading, review lines) and `stock_service.py` (saving stock changes).
+`inventory/` is bigger, so it has two services: `scan_service.py` (photos, AI reading, review lines) and `stock_service.py` (saving stock changes). `insights/` keeps its read-only queries in `reports.py`, because the AI chat will call them too.
 
 ## A request, step by step
 
@@ -50,7 +51,8 @@ All paths start with `/v1`, except `GET /health`. The live list with request/res
 | auth | `POST /auth/signup`, `POST /auth/login`, `GET /auth/me` |
 | stores (staff) | `POST /staff/invites`, `POST /staff/invites/accept`, `GET /staff`, `GET /staff/{id}`, `POST /staff/{id}/deactivate` |
 | products | `GET/POST /products`, `GET /products/catalog`, `POST /products/import`, `GET/PATCH /products/{id}`, `POST /products/{id}/archive`, `POST /products/{id}/unarchive` |
-| inventory | `POST /scans/upload-url`, `PUT /uploads/local/{key}` (dev only), `POST /scans` (stock_in or sale), `GET /scans/{id}`, `POST /scans/{id}/retry`, `GET/POST /transactions`, `GET /transactions/{id}`, `POST /transactions/{id}/void` |
+| inventory | `POST /scans/upload-url`, `PUT /uploads/local/{key}` (dev only), `POST /scans` (stock_in or sale), `GET /scans/{id}`, `POST /scans/{id}/retry`, `GET/POST /transactions` (GET takes `start`/`end` Manila dates), `GET /transactions/{id}`, `POST /transactions/{id}/void` |
+| insights (reports) | `GET /reports/sales-summary`, `GET /reports/top-products`, `GET /reports/low-stock`, `GET /reports/stock-movements`, `GET /reports/products/{id}/history`, `GET /reports/stock-check`, `GET /reports/scans-to-review` |
 
 ## Adding something new
 

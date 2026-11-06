@@ -3,27 +3,22 @@ import { Suspense } from "react";
 
 import { AppPage } from "@/components/app-page";
 import { Loading } from "@/components/ui";
-import { RequireWriter } from "@/components/require-writer";
 
-import { EditProduct } from "./edit-product";
+import { ProductDetail } from "./product-detail";
 
-export const metadata: Metadata = { title: "Edit product · Sukat" };
+export const metadata: Metadata = { title: "Product · Sukat" };
 
-export default function EditProductPage({ params }: PageProps<"/stock/[id]">) {
+export default function ProductPage({ params }: PageProps<"/stock/[id]">) {
   return (
     <AppPage>
       <Suspense fallback={<Loading />}>
-        <EditProductLoader params={params} />
+        <Loader params={params} />
       </Suspense>
     </AppPage>
   );
 }
 
-async function EditProductLoader({ params }: { params: PageProps<"/stock/[id]">["params"] }) {
+async function Loader({ params }: { params: PageProps<"/stock/[id]">["params"] }) {
   const { id } = await params;
-  return (
-    <RequireWriter>
-      <EditProduct id={id} />
-    </RequireWriter>
-  );
+  return <ProductDetail id={id} />;
 }

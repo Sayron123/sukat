@@ -175,6 +175,8 @@ class StockMovement(Base):
         CheckConstraint("qty_change <> 0", name="qty_change_not_zero"),
         UniqueConstraint("transaction_item_id", "is_reversal"),
         Index("ix_stock_movements_product_id_created_at", "product_id", "created_at"),
+        # Store-wide history newest first, optionally by date (Phase 5 reports).
+        Index("ix_stock_movements_store_id_created_at", "store_id", "created_at"),
     )
 
     id: Mapped[UUID] = uuid_pk()

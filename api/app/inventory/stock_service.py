@@ -22,6 +22,8 @@ from app.ai.schemas import ScanLine
 from app.auth.deps import CurrentMember
 from app.auth.models import User
 from app.core.errors import AppError, Conflict, Forbidden, Invalid, NotFound
+from app.insights.reports import utc_bounds
+from app.insights.schemas import DateRange
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.scan_service import line_total, quantize_qty
 from app.inventory.schemas import (
@@ -409,12 +411,20 @@ def transaction_view(db: Session, txn: Transaction) -> TransactionOut:
 
 
 def list_transactions(
-    db: Session, store_id: UUID, txn_type: str | None, page: int
+    db: Session,
+    store_id: UUID,
+    txn_type: str | None,
+    page: int,
+    period: DateRange | None = None,
 ) -> tuple[list[TransactionSummaryOut], int]:
-    """One page (newest first) of this store's transactions, plus the total count."""
+    """One page (newest first) of this store's transactions, plus the total count.
+    `period` is Manila calendar days (see app/insights/reports.py)."""
     where = [Transaction.store_id == store_id]
     if txn_type:
         where.append(Transaction.type == txn_type)
+    if period is not None:
+        lo, hi = utc_bounds(period)
+        where += [Transaction.created_at >= lo, Transaction.created_at < hi]
     total = db.scalar(select(func.count()).select_from(Transaction).where(*where)) or 0
     item_count = (
         select(func.count())

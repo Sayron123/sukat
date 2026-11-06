@@ -149,9 +149,11 @@ export type Transaction = {
   voided_by_name: string | null;
 };
 
+export type TransactionType = ScanMode | "adjustment";
+
 export type TransactionSummary = {
   id: string;
-  type: ScanMode;
+  type: TransactionType;
   status: "saved" | "voided";
   total_centavos: number;
   item_count: number;
@@ -173,4 +175,59 @@ export type NegativeStockItem = {
   base_unit: string;
   stock: string;
   stock_after: string;
+};
+
+// ---------- Phase 5 reports (api/app/insights/schemas.py) ----------
+
+/** Manila calendar days, both included (YYYY-MM-DD). */
+export type DateRange = { start: string; end: string };
+
+export type SalesSummary = {
+  range: DateRange;
+  total_centavos: number;
+  sales_count: number;
+  previous: { range: DateRange; total_centavos: number; sales_count: number };
+  change_pct: number | null; // null when the previous period had no sales
+};
+
+export type LowStockItem = {
+  product_id: string;
+  name: string;
+  category: string;
+  base_unit: string;
+  stock_qty: string;
+  low_stock_level: string;
+};
+
+/** What caused a stock movement; "void" undoes a line of a voided transaction. */
+export type MovementKind = TransactionType | "void";
+
+export type MovementRow = {
+  id: string;
+  created_at: string;
+  product_id: string;
+  product_name: string;
+  base_unit: string;
+  qty_change: string;
+  stock_after: string;
+  kind: MovementKind;
+  transaction_id: string;
+  created_by: string;
+  created_by_name: string | null;
+};
+
+export type MovementPage = {
+  items: MovementRow[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+};
+
+export type ScanToReview = {
+  scan_id: string;
+  type: ScanMode;
+  line_count: number;
+  created_at: string;
+  created_by_name: string | null;
 };
