@@ -16,6 +16,8 @@ dependencies = [
     "anthropic>=2.5.0",
     "boto3>=1.43.124",
     "tzdata>=2026.6",
+    "google-genai>=3.0.0",
+    "rapidfuzz>=3.14.6",
 ]
 
 [dependency-groups]

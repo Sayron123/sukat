@@ -97,6 +97,7 @@ class AIUsageInfo:
     output_tokens: int = 0
     cache_write_tokens: int = 0
     cache_read_tokens: int = 0
+    provider: str = "anthropic"  # which price list applies (app/ai/pricing.py)
 
     @property
     def tokens_in(self) -> int:
@@ -108,3 +109,86 @@ class ReadResult:
     lines: list[ScanLine]
     usage: AIUsageInfo
     raw: dict = field(default_factory=dict)  # the model's JSON, stored on the scan
+
+
+# ---------- multi-step scan: what each AI step returns ----------
+
+
+class ReadLine(BaseModel):
+    """Step 1 "read": one row exactly as written. No matching, no math."""
+
+    raw_text: str
+    qty_text: str | None
+    unit_text: str | None
+    price_text: str | None  # price for one unit, as written ("@850", "850/bx")
+    total_text: str | None  # the line's amount, as written ("1,700"), for the math check
+    confidence: float = Field(ge=0, le=1)
+
+
+class ReadOutput(BaseModel):
+    lines: list[ReadLine]
+
+
+class MatchItem(BaseModel):
+    """Step 2 "match": one line the code couldn't match, sent to the AI."""
+
+    line: int  # index of the line in the read output
+    text: str  # the item as written, e.g. "2 bx pakong 4 pulgada"
+
+
+class MatchAnswer(BaseModel):
+    line: int
+    product_id: str | None  # an id from the product list (like "P12"), or null
+
+
+class MatchOutput(BaseModel):
+    matches: list[MatchAnswer]
+
+
+def _nullable_string() -> dict:
+    return {"anyOf": [{"type": "string"}, {"type": "null"}]}
+
+
+def _object(properties: dict, required: list[str]) -> dict:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": required,
+        "properties": properties,
+    }
+
+
+# JSON schemas sent to the provider (structured output). Each must list exactly its
+# Pydantic model's fields; a test checks this.
+READ_SCHEMA: dict = _object(
+    {
+        "lines": {
+            "type": "array",
+            "items": _object(
+                {
+                    "raw_text": {"type": "string"},
+                    "qty_text": _nullable_string(),
+                    "unit_text": _nullable_string(),
+                    "price_text": _nullable_string(),
+                    "total_text": _nullable_string(),
+                    "confidence": {"type": "number"},
+                },
+                list(ReadLine.model_fields),
+            ),
+        }
+    },
+    ["lines"],
+)
+
+MATCH_SCHEMA: dict = _object(
+    {
+        "matches": {
+            "type": "array",
+            "items": _object(
+                {"line": {"type": "integer"}, "product_id": _nullable_string()},
+                list(MatchAnswer.model_fields),
+            ),
+        }
+    },
+    ["matches"],
+)

@@ -52,7 +52,8 @@ class Settings(BaseSettings):
     # Leave empty to use the SDK's normal credential lookup (ANTHROPIC_API_KEY env, etc.).
     ANTHROPIC_API_KEY: str = ""
     # Which VisionReader implementation to use (see app/ai/provider.py).
-    AI_PROVIDER: Literal["anthropic"] = "anthropic"
+    # "anthropic" (Claude) or "gemini" (Google). Used for reading scans.
+    AI_PROVIDER: Literal["anthropic", "gemini"] = "anthropic"
     AI_MODEL: str = "claude-opus-5-5"
     AI_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
     AI_TIMEOUT_SECONDS: float = 90.0
@@ -66,6 +67,17 @@ class Settings(BaseSettings):
     AI_PRICE_CACHE_WRITE_PER_MTOK_USD: Decimal = Decimal("5.00")
     AI_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.20")
     USD_TO_PHP: Decimal = Decimal("58.00")
+
+    # ----- Gemini (when AI_PROVIDER=gemini) -----
+    # Leave the key empty to use the SDK's normal lookup (GEMINI_API_KEY / GOOGLE_API_KEY env).
+    GEMINI_API_KEY: str = ""
+    # Thinking is turned off (2.x models) or set to the lowest level (3.x and later).
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    # USD per million tokens for GEMINI_MODEL (thinking tokens bill as output). Check the
+    # current rates on Google's pricing page and update them with the model.
+    GEMINI_PRICE_INPUT_PER_MTOK_USD: Decimal = Decimal("0.30")
+    GEMINI_PRICE_OUTPUT_PER_MTOK_USD: Decimal = Decimal("2.50")
+    GEMINI_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.03")
 
     @property
     def cors_origins_list(self) -> list[str]:
