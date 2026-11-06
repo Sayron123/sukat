@@ -41,9 +41,9 @@ Page = Annotated[int, Query(ge=1, le=10_000)]
 def sales_summary(
     current: CurrentMemberDep, db: DbSession, start: Start = None, end: End = None
 ) -> SalesSummary:
-    """Sales total and count (voided excluded), with the previous period of the same
-    length (cut at the same elapsed time when the range ends today or later, i.e. isn't
-    over yet). Defaults to today."""
+    """Sales total and count (voided excluded), compared with an earlier period. A range
+    that includes today is compared up to the same time (same time yesterday, last week,
+    last month); `compared_to` says which in words. Defaults to today."""
     period = reports.make_range(start, end, default_today=True)
     assert period is not None
     return reports.sales_summary(db, current.store_id, period)

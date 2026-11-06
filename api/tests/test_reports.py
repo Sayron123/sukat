@@ -127,11 +127,79 @@ def test_today_is_compared_with_yesterday_up_to_the_same_time(api, db, manager, 
     assert summary.previous.total_centavos == 25000 and summary.previous.sales_count == 1
     assert summary.previous.until == _manila(yesterday, 9, 15)
     assert summary.change_pct == 0.0
+    assert summary.compared_to == "same time yesterday"
 
     # A finished day (not today) is compared with the whole day before.
     later = now + timedelta(days=1)
     summary = reports.sales_summary(db, store_id, DateRange(start=DAY, end=DAY), now=later)
     assert summary.previous.total_centavos == 75000 and summary.previous.until is None
+    assert summary.compared_to == "the day before"
+
+    # The API returns the same words for Home to show.
+    res = api.get("/reports/sales-summary", headers=manager)
+    assert res.json()["compared_to"] == "same time yesterday"
+
+
+def test_week_so_far_is_compared_with_last_week_up_to_the_same_weekday_and_time(
+    api, db, manager, cement
+):
+    """Mon-Wed 9:15 AM is compared with last Mon-Wed 9:15 AM, not with the 3 days just
+    before (last Fri-Sun)."""
+    monday = date(2026, 3, 2)
+    wednesday = monday + timedelta(days=2)
+    last_monday = monday - timedelta(days=7)
+    for qty, when in [
+        ("1", _manila(last_monday, 10)),  # ₱250 last Monday: counts
+        ("2", _manila(last_monday + timedelta(days=2), 8)),  # ₱500 last Wed 8 AM: counts
+        ("4", _manila(last_monday + timedelta(days=2), 10)),  # ₱1000 last Wed 10 AM: too late
+        ("8", _manila(monday - timedelta(days=1), 12)),  # ₱2000 last Sunday: not last Mon-Wed
+        ("3", _manila(monday, 9)),  # ₱750 this week
+    ]:
+        _at(db, _sell(api, manager, cement, qty=qty)["id"], when)
+    store_id = uuid.UUID(api.get("/auth/me", headers=manager).json()["store_id"])
+
+    now = _manila(wednesday, 9, 15)
+    summary = reports.sales_summary(db, store_id, DateRange(start=monday, end=wednesday), now=now)
+    last_wednesday = last_monday + timedelta(days=2)
+    assert summary.previous.range == DateRange(start=last_monday, end=last_wednesday)
+    assert summary.previous.until == _manila(last_monday + timedelta(days=2), 9, 15)
+    assert summary.previous.total_centavos == 75000 and summary.total_centavos == 75000
+    assert summary.compared_to == "same time last week"
+
+    # The whole week Mon-Sun, seen on Wednesday, lines up the same way.
+    full_week = DateRange(start=monday, end=monday + timedelta(days=6))
+    summary = reports.sales_summary(db, store_id, full_week, now=now)
+    assert summary.previous.range.start == last_monday
+    assert summary.previous.total_centavos == 75000
+
+    # Once the week is over it is compared with the 7 days before, whole.
+    summary = reports.sales_summary(db, store_id, full_week, now=now + timedelta(days=7))
+    assert summary.previous.until is None and summary.compared_to == "the previous 7 days"
+
+
+def test_month_so_far_is_compared_with_last_month_up_to_the_same_day_and_time(
+    api, db, manager, cement
+):
+    """Mar 1-5 at 9:15 AM is compared with Feb 1-5 until 9:15 AM; a month-end day that
+    last month doesn't have is capped at its last day."""
+    for qty, when in [
+        ("1", _manila(date(2026, 2, 5), 8)),  # ₱250 Feb 5, 8 AM: counts
+        ("2", _manila(date(2026, 2, 5), 10)),  # ₱500 Feb 5, 10 AM: too late
+        ("4", _manila(date(2026, 1, 31), 12)),  # ₱1000 Jan 31: not in February
+    ]:
+        _at(db, _sell(api, manager, cement, qty=qty)["id"], when)
+    store_id = uuid.UUID(api.get("/auth/me", headers=manager).json()["store_id"])
+
+    period = DateRange(start=date(2026, 3, 1), end=date(2026, 3, 5))
+    summary = reports.sales_summary(db, store_id, period, now=_manila(date(2026, 3, 5), 9, 15))
+    assert summary.previous.range == DateRange(start=date(2026, 2, 1), end=date(2026, 2, 5))
+    assert summary.previous.total_centavos == 25000
+    assert summary.compared_to == "same time last month"
+
+    # March 1-31 seen on March 31: February ends on the 28th.
+    period = DateRange(start=date(2026, 3, 1), end=date(2026, 3, 31))
+    summary = reports.sales_summary(db, store_id, period, now=_manila(date(2026, 3, 31), 9))
+    assert summary.previous.range == DateRange(start=date(2026, 2, 1), end=date(2026, 2, 28))
 
 
 def test_unfinished_range_is_compared_up_to_the_same_point(api, db, manager, cement):

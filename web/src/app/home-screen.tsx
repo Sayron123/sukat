@@ -75,7 +75,7 @@ export function HomeScreen() {
           {sales === "error"
             ? "Could not load sales."
             : sales
-              ? `${sales.sales_count} sale${sales.sales_count === 1 ? "" : "s"} today · ${sinceWhen(sales)} ${formatPeso(sales.previous.total_centavos)}`
+              ? `${sales.sales_count} sale${sales.sales_count === 1 ? "" : "s"} today · ${sales.compared_to} ${formatPeso(sales.previous.total_centavos)}`
               : " "}
         </span>
       </Link>
@@ -132,21 +132,17 @@ export function HomeScreen() {
 }
 
 /**
- * What today is compared with. While today isn't over, the server cuts yesterday at
- * the same time of day (`previous.until`), so a quiet morning doesn't look like a drop.
+ * "+12%" (green), "−8%" (red) or "0%" against `compared_to` ("same time yesterday": the
+ * server cuts yesterday at this time of day, so a quiet morning doesn't look like a drop).
+ * Nothing to compare = no badge.
  */
-function sinceWhen(summary: SalesSummary): string {
-  return summary.previous.until ? "same time yesterday" : "yesterday";
-}
-
-/** "+12%" (green), "−8%" (red) or "0%" against yesterday; nothing to compare = no badge. */
 function ChangeBadge({ summary }: { summary: SalesSummary }) {
   const pct = summary.change_pct;
   if (pct === null) return null;
   const tone = pct > 0 ? "green" : pct < 0 ? "red" : "neutral";
   const text = `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${Math.abs(pct)}%`;
   return (
-    <Badge tone={tone} aria-label={`${text} compared with ${sinceWhen(summary)}`}>
+    <Badge tone={tone} aria-label={`${text} compared with ${summary.compared_to}`}>
       {text}
     </Badge>
   );

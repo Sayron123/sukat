@@ -72,7 +72,7 @@ class DateRange(BaseModel):
 class PeriodSales(BaseModel):
     range: DateRange
     # Only sales before this moment (UTC) count; None = the whole range. Set on the
-    # previous period when the current one isn't over yet (it ends today or later).
+    # previous period when the current one isn't over yet (it includes today).
     until: datetime | None = None
     total_centavos: int  # sum of saved (not voided) sales
     sales_count: int
@@ -82,9 +82,14 @@ class SalesSummary(BaseModel):
     range: DateRange
     total_centavos: int
     sales_count: int
-    # Same length, just before `range`. When `range` ends today or later, cut at the same elapsed
-    # time (`previous.until`): at 9:15 AM, today is compared with yesterday until 9:15 AM.
+    # What `range` is compared with. Finished: the same number of days just before.
+    # Includes today: lined up with the calendar (yesterday, last week from Monday, last
+    # month from the 1st) and cut at the same elapsed time (`previous.until`), so at
+    # 9:15 AM today is compared with yesterday until 9:15 AM.
     previous: PeriodSales
+    # The comparison in words, for the screen: "same time yesterday", "same time last
+    # week", "same time last month", "the day before", "the previous 7 days", ...
+    compared_to: str
     # Percent change of total_centavos vs previous, 1 decimal. None when previous was 0.
     change_pct: float | None
 

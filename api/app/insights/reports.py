@@ -120,24 +120,60 @@ def _period_sales(
     return PeriodSales(range=period, until=until, total_centavos=int(total), sales_count=int(count))
 
 
+def _comparison(period: DateRange, today: date) -> tuple[DateRange, bool, str]:
+    """The period to compare `period` with, whether it is still running, and how to
+    describe the comparison (shown under the number on Home).
+
+    A finished period is compared with the period of the same length just before it.
+    A period that includes today is lined up with the calendar instead:
+    - one day (today): yesterday, "same time yesterday"
+    - a week from Monday: last week from Monday, "same time last week"
+    - a month from the 1st: last month from the 1st (cut at its last day), "same time
+      last month"
+    - anything else: the same number of days just before
+    The caller then cuts the previous period at the same elapsed time, so Mon-Wed 9:15
+    AM is compared with last Mon-Wed 9:15 AM.
+    """
+    running = period.start <= today <= period.end
+    if not running:
+        what = "the day before" if period.days == 1 else f"the previous {period.days} days"
+        return period.previous(), False, what
+
+    if period.days == 1:
+        return period.previous(), True, "same time yesterday"
+    if period.start.weekday() == 0 and period.days <= 7:
+        week = timedelta(days=7)
+        before = DateRange.model_construct(start=period.start - week, end=period.end - week)
+        return before, True, "same time last week"
+    if period.start.day == 1 and (period.end.year, period.end.month) == (
+        period.start.year,
+        period.start.month,
+    ):
+        last_month_end = period.start - timedelta(days=1)
+        start = last_month_end.replace(day=1)
+        end = min(start + (period.end - period.start), last_month_end)
+        return DateRange.model_construct(start=start, end=end), True, "same time last month"
+    return period.previous(), True, f"same point in the previous {period.days} days"
+
+
 def sales_summary(
     db: Session, store_id: UUID, period: DateRange, now: datetime | None = None
 ) -> SalesSummary:
-    """Total and number of sales in `period`, compared with the period of the same length
-    just before it (today vs yesterday, this week vs last week).
+    """Total and number of sales in `period`, compared with an earlier period (see
+    `_comparison`; `compared_to` in the result says which, in words).
 
-    When `period` ends today or later it isn't over yet, so the previous period is cut
-    at the same elapsed time: today 00:00-09:15 is compared with yesterday 00:00-09:15,
-    not with all of yesterday (which would show a drop every morning). Same for this
-    week Mon-Sun seen on a Wednesday: last week counts only up to the same point.
+    When `period` includes today it isn't over yet, so the previous period is cut at the
+    same elapsed time: today 00:00-09:15 is compared with yesterday 00:00-09:15, not
+    with all of yesterday (which would show a drop every morning), and this week so far
+    with last week up to the same weekday and time. Finished periods are compared whole.
 
     @param now: for tests (aware datetime); defaults to the current time
     @returns change_pct rounded to 1 decimal, or None when the previous total was 0
     """
     now = now or datetime.now(UTC)
-    before = period.previous()
+    before, running, compared_to = _comparison(period, store_today(now))
     until = None
-    if period.end >= store_today(now):
+    if running:
         elapsed = now - utc_bounds(period)[0]
         until = utc_bounds(before)[0] + elapsed
     current = _period_sales(db, store_id, period)
@@ -152,6 +188,7 @@ def sales_summary(
         total_centavos=current.total_centavos,
         sales_count=current.sales_count,
         previous=previous,
+        compared_to=compared_to,
         change_pct=change,
     )
 

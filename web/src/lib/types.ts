@@ -186,9 +186,11 @@ export type SalesSummary = {
   range: DateRange;
   total_centavos: number;
   sales_count: number;
-  // Same length, just before `range`. When `range` ends today or later, only sales before
-  // `until` count (same elapsed time: yesterday until this time of day). Otherwise null.
+  // What `range` is compared with. When `range` includes today, only sales before `until`
+  // count (same time yesterday / last week / last month). Otherwise until is null.
   previous: { range: DateRange; until: string | null; total_centavos: number; sales_count: number };
+  // The comparison in words: "same time yesterday", "the day before", ...
+  compared_to: string;
   change_pct: number | null; // null when the previous period had no sales
 };
 
