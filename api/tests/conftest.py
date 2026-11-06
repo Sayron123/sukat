@@ -24,6 +24,9 @@ from app.core.db import get_db  # noqa: E402
 from app.core.storage import LocalStorage, get_storage  # noqa: E402
 from app.main import app  # noqa: E402
 
+# Shared fixtures that live in their own module (e.g. the scripted chat model).
+pytest_plugins = ["tests.chat_helpers"]
+
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://sukat:sukat@localhost:5432/sukat_test"
 )
