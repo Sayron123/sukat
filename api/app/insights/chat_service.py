@@ -8,12 +8,13 @@ Flow for one question:
    results back. At most 5 tool calls per question, all within one overall timeout.
 4. Return its answer, plus a small table or chart built from the last tool result (the
    numbers on screen come from the database, not from the model's text).
-5. Log the tokens and cost to ai_usage with feature "chat".
+5. Log the tokens and cost to ai_usage with feature "chat". The row is reserved before
+   the call, which is also how the hourly limit per store is counted.
 """
 
 import time
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from functools import cache
 from pathlib import Path
@@ -21,6 +22,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.base import (
@@ -33,9 +35,11 @@ from app.ai.base import (
     UserText,
 )
 from app.ai.errors import AIChatError
+from app.ai.models import AIUsage
 from app.ai.schemas import AIUsageInfo
-from app.ai.usage import log_usage
+from app.ai.usage import fill_usage
 from app.core.config import settings
+from app.core.errors import AppError, TooManyRequests
 from app.insights import reports
 from app.insights.chat_schemas import ChatBar, ChatData, ChatMessageIn, ChatOut
 from app.insights.chat_tools import (
@@ -48,11 +52,13 @@ from app.insights.chat_tools import (
     tool_specs,
 )
 from app.insights.schemas import DateRange, MovementPage, SalesSummary, TopProducts
+from app.stores.models import Store
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "chat.md"
 FEATURE = "chat"
 TABLE_ROWS = 10
 MIN_CALL_SECONDS = 2.0  # don't start a model call with less time than this left
+RATE_WINDOW = timedelta(hours=1)
 
 TOO_SLOW = "Sorry, that took too long. Please try again, or ask a simpler question."
 NO_ANSWER = "Sorry, I couldn't answer that. Please try asking another way."
@@ -196,6 +202,66 @@ def run_chat(
     )
 
 
+class ChatRateLimited(TooManyRequests):
+    code = "chat_rate_limited"
+
+
+class ChatUnavailable(AppError):
+    """The model couldn't answer (timeout, API error). `retryable` says if Retry may help."""
+
+    status_code = 503
+    code = "chat_unavailable"
+
+
+def _clock(t: datetime) -> str:
+    """'3:05 PM' in store time (no %-I: it doesn't exist on Windows)."""
+    return t.astimezone(reports.STORE_TZ).strftime("%I:%M %p").lstrip("0")
+
+
+def reserve_question(db: Session, store_id: UUID, now: datetime | None = None) -> AIUsage:
+    """Count this question against the store's hourly limit and reserve its ai_usage
+    row (filled with the real tokens and cost after the call). Commits.
+
+    The store row is locked for the count, so two questions sent at the same moment
+    can't both take the last slot.
+    @raises ChatRateLimited with the time a slot frees up
+    """
+    now = now or datetime.now(UTC)
+    limit = settings.CHAT_QUESTIONS_PER_HOUR
+    db.execute(select(Store.id).where(Store.id == store_id).with_for_update())
+    recent = db.scalars(
+        select(AIUsage.created_at)
+        .where(
+            AIUsage.store_id == store_id,
+            AIUsage.feature == FEATURE,
+            AIUsage.created_at > now - RATE_WINDOW,
+        )
+        .order_by(AIUsage.created_at)
+    ).all()
+    if len(recent) >= limit:
+        db.rollback()  # release the lock
+        free_at = recent[len(recent) - limit] + RATE_WINDOW
+        wait = max(1, int((free_at - now).total_seconds()))
+        raise ChatRateLimited(
+            f"Your store has asked {limit} questions in the last hour. "
+            f"You can ask again at {_clock(free_at)}.",
+            headers={"Retry-After": str(wait)},
+            extra={"retry_at": free_at.isoformat()},
+        )
+    row = AIUsage(
+        store_id=store_id,
+        feature=FEATURE,
+        model=settings.AI_MODEL,
+        tokens_in=0,
+        tokens_out=0,
+        cost_centavos=Decimal(0),
+        created_at=now,
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
 def ask(
     db: Session,
     store_id: UUID,
@@ -204,21 +270,24 @@ def ask(
     model: ChatModel,
     now: datetime | None = None,
 ) -> ChatOut:
-    """run_chat + log the tokens and cost to ai_usage (feature "chat"), even when the
-    model call failed after spending tokens.
+    """Check the hourly limit, answer, and log the tokens and cost to ai_usage
+    (feature "chat"), also when the model failed after spending tokens.
 
-    @raises AIChatError when the model could not answer
+    @raises ChatRateLimited (429) when the store asked too many questions this hour
+    @raises ChatUnavailable (503) when the model could not answer
     """
+    row = reserve_question(db, store_id, now)
     try:
         result = run_chat(db, store_id, role, messages, model, now)
     except ChatFailed as e:
+        db.rollback()  # nothing from the tools is kept; the row is re-read below
         if e.usage is not None:
-            log_usage(db, store_id, FEATURE, e.usage)
+            fill_usage(db.merge(row), e.usage)
             db.commit()
-        raise e.error from None
+        raise ChatUnavailable(str(e.error), extra={"retryable": e.error.retryable}) from None
     if result.usage is not None:
-        log_usage(db, store_id, FEATURE, result.usage)
-        db.commit()
+        fill_usage(row, result.usage)
+    db.commit()
     return ChatOut(answer=result.answer, data=result.data, tools_used=result.tools_used)
 
 

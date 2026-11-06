@@ -8,6 +8,7 @@ from app.auth.router import router as auth_router
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.health import router as health_router
+from app.insights.chat_router import router as chat_router
 from app.insights.router import router as insights_router
 from app.inventory.router import router as inventory_router
 from app.products.router import router as products_router
@@ -41,6 +42,7 @@ for feature_router in (
     products_router,
     inventory_router,
     insights_router,
+    chat_router,
 ):
     v1.include_router(feature_router)
 
