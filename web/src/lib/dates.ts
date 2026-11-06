@@ -55,3 +55,23 @@ export function dayLabel(day: string, now: Date = new Date()): string {
     year: day.slice(0, 4) === today.slice(0, 4) ? undefined : "numeric",
   });
 }
+
+/**
+ * "6 November", "2–6 November", "28 October – 6 November" (year added when it's not
+ * this year), for YYYY-MM-DD days.
+ */
+export function formatRange(start: string, end: string, now: Date = new Date()): string {
+  const year = storeDate(now).slice(0, 4);
+  const part = (day: string, withMonth: boolean, withYear: boolean) =>
+    new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", {
+      timeZone: "UTC",
+      day: "numeric",
+      month: withMonth ? "long" : undefined,
+      year: withYear ? "numeric" : undefined,
+    });
+  const endYear = end.slice(0, 4) !== year;
+  if (start === end) return part(end, true, endYear);
+  if (start.slice(0, 7) === end.slice(0, 7)) return `${part(start, false, false)}–${part(end, true, endYear)}`;
+  const startYear = start.slice(0, 4) !== end.slice(0, 4);
+  return `${part(start, true, startYear)} – ${part(end, true, endYear)}`;
+}
