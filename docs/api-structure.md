@@ -13,8 +13,8 @@ api/app/
 ├── stores/          # staff and invites
 ├── products/        # products, aliases, unit conversions, starter catalog
 ├── inventory/       # photo upload, scans, transactions, stock movements
-├── insights/        # reports: sales summary, low stock, stock history, stock check
-└── ai/              # AI list reader: interface, provider choice, Claude implementation
+├── insights/        # reports (sales, low stock, history, stock check) and the AI chat
+└── ai/              # AI: list reader and chat model interfaces, provider choice, Claude
 ```
 
 Every feature folder has the same files:
@@ -53,6 +53,7 @@ All paths start with `/v1`, except `GET /health`. The live list with request/res
 | products | `GET/POST /products`, `GET /products/catalog`, `POST /products/import`, `GET/PATCH /products/{id}`, `POST /products/{id}/archive`, `POST /products/{id}/unarchive` |
 | inventory | `POST /scans/upload-url`, `PUT /uploads/local/{key}` (dev only), `POST /scans` (stock_in or sale), `GET /scans/{id}`, `POST /scans/{id}/retry`, `GET/POST /transactions` (GET takes `start`/`end` Manila dates), `GET /transactions/{id}`, `POST /transactions/{id}/void` |
 | insights (reports) | `GET /reports/sales-summary`, `GET /reports/top-products`, `GET /reports/low-stock`, `GET /reports/stock-movements`, `GET /reports/products/{id}/history`, `GET /reports/stock-check`, `GET /reports/scans-to-review` |
+| insights (chat) | `POST /insights/chat` |
 
 ## Adding something new
 
