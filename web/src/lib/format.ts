@@ -46,6 +46,11 @@ export function formatTime(iso: string): string {
  * "Today, 10:32 AM", "Yesterday, 4:20 PM" or "Nov 3, 9:15 AM" (year added if not this
  * year). Store time (Asia/Manila), so every screen and report agree on what "today" is.
  */
+/** "3", or "50+" when the list was cut and there are more than shown. */
+export function formatCount(n: number, more: boolean): string {
+  return more ? `${n}+` : String(n);
+}
+
 export function formatShortWhen(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
   const time = formatTime(iso);

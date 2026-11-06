@@ -13,15 +13,17 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.auth.deps import CurrentMember, CurrentMemberDep, DbSession, require_role
+from app.core.errors import AppError
 from app.insights import reports
 from app.insights.schemas import (
     TOP_PRODUCTS_MAX,
+    DateRange,
     LowStockItem,
     MovementFilters,
     MovementKind,
     MovementPage,
     SalesSummary,
-    ScanToReview,
+    ScansToReview,
     StockMismatch,
     TopBy,
     TopProducts,
@@ -37,15 +39,28 @@ End = Annotated[date | None, Query(description="Last day (Manila), included")]
 Page = Annotated[int, Query(ge=1, le=10_000)]
 
 
+def _range_or_today(start: date | None, end: date | None) -> DateRange:
+    """The requested Manila days, or today when none are given.
+
+    make_range never returns None with default_today=True. This is checked explicitly
+    (not with assert, which `python -O` removes) so a future change can't let None slip
+    through to a report: it becomes a normal error response instead.
+    @raises Invalid for a bad range; AppError (500) if no range came back
+    """
+    period = reports.make_range(start, end, default_today=True)
+    if period is None:
+        raise AppError("Could not work out the date range", status_code=500)
+    return period
+
+
 @router.get("/sales-summary", response_model=SalesSummary)
 def sales_summary(
     current: CurrentMemberDep, db: DbSession, start: Start = None, end: End = None
 ) -> SalesSummary:
-    """Sales total and count (voided excluded), with the previous period of the same
-    length. Defaults to today."""
-    period = reports.make_range(start, end, default_today=True)
-    assert period is not None
-    return reports.sales_summary(db, current.store_id, period)
+    """Sales total and count (voided excluded), compared with an earlier period. A range
+    that includes today is compared up to the same time (same time yesterday, last week,
+    last month); `compared_to` says which in words. Defaults to today."""
+    return reports.sales_summary(db, current.store_id, _range_or_today(start, end))
 
 
 @router.get("/top-products", response_model=TopProducts)
@@ -58,9 +73,7 @@ def top_products(
     by: TopBy = "qty",
 ) -> TopProducts:
     """Best sellers by quantity or revenue (manager or secretary). Defaults to today."""
-    period = reports.make_range(start, end, default_today=True)
-    assert period is not None
-    return reports.top_products(db, current.store_id, period, limit, by)
+    return reports.top_products(db, current.store_id, _range_or_today(start, end), limit, by)
 
 
 @router.get("/low-stock", response_model=list[LowStockItem])
@@ -113,7 +126,9 @@ def stock_check(current: Manager, db: DbSession) -> list[StockMismatch]:
     return reports.stock_check(db, current.store_id)
 
 
-@router.get("/scans-to-review", response_model=list[ScanToReview])
-def scans_to_review(current: CurrentMemberDep, db: DbSession) -> list[ScanToReview]:
-    """Photos read in the last 7 days but not saved yet, newest first."""
+@router.get("/scans-to-review", response_model=ScansToReview)
+def scans_to_review(current: CurrentMemberDep, db: DbSession) -> ScansToReview:
+    """Photos from the last 7 days read but not saved yet, or whose read failed in a way
+    "Try again" can fix (including reads stuck mid-way), newest first. At most 50;
+    `has_more` is true when older ones were left out."""
     return reports.scans_to_review(db, current.store_id)

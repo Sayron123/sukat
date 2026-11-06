@@ -6,8 +6,9 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
 
+from app.ai.errors import AIReadError
 from app.insights import reports
 from app.insights.schemas import DateRange
 from app.inventory.models import Scan, StockMovement, Transaction
@@ -108,12 +109,157 @@ def test_sale_at_11_30_pm_counts_for_that_day_not_the_next(api, db, manager, cem
     assert [t["id"] for t in res.json()["items"]] == [late["id"]]
 
 
+def test_today_is_compared_with_yesterday_up_to_the_same_time(api, db, manager, cement):
+    """At 9:15 AM, today is compared with yesterday 00:00-09:15, not all of yesterday
+    (which would show a drop every morning)."""
+    yesterday = DAY - timedelta(days=1)
+    for qty, when in [
+        ("1", _manila(yesterday, 8)),  # ₱250, before 9:15: counts
+        ("2", _manila(yesterday, 15)),  # ₱500, after 9:15: not yet comparable
+        ("1", _manila(DAY, 9)),  # ₱250 today
+    ]:
+        _at(db, _sell(api, manager, cement, qty=qty)["id"], when)
+    store_id = uuid.UUID(api.get("/auth/me", headers=manager).json()["store_id"])
+    now = _manila(DAY, 9, 15)
+
+    summary = reports.sales_summary(db, store_id, DateRange(start=DAY, end=DAY), now=now)
+    assert summary.total_centavos == 25000
+    assert summary.previous.total_centavos == 25000 and summary.previous.sales_count == 1
+    assert summary.previous.until == _manila(yesterday, 9, 15)
+    assert summary.change_pct == 0.0
+    assert summary.compared_to == "same time yesterday"
+
+    # A finished day (not today) is compared with the whole day before.
+    later = now + timedelta(days=1)
+    summary = reports.sales_summary(db, store_id, DateRange(start=DAY, end=DAY), now=later)
+    assert summary.previous.total_centavos == 75000 and summary.previous.until is None
+    assert summary.compared_to == "the day before"
+
+    # The API returns the same words for Home to show.
+    res = api.get("/reports/sales-summary", headers=manager)
+    assert res.json()["compared_to"] == "same time yesterday"
+
+
+def test_week_so_far_is_compared_with_last_week_up_to_the_same_weekday_and_time(
+    api, db, manager, cement
+):
+    """Mon-Wed 9:15 AM is compared with last Mon-Wed 9:15 AM, not with the 3 days just
+    before (last Fri-Sun)."""
+    monday = date(2026, 3, 2)
+    wednesday = monday + timedelta(days=2)
+    last_monday = monday - timedelta(days=7)
+    for qty, when in [
+        ("1", _manila(last_monday, 10)),  # ₱250 last Monday: counts
+        ("2", _manila(last_monday + timedelta(days=2), 8)),  # ₱500 last Wed 8 AM: counts
+        ("4", _manila(last_monday + timedelta(days=2), 10)),  # ₱1000 last Wed 10 AM: too late
+        ("8", _manila(monday - timedelta(days=1), 12)),  # ₱2000 last Sunday: not last Mon-Wed
+        ("3", _manila(monday, 9)),  # ₱750 this week
+    ]:
+        _at(db, _sell(api, manager, cement, qty=qty)["id"], when)
+    store_id = uuid.UUID(api.get("/auth/me", headers=manager).json()["store_id"])
+
+    now = _manila(wednesday, 9, 15)
+    summary = reports.sales_summary(db, store_id, DateRange(start=monday, end=wednesday), now=now)
+    last_wednesday = last_monday + timedelta(days=2)
+    assert summary.previous.range == DateRange(start=last_monday, end=last_wednesday)
+    assert summary.previous.until == _manila(last_monday + timedelta(days=2), 9, 15)
+    assert summary.previous.total_centavos == 75000 and summary.total_centavos == 75000
+    assert summary.compared_to == "same time last week"
+
+    # The whole week Mon-Sun, seen on Wednesday, lines up the same way.
+    full_week = DateRange(start=monday, end=monday + timedelta(days=6))
+    summary = reports.sales_summary(db, store_id, full_week, now=now)
+    assert summary.previous.range.start == last_monday
+    assert summary.previous.total_centavos == 75000
+
+    # Once the week is over it is compared with the 7 days before, whole.
+    summary = reports.sales_summary(db, store_id, full_week, now=now + timedelta(days=7))
+    assert summary.previous.until is None and summary.compared_to == "the previous 7 days"
+
+
+def test_month_so_far_is_compared_with_last_month_up_to_the_same_day_and_time(
+    api, db, manager, cement
+):
+    """Mar 1-5 at 9:15 AM is compared with Feb 1-5 until 9:15 AM; a month-end day that
+    last month doesn't have is capped at its last day."""
+    for qty, when in [
+        ("1", _manila(date(2026, 2, 5), 8)),  # ₱250 Feb 5, 8 AM: counts
+        ("2", _manila(date(2026, 2, 5), 10)),  # ₱500 Feb 5, 10 AM: too late
+        ("4", _manila(date(2026, 1, 31), 12)),  # ₱1000 Jan 31: not in February
+    ]:
+        _at(db, _sell(api, manager, cement, qty=qty)["id"], when)
+    store_id = uuid.UUID(api.get("/auth/me", headers=manager).json()["store_id"])
+
+    period = DateRange(start=date(2026, 3, 1), end=date(2026, 3, 5))
+    summary = reports.sales_summary(db, store_id, period, now=_manila(date(2026, 3, 5), 9, 15))
+    assert summary.previous.range == DateRange(start=date(2026, 2, 1), end=date(2026, 2, 5))
+    assert summary.previous.total_centavos == 25000
+    assert summary.compared_to == "same time last month"
+
+    # March 1-31 seen on March 31: February ends on the 28th.
+    period = DateRange(start=date(2026, 3, 1), end=date(2026, 3, 31))
+    summary = reports.sales_summary(db, store_id, period, now=_manila(date(2026, 3, 31), 9))
+    assert summary.previous.range == DateRange(start=date(2026, 2, 1), end=date(2026, 2, 28))
+
+
+def test_unfinished_range_is_compared_up_to_the_same_point(api, db, manager, cement):
+    """A range that ends after today (this week Mon-Sun, seen on a Wednesday) isn't over
+    either, so it's also compared with the period before only up to the same point."""
+    period = DateRange(start=DAY, end=DAY + timedelta(days=2))  # DAY is "today" below
+    before = DAY - timedelta(days=3)  # first day of the previous period
+    for qty, when in [
+        ("1", _manila(before, 8)),  # ₱250, before the cut: counts
+        ("2", _manila(before + timedelta(days=1), 10)),  # ₱500, past the cut
+        ("1", _manila(DAY, 9)),
+    ]:
+        _at(db, _sell(api, manager, cement, qty=qty)["id"], when)
+    store_id = uuid.UUID(api.get("/auth/me", headers=manager).json()["store_id"])
+
+    summary = reports.sales_summary(db, store_id, period, now=_manila(DAY, 9, 15))
+    assert summary.previous.until == _manila(before, 9, 15)
+    assert summary.previous.total_centavos == 25000 and summary.change_pct == 0.0
+
+
 def test_bad_ranges_are_refused(api, manager):
     later = {"start": "2026-11-06", "end": "2026-11-05"}
     assert api.get("/reports/sales-summary", params=later, headers=manager).status_code == 422
     too_long = {"start": "2025-01-01", "end": "2026-03-10"}
     res = api.get("/reports/sales-summary", params=too_long, headers=manager)
     assert res.status_code == 422 and "366" in res.json()["detail"]
+
+
+def test_missing_range_is_a_normal_error_not_an_assert(api, manager, monkeypatch):
+    """If make_range ever returned None for an endpoint that defaults to today, the API
+    answers with its usual error body instead of an AssertionError (or, under
+    `python -O`, passing None on to the report)."""
+    monkeypatch.setattr(reports, "make_range", lambda *a, **kw: None)
+    for path in ("/reports/sales-summary", "/reports/top-products"):
+        res = api.get(path, headers=manager)
+        assert res.status_code == 500, path
+        assert res.json() == {"detail": "Could not work out the date range"}
+
+
+def test_extreme_dates_are_422_not_500(api, manager):
+    """Year 1 or 9999 used to overflow when turned into UTC or the previous period."""
+    requests = [
+        ("/reports/sales-summary", {"start": "0001-01-01"}),
+        ("/reports/sales-summary", {"end": "9999-12-31"}),
+        ("/transactions", {"end": "9999-12-31"}),
+        ("/reports/stock-movements", {"end": "9999-12-31"}),
+    ]
+    for path, params in requests:
+        res = api.get(path, params=params, headers=manager)
+        assert res.status_code == 422, (path, params, res.text)
+        assert "2000-01-01" in res.json()["detail"], res.text
+
+
+def test_earliest_and_latest_allowed_ranges_work(api, manager):
+    # The period before the earliest allowed range starts in 1999; that must not crash.
+    first_year = {"start": "2000-01-01", "end": "2000-12-31"}
+    assert api.get("/reports/sales-summary", params=first_year, headers=manager).status_code == 200
+    last_day = {"start": "2100-12-31"}
+    assert api.get("/reports/sales-summary", params=last_day, headers=manager).status_code == 200
+    assert api.get("/transactions", params=last_day, headers=manager).status_code == 200
 
 
 # ---------- voided sales ----------
@@ -269,8 +415,98 @@ def test_scans_to_review_lists_read_unsaved_recent_scans(api, db, manager, stora
         .values(created_at=datetime.now(UTC) - timedelta(days=8))
     )
     db.commit()
-    rows = api.get("/reports/scans-to-review", headers=manager).json()
+    rows = api.get("/reports/scans-to-review", headers=manager).json()["items"]
     assert [(r["scan_id"], r["type"], r["line_count"]) for r in rows] == [(fresh["id"], "sale", 2)]
+
+
+def test_scans_to_review_includes_failed_reads(api, manager, storage, reader, cement):
+    """A photo the AI couldn't read is also unfinished work: its list isn't recorded."""
+    reader.lines = [scan_line(cement["id"], unit="bag")]
+    read = api.post(
+        "/scans", json={"photo_key": upload_photo(api, manager, storage), "type": "sale"},
+        headers=manager,
+    ).json()  # fmt: skip
+    reader.error = AIReadError("Reading took too long. Please try again.", retryable=True)
+    failed = api.post(
+        "/scans", json={"photo_key": upload_photo(api, manager, storage)}, headers=manager
+    ).json()
+    assert failed["status"] == "failed"
+
+    rows = api.get("/reports/scans-to-review", headers=manager).json()["items"]
+    assert [(r["scan_id"], r["status"], r["line_count"]) for r in rows] == [
+        (failed["id"], "failed", 0),
+        (read["id"], "read", 1),
+    ]
+
+
+def test_scans_to_review_skips_failures_that_cant_be_retried(api, manager, storage, reader):
+    """Nothing can be done with a photo that can never be read, so it isn't listed."""
+    reader.error = AIReadError("This photo could not be read.", retryable=False)
+    res = api.post(
+        "/scans", json={"photo_key": upload_photo(api, manager, storage)}, headers=manager
+    )
+    assert res.json()["status"] == "failed" and res.json()["retryable"] is False
+
+    assert api.get("/reports/scans-to-review", headers=manager).json()["items"] == []
+
+
+def test_scans_to_review_includes_reads_stuck_in_pending(api, db, manager, storage):
+    """A read cut off mid-way (e.g. a server restart) stays "pending" forever. The phone
+    shows it as a failure to retry, so Needs review lists it as failed too."""
+    me = api.get("/auth/me", headers=manager).json()
+    stuck, reading = (
+        Scan(
+            store_id=uuid.UUID(me["store_id"]),
+            type="stock_in",
+            photo_key=upload_photo(api, manager, storage),
+            status="pending",
+            created_by=uuid.UUID(me["user_id"]),
+        )
+        for _ in range(2)
+    )
+    db.add_all([stuck, reading])
+    db.commit()
+    db.execute(
+        update(Scan)
+        .where(Scan.id == stuck.id)
+        .values(updated_at=datetime.now(UTC) - timedelta(hours=1))
+    )
+    db.commit()
+
+    rows = api.get("/reports/scans-to-review", headers=manager).json()["items"]
+    assert [(r["scan_id"], r["status"]) for r in rows] == [(str(stuck.id), "failed")]
+
+
+def test_scans_to_review_says_when_there_are_more(api, db, manager):
+    """At most 50 are listed. has_more tells whether the list was cut, so exactly 50
+    isn't shown as "50+" (the web used to guess from the count)."""
+    me = api.get("/auth/me", headers=manager).json()
+    store_id, user_id = uuid.UUID(me["store_id"]), uuid.UUID(me["user_id"])
+    start = datetime.now(UTC) - timedelta(hours=2)
+
+    def add_scans(first: int, count: int) -> None:
+        db.add_all(
+            Scan(
+                store_id=store_id,
+                type="sale",
+                photo_key=f"{store_id}/scans/{n}",
+                status="read",
+                created_by=user_id,
+                created_at=start + timedelta(minutes=n),
+            )
+            for n in range(first, first + count)
+        )
+        db.commit()
+
+    add_scans(0, 50)
+    full = api.get("/reports/scans-to-review", headers=manager).json()
+    assert len(full["items"]) == 50 and full["has_more"] is False
+
+    add_scans(50, 1)
+    more = api.get("/reports/scans-to-review", headers=manager).json()
+    assert len(more["items"]) == 50 and more["has_more"] is True
+    newest = db.scalar(select(Scan.id).order_by(Scan.created_at.desc()).limit(1))
+    assert more["items"][0]["scan_id"] == str(newest)
 
 
 # ---------- roles ----------
@@ -312,7 +548,7 @@ def test_reports_only_show_your_own_store(api, db, signup, manager, cement):
     params = {"start": DAY.isoformat(), "end": DAY.isoformat()}
     assert api.get("/reports/top-products", params=params, headers=other).json()["items"] == []
     assert api.get("/transactions", params=params, headers=other).json()["total"] == 0
-    assert api.get("/reports/scans-to-review", headers=other).json() == []
+    assert api.get("/reports/scans-to-review", headers=other).json()["items"] == []
     # ...while store A sees its own.
     assert _summary(api, manager, DAY)["sales_count"] == 1
     assert len(api.get("/reports/low-stock", headers=manager).json()) == 1
