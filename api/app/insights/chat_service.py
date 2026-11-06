@@ -156,7 +156,7 @@ def run_chat(
             turn: ChatTurn = model.respond(
                 system=system_prompt(),
                 context=context,
-                items=items,
+                items=list(items),  # a copy: the list keeps growing after this call
                 tools=specs,
                 allow_tools=allow_tools,
                 timeout=left,
