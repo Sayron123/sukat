@@ -155,3 +155,86 @@ def test_runner_reports_sale_and_stock_in_separately(tmp_path, monkeypatch, caps
     seen.clear()
     run_eval.main()
     assert seen == ["sale"]
+
+
+def test_runner_reports_each_step_and_ai_requests(tmp_path, monkeypatch, capsys):
+    """run_eval on two cases with a mocked AI: one matched fully by code (1 request),
+    one needing the AI match (2 requests)."""
+    import json
+    import sys
+
+    from app.ai.scan_pipeline import MultiStepReader
+    from app.ai.schemas import AIUsageInfo, MatchAnswer, ReadLine
+    from evals import run_eval
+
+    def row(raw, qty, unit):
+        return ReadLine(
+            raw_text=raw,
+            qty_text=qty,
+            unit_text=unit,
+            price_text=None,
+            total_text=None,
+            confidence=0.95,
+        )
+
+    reads = {
+        b"\xff\xd8\xff\xe0case-a": [
+            row("10 bags sem", "10", "bags"),
+            row("2 bx pako 4", "2", "bx"),
+        ],
+        b"\xff\xd8\xff\xe0case-b": [row("5 pcs pakong 4 pulgada", "5", "kls")],  # unit misread
+    }
+
+    class FakeAI:
+        def read_photo(self, image, media_type):
+            return reads[image], AIUsageInfo(model="fake", input_tokens=100)
+
+        def match_items(self, items, catalog_text):
+            ref = next(
+                line.split(" | ")[0]
+                for line in catalog_text.splitlines()
+                if 'Common Wire Nail 4"' in line
+            )
+            usage = AIUsageInfo(model="fake", input_tokens=50)
+            return [MatchAnswer(line=i.line, product_id=ref) for i in items], usage
+
+    for name, image in (
+        ("case-a", b"\xff\xd8\xff\xe0case-a"),
+        ("case-b", b"\xff\xd8\xff\xe0case-b"),
+    ):
+        (tmp_path / f"{name}.jpg").write_bytes(image)
+    (tmp_path / "case-a.json").write_text(
+        json.dumps(
+            {
+                "type": "stock_in",
+                "lines": [
+                    {"product": "portland-cement-40kg", "qty": 10, "unit": "bag"},
+                    {"product": "common-wire-nail-4in", "qty": 2, "unit": "box"},
+                ],
+            }
+        )
+    )
+    (tmp_path / "case-b.json").write_text(
+        json.dumps(
+            {
+                "type": "stock_in",
+                "lines": [{"product": "common-wire-nail-4in", "qty": 5, "unit": "pc"}],
+            }
+        )
+    )
+    monkeypatch.setattr(run_eval, "CASES_DIR", tmp_path)
+    monkeypatch.setattr(run_eval, "get_vision_reader", lambda: MultiStepReader(FakeAI()))
+    monkeypatch.setattr(sys, "argv", ["run_eval"])
+    run_eval.main()
+    out = capsys.readouterr().out
+    assert (
+        "case-a (in)                    2  100.0%  100.0%  100.0%       -     0     0    1.0" in out
+    )
+    # case-b: product right (via the AI), but "kls" isn't "pc": read wrong, final wrong.
+    assert (
+        "case-b (in)                    1    0.0%  100.0%    0.0%       -     0     0    2.0" in out
+    )
+    assert (
+        "AI requests: 3 for 2 scans (1.5 per scan; 1 matched fully by code with 1 request)" in out
+    )
+    assert "Lines matched by code: 2/3, by AI: 1, not matched: 0" in out
