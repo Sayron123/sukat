@@ -1,9 +1,8 @@
 """Data shapes for AI list reading.
 
-Two layers:
-- RawLine / RAW_RESULT_SCHEMA: what the model is asked to return (JSON schema enforced by
-  the API, then validated again with Pydantic). Uses short product refs ("P12") instead
-  of UUIDs: fewer tokens, and an invented ref can't silently point at a real product.
+- ReadLine / READ_SCHEMA and MatchAnswer / MATCH_SCHEMA: what each AI step returns (a
+  JSON schema enforced by the provider, then validated again with Pydantic). Products
+  are named by short refs ("P12"): fewer tokens, and an invented ref matches nothing.
 - ScanLine: the provider-independent result the rest of the app uses.
 """
 
@@ -31,53 +30,6 @@ class CatalogEntry:
     conversions: tuple[CatalogConversion, ...] = ()
 
 
-class RawLine(BaseModel):
-    raw_text: str
-    product_ref: str | None
-    suggested_new_name: str | None
-    qty: Decimal
-    unit: str
-    unit_price: Decimal | None
-    line_total: Decimal | None
-    confidence: float
-
-
-class RawResult(BaseModel):
-    lines: list[RawLine]
-
-
-def _nullable(json_type: str) -> dict:
-    return {"anyOf": [{"type": json_type}, {"type": "null"}]}
-
-
-# Must list exactly RawLine's fields (a test checks this).
-RAW_RESULT_SCHEMA: dict = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["lines"],
-    "properties": {
-        "lines": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": list(RawLine.model_fields),
-                "properties": {
-                    "raw_text": {"type": "string"},
-                    "product_ref": _nullable("string"),
-                    "suggested_new_name": _nullable("string"),
-                    "qty": {"type": "number"},
-                    "unit": {"type": "string"},
-                    "unit_price": _nullable("number"),
-                    "line_total": _nullable("number"),
-                    "confidence": {"type": "number"},
-                },
-            },
-        }
-    },
-}
-
-
 class ScanLine(BaseModel):
     """One line read from the photo, mapped back to this store's products."""
 
@@ -88,6 +40,8 @@ class ScanLine(BaseModel):
     unit: str
     unit_price_centavos: int | None
     confidence: float = Field(ge=0, le=1)
+    # The line's amount as written (None if not written), for the qty x price check.
+    line_total_centavos: int | None = None
 
 
 @dataclass(frozen=True)
@@ -107,8 +61,13 @@ class AIUsageInfo:
 @dataclass(frozen=True)
 class ReadResult:
     lines: list[ScanLine]
-    usage: AIUsageInfo
+    usage: AIUsageInfo  # all AI calls of this read, added up
     raw: dict = field(default_factory=dict)  # the model's JSON, stored on the scan
+    # One (ai_usage feature, usage) per AI request; empty = one "scan_read" call.
+    calls: list[tuple[str, AIUsageInfo]] = field(default_factory=list)
+    # Each step's output (read, match, check), stored on the scan to find errors.
+    steps: dict | None = None
+    ai_requests: int = 1
 
 
 # ---------- multi-step scan: what each AI step returns ----------

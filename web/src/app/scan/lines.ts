@@ -115,6 +115,7 @@ export const REASON_TEXT: Record<CheckReason, string> = {
   no_product: "No matching product",
   no_qty: "Quantity unclear",
   no_unit: "No unit written",
+  total_mismatch: "Total doesn’t match qty × price",
   unknown_unit: "Unit not known for this product",
   qty_too_small: "Quantity too small",
 };
