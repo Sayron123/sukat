@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     AI_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.20")
     USD_TO_PHP: Decimal = Decimal("58.00")
 
+    # ----- Multi-step scan -----
+    # Step 2 "match": a fuzzy match (rapidfuzz, 0-100) must score at least this, and
+    # clearly beat any other product, or the line goes to the AI.
+    SCAN_FUZZY_THRESHOLD: int = 90
+    # Step 3 "check": qty x price may differ from a written line total by this much
+    # (written totals are often rounded) before the line is marked "check".
+    SCAN_TOTAL_TOLERANCE_CENTAVOS: int = 100
+
     # ----- Gemini (when AI_PROVIDER=gemini) -----
     # Leave the key empty to use the SDK's normal lookup (GEMINI_API_KEY / GOOGLE_API_KEY env).
     GEMINI_API_KEY: str = ""
