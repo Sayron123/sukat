@@ -228,6 +228,17 @@ def test_bad_ranges_are_refused(api, manager):
     assert res.status_code == 422 and "366" in res.json()["detail"]
 
 
+def test_missing_range_is_a_normal_error_not_an_assert(api, manager, monkeypatch):
+    """If make_range ever returned None for an endpoint that defaults to today, the API
+    answers with its usual error body instead of an AssertionError (or, under
+    `python -O`, passing None on to the report)."""
+    monkeypatch.setattr(reports, "make_range", lambda *a, **kw: None)
+    for path in ("/reports/sales-summary", "/reports/top-products"):
+        res = api.get(path, headers=manager)
+        assert res.status_code == 500, path
+        assert res.json() == {"detail": "Could not work out the date range"}
+
+
 def test_extreme_dates_are_422_not_500(api, manager):
     """Year 1 or 9999 used to overflow when turned into UTC or the previous period."""
     requests = [
