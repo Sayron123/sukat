@@ -454,3 +454,16 @@ def test_claude_adapter_errors(error, retryable):
             system="S", context="C", items=[UserText("q")], tools=[], allow_tools=True, timeout=5
         )
     assert e.value.retryable is retryable
+
+
+def test_claude_adapter_without_api_key_says_not_set_up():
+    from app.ai.anthropic_chat import AnthropicChatModel
+    from app.ai.base import UserText
+    from app.ai.errors import AIChatError
+
+    no_key = TypeError('"Could not resolve authentication method. Expected one of api_key"')
+    with pytest.raises(AIChatError) as e:
+        AnthropicChatModel(FakeClient(no_key)).respond(  # type: ignore[arg-type]
+            system="S", context="C", items=[UserText("q")], tools=[], allow_tools=True, timeout=5
+        )
+    assert str(e.value) == "The assistant is not set up yet." and e.value.retryable is False

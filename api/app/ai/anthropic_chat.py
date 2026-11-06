@@ -90,6 +90,10 @@ class AnthropicChatModel:
                 output_config={"effort": settings.AI_CHAT_EFFORT},
                 **extra,
             )
+        except TypeError as e:  # the SDK found no API key or login
+            if "authentication" not in str(e):
+                raise
+            raise AIChatError("The assistant is not set up yet.", retryable=False) from e
         except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
             raise AIChatError("That took too long. Please try again.", retryable=True) from e
         except anthropic.RateLimitError as e:
