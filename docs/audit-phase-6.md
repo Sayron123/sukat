@@ -11,8 +11,8 @@ Branch audited: `phase-6-ai-chat` (PR #15) at `a9a261c`. No code was changed.
 
 | ID | Severity | Finding | Area |
 |---|---|---|---|
-| H1 | High | The chat stays in the browser tab after sign-out: the next person who signs in sees it, including manager-only numbers | roles, web |
-| H2 | High | A settings error at startup prints secrets (the end of the Anthropic API key) into the server log | keys in logs |
+| H1 | High | The chat stays in the browser tab after sign-out: the next person who signs in sees it, including manager-only numbers | roles, web — **Fixed** |
+| H2 | High | A settings error at startup prints secrets (the end of the Anthropic API key) into the server log | keys in logs — **Fixed** |
 | M1 | Medium | Numbers in the AI's text are not checked: the text can show a wrong or injected number next to a correct chart | numbers, injection |
 | M2 | Medium | A database connection stays open and "idle in transaction" during model calls, up to 45 s per question | timeouts, load |
 | M3 | Medium | An unexpected error during a question returns a bare 500 and loses the cost already spent | cost |
@@ -44,6 +44,8 @@ Branch audited: `phase-6-ai-chat` (PR #15) at `a9a261c`. No code was changed.
 - Clear the chat on sign-out and on sign-in (`sessionStorage.removeItem("sukat-chat")`, or `sessionStorage.clear()` before `hardNavigate`).
 - Also store it under a key that includes the user and store id, and drop it when `/auth/me` doesn't match.
 
+**Fixed:** `web/src/lib/session-data.ts` clears this tab's saved data (the chat, and scan save ids) on sign-out and on every sign-in. The sign-in covers a person who never signed out (expired session). Checked in a browser: after a sign-out, and after the manager's session cookie was simply cleared, the member's AI tab is empty. Keying the chat by user wasn't needed: every account switch goes through sign-in.
+
 ### H2 — Secrets in the startup error log
 **Where:** `api/app/core/config.py`. When `Settings` fails validation (for example a server started without `APP_ENV`/`JWT_SECRET`, which H2 of the Phase 0–3 audit makes a startup error), Pydantic's message includes `input_value=` with a shortened copy of **all settings values**.
 
@@ -60,6 +62,8 @@ The end of the API key is in the log. Depending on the order of the values, a sh
 - Make the secrets `SecretStr` (`ANTHROPIC_API_KEY`, `JWT_SECRET`, `R2_SECRET_ACCESS_KEY`), so they never print by accident.
 
 This was introduced before Phase 6, but it is the only key leak found.
+
+**Fixed:** `hide_input_in_errors=True`, and `JWT_SECRET`, `R2_SECRET_ACCESS_KEY` and `ANTHROPIC_API_KEY` are `SecretStr` (read with `.get_secret_value()`). The same failed startup now prints only the message. Test: `test_settings_errors_and_repr_never_show_secrets` (fails without the fix). `DATABASE_URL` (with the database password) stays a plain string, since many tools read it; the hidden error input already keeps it out of startup logs.
 
 ## Medium
 
@@ -178,7 +182,7 @@ Check `cache_read_input_tokens` on a few real calls. Consider storing cache read
 
 ## Suggested order
 
-1. **H1 and H2:** small fixes with a clear risk.
+1. ~~**H1 and H2:** small fixes with a clear risk.~~ Done.
 2. **M2 and M3:** in the same function (`run_chat`/`ask`).
 3. **M4:** run the eval, then **M1:** check numbers in the answer (and measure it with new eval cases).
 4. **Low items** as time allows.
