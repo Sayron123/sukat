@@ -42,7 +42,7 @@ class AnthropicVisionReader:
     def __init__(self, client: anthropic.Anthropic | None = None) -> None:
         # timeout + max_retries=1: one automatic retry on timeouts, 429, 5xx and network errors.
         self.client = client or anthropic.Anthropic(
-            api_key=settings.ANTHROPIC_API_KEY or None,
+            api_key=settings.ANTHROPIC_API_KEY.get_secret_value() or None,
             timeout=settings.AI_TIMEOUT_SECONDS,
             max_retries=settings.AI_MAX_RETRIES,
         )

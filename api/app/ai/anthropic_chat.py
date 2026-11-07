@@ -58,7 +58,7 @@ class AnthropicChatModel:
         # Retries are off: one question has one overall deadline, and the caller passes
         # the time left to each call.
         self.client = client or anthropic.Anthropic(
-            api_key=settings.ANTHROPIC_API_KEY or None, max_retries=0
+            api_key=settings.ANTHROPIC_API_KEY.get_secret_value() or None, max_retries=0
         )
 
     def respond(
