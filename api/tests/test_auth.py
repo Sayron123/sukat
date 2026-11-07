@@ -133,7 +133,9 @@ def test_login_ok(api, signup):
     res = api.post("/auth/login", json={"email": "OWNER@example.com", "password": out["password"]})
     assert res.status_code == 200
     token = res.json()["access_token"]
-    claims = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+    claims = jwt.decode(
+        token, settings.JWT_SECRET.get_secret_value(), algorithms=[settings.JWT_ALGORITHM]
+    )
     assert claims["store_id"] == api.get("/auth/me", headers=auth_header(token)).json()["store_id"]
 
 
@@ -159,7 +161,9 @@ def test_me_requires_valid_token(api, signup):
 
     claims = jwt.decode(out["access_token"], options={"verify_signature": False})
     claims["exp"] = datetime.now(UTC) - timedelta(minutes=1)
-    expired = jwt.encode(claims, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    expired = jwt.encode(
+        claims, settings.JWT_SECRET.get_secret_value(), algorithm=settings.JWT_ALGORITHM
+    )
     assert api.get("/auth/me", headers=auth_header(expired)).status_code == 401
 
 
@@ -193,3 +197,28 @@ def test_missing_or_mistyped_app_env_refuses_public_jwt_secret(monkeypatch):
     Settings(JWT_SECRET="x" * 40, _env_file=None)  # ok: private secret
     monkeypatch.setenv("APP_ENV", "development")
     Settings(_env_file=None)  # ok on a developer's PC
+
+
+def test_settings_errors_and_repr_never_show_secrets(monkeypatch):
+    # Audit H2 (Phase 6): a failed startup printed `input_value=` with the end of the
+    # Anthropic key into the log. Secrets must not appear in errors or in repr().
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    secrets = {
+        "ANTHROPIC_API_KEY": "sk-ant-api03-zz9leakKEY1234567890abcdef",
+        "R2_SECRET_ACCESS_KEY": "r2-zz9leak-abcdef0123456789",
+        "JWT_SECRET": "short-zz9leak",  # too short: makes the settings fail
+    }
+    for name, value in secrets.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("APP_ENV", "production")
+    with pytest.raises(ValidationError) as e:
+        Settings(_env_file=None)
+    assert "zz9leak" not in str(e.value) and "sk-ant" not in str(e.value)
+
+    monkeypatch.setenv("JWT_SECRET", "x" * 32 + "zz9leak")
+    ok = Settings(_env_file=None)
+    assert "zz9leak" not in repr(ok) and "sk-ant" not in repr(ok)
+    assert ok.ANTHROPIC_API_KEY.get_secret_value() == secrets["ANTHROPIC_API_KEY"]

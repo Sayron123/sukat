@@ -3,12 +3,12 @@ import Link from "next/link";
 import { Icon, type IconName } from "./icons";
 
 /** The main tabs. Pages without a tab (forms, scan, staff, history) show a back arrow instead. */
-export type Tab = "home" | "stock" | "more";
+export type Tab = "home" | "stock" | "ai" | "more";
 
-const TABS: { key: Tab | "ai"; label: string; icon: IconName; href?: string }[] = [
+const TABS: { key: Tab; label: string; icon: IconName; href?: string }[] = [
   { key: "home", label: "Home", icon: "home", href: "/" },
   { key: "stock", label: "Stock", icon: "box", href: "/stock" },
-  { key: "ai", label: "AI", icon: "spark" }, // AI assistant: later phase
+  { key: "ai", label: "AI", icon: "spark", href: "/ai" },
   { key: "more", label: "More", icon: "menu", href: "/more" },
 ];
 

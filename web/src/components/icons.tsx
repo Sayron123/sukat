@@ -65,6 +65,12 @@ const PATHS = {
       <path d="m13.5 7.5 3 3" />
     </>
   ),
+  send: (
+    <>
+      <path d="m3 11 18-8-8 18-2-8-8-2Z" />
+      <path d="m11 13 5-5" />
+    </>
+  ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
   check: <path d="m5 12 4 4L19 6" />,
   image: (

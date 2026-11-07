@@ -11,3 +11,13 @@ class AIReadError(Exception):
         super().__init__(message)
         self.retryable = retryable
         self.usage = usage
+
+
+class AIChatError(Exception):
+    """The chat model could not answer (timeout, API error). `usage` is set when tokens
+    were spent anyway, so the cost can still be logged."""
+
+    def __init__(self, message: str, *, retryable: bool, usage: AIUsageInfo | None = None):
+        super().__init__(message)
+        self.retryable = retryable
+        self.usage = usage

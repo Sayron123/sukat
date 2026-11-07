@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { hardNavigate } from "@/lib/hard-navigate";
+import { clearSessionData } from "@/lib/session-data";
 
 import { Button, Field, textLinkClass } from "./ui";
 
@@ -61,6 +62,8 @@ export function AuthForm({
         setError(data?.error ?? "Something went wrong");
         return;
       }
+      // Also covers a previous person who never signed out (e.g. their session expired).
+      clearSessionData();
       hardNavigate("/");
     } catch {
       setError("Network error. Please try again.");
