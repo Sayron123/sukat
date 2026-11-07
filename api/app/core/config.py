@@ -57,7 +57,8 @@ class Settings(BaseSettings):
     # Leave empty to use the SDK's normal credential lookup (ANTHROPIC_API_KEY env, etc.).
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
     # Which VisionReader implementation to use (see app/ai/provider.py).
-    AI_PROVIDER: Literal["anthropic"] = "anthropic"
+    # "anthropic" (Claude) or "gemini" (Google). Used for reading scans.
+    AI_PROVIDER: Literal["anthropic", "gemini"] = "anthropic"
     AI_MODEL: str = "claude-opus-5-5"
     AI_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
     AI_TIMEOUT_SECONDS: float = 90.0
@@ -80,6 +81,25 @@ class Settings(BaseSettings):
     CHAT_MAX_TOOL_CALLS: int = 5  # per question
     CHAT_QUESTIONS_PER_HOUR: int = 30  # per store
     CHAT_HISTORY_MESSAGES: int = 10  # only the last N messages are sent to the model
+
+    # ----- Multi-step scan -----
+    # Step 2 "match": a fuzzy match (rapidfuzz, 0-100) must score at least this, and
+    # clearly beat any other product, or the line goes to the AI.
+    SCAN_FUZZY_THRESHOLD: int = 90
+    # Step 3 "check": qty x price may differ from a written line total by this much
+    # (written totals are often rounded) before the line is marked "check".
+    SCAN_TOTAL_TOLERANCE_CENTAVOS: int = 100
+
+    # ----- Gemini (when AI_PROVIDER=gemini) -----
+    # Leave the key empty to use the SDK's normal lookup (GEMINI_API_KEY / GOOGLE_API_KEY env).
+    GEMINI_API_KEY: SecretStr = SecretStr("")
+    # Thinking is turned off (2.x models) or set to the lowest level (3.x and later).
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    # USD per million tokens for GEMINI_MODEL (thinking tokens bill as output). Check the
+    # current rates on Google's pricing page and update them with the model.
+    GEMINI_PRICE_INPUT_PER_MTOK_USD: Decimal = Decimal("0.30")
+    GEMINI_PRICE_OUTPUT_PER_MTOK_USD: Decimal = Decimal("2.50")
+    GEMINI_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.03")
 
     @property
     def cors_origins_list(self) -> list[str]:

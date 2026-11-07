@@ -1,30 +1,33 @@
-"""VisionReader implementation on the Anthropic Messages API (Claude)."""
+"""ScanAI implementation on the Anthropic Messages API (Claude)."""
 
 import base64
-import json
-from decimal import Decimal
-from functools import cache
-from pathlib import Path
 from typing import Any
 
 import anthropic
-from pydantic import ValidationError
 
 from app.ai.base import ImageType
-from app.ai.convert import catalog_refs, catalog_text, parse_result
 from app.ai.errors import AIReadError
-from app.ai.schemas import RAW_RESULT_SCHEMA, AIUsageInfo, CatalogEntry, ReadResult
+from app.ai.scan_output import (
+    MATCH_PROMPT,
+    MAX_OUTPUT_TOKENS,
+    READ_PROMPT,
+    READ_REQUEST,
+    match_request,
+    parse_match,
+    parse_read,
+    prompt,
+)
+from app.ai.schemas import (
+    MATCH_SCHEMA,
+    READ_SCHEMA,
+    AIUsageInfo,
+    MatchAnswer,
+    MatchItem,
+    ReadLine,
+)
 from app.core.config import settings
 
-PROMPTS_DIR = Path(__file__).parent / "prompts"
-# One prompt per scan type, each in its own file so they can be improved separately.
-PROMPT_FILES: dict[str, str] = {"stock_in": "read_stock_in.md", "sale": "read_sale.md"}
-FALLBACK_BETA = "server-side-fallback-2026-07-01"
-
-
-@cache
-def system_prompt(scan_type: str) -> str:
-    return (PROMPTS_DIR / PROMPT_FILES[scan_type]).read_text(encoding="utf-8")
+FALLBACK_BETA = "server-side-fallback-2026-07-01"  # refusal fallback (AI_REFUSAL_FALLBACK)
 
 
 def _usage(response: Any) -> AIUsageInfo:
@@ -38,65 +41,41 @@ def _usage(response: Any) -> AIUsageInfo:
     )
 
 
-class AnthropicVisionReader:
+# ---------- multi-step scan (ScanAI) ----------
+
+
+class AnthropicScanAI:
+    """ScanAI on Claude: one Messages API call per AI step, structured output."""
+
     def __init__(self, client: anthropic.Anthropic | None = None) -> None:
-        # timeout + max_retries=1: one automatic retry on timeouts, 429, 5xx and network errors.
         self.client = client or anthropic.Anthropic(
             api_key=settings.ANTHROPIC_API_KEY.get_secret_value() or None,
             timeout=settings.AI_TIMEOUT_SECONDS,
             max_retries=settings.AI_MAX_RETRIES,
         )
 
-    def read_list(
-        self,
-        image: bytes,
-        media_type: ImageType,
-        catalog: list[CatalogEntry],
-        scan_type: str,
-    ) -> ReadResult:
-        refs = catalog_refs(catalog)
-        kind = "a supplier delivery (stock in)" if scan_type == "stock_in" else "a customer sale"
+    def _create(
+        self, system: list[Any], content: list[Any], schema: dict
+    ) -> tuple[Any, AIUsageInfo]:
         extra: dict[str, Any] = {}
         if settings.AI_REFUSAL_FALLBACK:
-            # If a safety classifier declines, the API re-runs on a recommended model.
             extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"}
-
         try:
             response = self.client.beta.messages.create(
                 model=settings.AI_MODEL,
-                max_tokens=16000,
-                # Order matters for caching: fixed prompt, then this store's product list
-                # (cached), then the photo, which changes every time.
-                system=[
-                    {"type": "text", "text": system_prompt(scan_type)},
-                    {
-                        "type": "text",
-                        "text": catalog_text(refs),
-                        "cache_control": {"type": "ephemeral"},
-                    },
-                ],
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": media_type,
-                                    "data": base64.standard_b64encode(image).decode("ascii"),
-                                },
-                            },
-                            {"type": "text", "text": f"This list is {kind}. Read every item line."},
-                        ],
-                    }
-                ],
+                max_tokens=MAX_OUTPUT_TOKENS,
+                system=system,
+                messages=[{"role": "user", "content": content}],
                 output_config={
                     "effort": settings.AI_EFFORT,
-                    "format": {"type": "json_schema", "schema": RAW_RESULT_SCHEMA},
+                    "format": {"type": "json_schema", "schema": schema},
                 },
                 **extra,
             )
+        except TypeError as e:  # the SDK found no API key or login
+            if "authentication" not in str(e):
+                raise
+            raise AIReadError("The reader is not set up yet.", retryable=False) from e
         except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
             raise AIReadError("Reading took too long. Please try again.", retryable=True) from e
         except anthropic.RateLimitError as e:
@@ -106,7 +85,6 @@ class AnthropicVisionReader:
                 raise AIReadError(
                     "The reader had a problem. Please try again.", retryable=True
                 ) from e
-            # 400/401/403/404: our request or configuration is wrong; retrying won't help.
             raise AIReadError("The reader is not set up correctly.", retryable=False) from e
 
         usage = _usage(response)
@@ -118,15 +96,37 @@ class AnthropicVisionReader:
                 retryable=False,
                 usage=usage,
             )
-
         text = next((b.text for b in response.content if b.type == "text"), None)
-        try:
-            data = json.loads(text or "", parse_float=Decimal)
-            lines = parse_result(data, refs)
-        except (json.JSONDecodeError, ValidationError) as e:
-            raise AIReadError(
-                "The reader gave an unexpected answer. Please try again.",
-                retryable=True,
-                usage=usage,
-            ) from e
-        return ReadResult(lines=lines, usage=usage, raw=json.loads(text or "{}"))
+        return text, usage
+
+    def read_photo(self, image: bytes, media_type: ImageType) -> tuple[list[ReadLine], AIUsageInfo]:
+        text, usage = self._create(
+            [{"type": "text", "text": prompt(READ_PROMPT)}],
+            [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": base64.standard_b64encode(image).decode("ascii"),
+                    },
+                },
+                {"type": "text", "text": READ_REQUEST},
+            ],
+            READ_SCHEMA,
+        )
+        return parse_read(text, usage), usage
+
+    def match_items(
+        self, items: list[MatchItem], catalog_text: str
+    ) -> tuple[list[MatchAnswer], AIUsageInfo]:
+        text, usage = self._create(
+            [
+                {"type": "text", "text": prompt(MATCH_PROMPT)},
+                # The store's product list changes rarely: cache it across scans.
+                {"type": "text", "text": catalog_text, "cache_control": {"type": "ephemeral"}},
+            ],
+            [{"type": "text", "text": match_request(items)}],
+            MATCH_SCHEMA,
+        )
+        return parse_match(text, usage), usage
