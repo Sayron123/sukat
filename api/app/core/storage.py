@@ -152,7 +152,9 @@ def get_storage() -> Storage:
         return R2Storage(
             settings.R2_ACCOUNT_ID,
             settings.R2_ACCESS_KEY_ID,
-            settings.R2_SECRET_ACCESS_KEY,
+            settings.R2_SECRET_ACCESS_KEY.get_secret_value(),
             settings.R2_BUCKET,
         )
-    return LocalStorage(settings.LOCAL_UPLOAD_DIR, settings.PUBLIC_API_URL, settings.JWT_SECRET)
+    return LocalStorage(
+        settings.LOCAL_UPLOAD_DIR, settings.PUBLIC_API_URL, settings.JWT_SECRET.get_secret_value()
+    )

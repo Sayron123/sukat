@@ -240,3 +240,21 @@ export type ScanToReview = {
   created_at: string;
   created_by_name: string | null;
 };
+
+// ---------- Phase 6 AI chat (api/app/insights/chat_schemas.py) ----------
+
+export type ChatRole = "user" | "assistant";
+
+/** A small table or bar chart built from a tool's result (never from the AI's text). */
+export type ChatData = {
+  kind: "table" | "bar";
+  title: string;
+  tool: string;
+  basis: "sales" | "stock" | null; // what `range` covers, for "Based on sales from ..."
+  range: DateRange | null;
+  columns: string[];
+  rows: string[][];
+  bars: { label: string; value: string; display: string }[];
+};
+
+export type ChatOut = { answer: string; data: ChatData | null; tools_used: string[] };

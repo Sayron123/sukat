@@ -11,6 +11,7 @@ import httpx2
 import pytest
 from google.genai import errors as genai_errors
 from google.genai import types
+from pydantic import SecretStr
 
 from app.ai import gemini_reader
 from app.ai.anthropic_reader import AnthropicScanAI
@@ -174,7 +175,7 @@ def test_gemini_api_errors(error, retryable):
 
 
 def test_gemini_without_a_key_says_not_set_up(monkeypatch):
-    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", SecretStr(""))
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     with pytest.raises(AIReadError) as e:
@@ -190,7 +191,7 @@ def test_gemini_client_gets_timeout_and_retries(monkeypatch):
             seen.update(kwargs)
 
     monkeypatch.setattr(gemini_reader.genai, "Client", Client)
-    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", SecretStr("test-key"))
     _ = GeminiScanAI().client
     assert seen["api_key"] == "test-key"
     assert seen["http_options"].timeout == int(settings.AI_TIMEOUT_SECONDS * 1000)  # ms
@@ -281,7 +282,7 @@ def test_ai_provider_setting_picks_the_implementation(monkeypatch, provider, cls
     from app.ai.scan_pipeline import MultiStepReader
 
     monkeypatch.setattr(settings, "AI_PROVIDER", provider)
-    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", SecretStr("test"))
     module.get_scan_ai.cache_clear()
     module.get_vision_reader.cache_clear()
     try:
@@ -302,3 +303,23 @@ def test_cost_uses_the_providers_prices():
     claude = AIUsageInfo(model="c", input_tokens=1_000_000, output_tokens=100_000)
     # (4.00 + 2.00) USD * 58 * 100 = 34800 centavos
     assert cost_centavos(claude) == Decimal("34800.0000")
+
+
+def test_chat_stays_on_claude_when_scans_use_gemini(monkeypatch):
+    from app.ai import provider as module
+    from app.ai.anthropic_chat import AnthropicChatModel
+
+    monkeypatch.setattr(settings, "AI_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", SecretStr("test"))
+    module.get_chat_model.cache_clear()
+    try:
+        assert isinstance(module.get_chat_model(), AnthropicChatModel)
+    finally:
+        module.get_chat_model.cache_clear()
+
+
+def test_gemini_key_is_hidden_in_repr():
+    from app.core.config import Settings
+
+    s = Settings(_env_file=None, APP_ENV="development", GEMINI_API_KEY="AIza-zz9leak")
+    assert "zz9leak" not in repr(s) and s.GEMINI_API_KEY.get_secret_value() == "AIza-zz9leak"

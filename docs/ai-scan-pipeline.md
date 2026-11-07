@@ -100,8 +100,8 @@ All with a mocked AI (no key, no cost):
 
 | Setting | Default | What |
 |---|---|---|
-| `AI_PROVIDER` | `anthropic` | `anthropic` or `gemini` |
-| `GEMINI_API_KEY` | (empty) | Google AI Studio key |
+| `AI_PROVIDER` | `anthropic` | `anthropic` or `gemini`, for scans (the AI chat always uses Claude) |
+| `GEMINI_API_KEY` | (empty) | Google AI Studio key (hidden in logs, like the other keys) |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model for both AI steps |
 | `GEMINI_PRICE_*_PER_MTOK_USD` | 0.30 / 2.50 / 0.03 | for the cost log; check Google's current prices |
 | `SCAN_FUZZY_THRESHOLD` | `90` | lowest fuzzy score that counts as a match (0-100) |

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_JWT_SECRET = "dev-only-insecure-secret-change-me"
@@ -10,7 +10,11 @@ DEV_JWT_SECRET = "dev-only-insecure-secret-change-me"
 class Settings(BaseSettings):
     """App settings. Values come from environment variables or the api/.env file."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # hide_input_in_errors: a settings error at startup must not print the values (they
+    # include secrets) into the server log.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", hide_input_in_errors=True
+    )
 
     # Defaults to "production" so a server with no APP_ENV is safe. Only the exact value
     # "development" allows the public dev JWT_SECRET (a typo like "prod" still gets checked).
@@ -25,7 +29,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000"
 
     # Secret used to sign JWT access tokens. Use a long random value outside development.
-    JWT_SECRET: str = DEV_JWT_SECRET
+    # Secrets are SecretStr: they print as "**********". Read with .get_secret_value().
+    JWT_SECRET: SecretStr = SecretStr(DEV_JWT_SECRET)
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     INVITE_EXPIRE_HOURS: int = 72
@@ -43,14 +48,14 @@ class Settings(BaseSettings):
     PUBLIC_API_URL: str = "http://localhost:8000"
     R2_ACCOUNT_ID: str = ""
     R2_ACCESS_KEY_ID: str = ""
-    R2_SECRET_ACCESS_KEY: str = ""
+    R2_SECRET_ACCESS_KEY: SecretStr = SecretStr("")
     R2_BUCKET: str = ""
     UPLOAD_MAX_BYTES: int = 5 * 1024 * 1024
     UPLOAD_URL_EXPIRE_SECONDS: int = 300
 
     # ----- AI (reading list photos) -----
     # Leave empty to use the SDK's normal credential lookup (ANTHROPIC_API_KEY env, etc.).
-    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_API_KEY: SecretStr = SecretStr("")
     # Which VisionReader implementation to use (see app/ai/provider.py).
     # "anthropic" (Claude) or "gemini" (Google). Used for reading scans.
     AI_PROVIDER: Literal["anthropic", "gemini"] = "anthropic"
@@ -68,6 +73,15 @@ class Settings(BaseSettings):
     AI_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.20")
     USD_TO_PHP: Decimal = Decimal("58.00")
 
+    # ----- AI chat (Phase 6) -----
+    # Same model as the reader (AI_MODEL). Chat answers are short lookups: low effort.
+    AI_CHAT_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "low"
+    AI_CHAT_MAX_TOKENS: int = 8000  # per model call, reasoning included
+    AI_CHAT_TIMEOUT_SECONDS: float = 45.0  # for the whole question, all calls together
+    CHAT_MAX_TOOL_CALLS: int = 5  # per question
+    CHAT_QUESTIONS_PER_HOUR: int = 30  # per store
+    CHAT_HISTORY_MESSAGES: int = 10  # only the last N messages are sent to the model
+
     # ----- Multi-step scan -----
     # Step 2 "match": a fuzzy match (rapidfuzz, 0-100) must score at least this, and
     # clearly beat any other product, or the line goes to the AI.
@@ -78,7 +92,7 @@ class Settings(BaseSettings):
 
     # ----- Gemini (when AI_PROVIDER=gemini) -----
     # Leave the key empty to use the SDK's normal lookup (GEMINI_API_KEY / GOOGLE_API_KEY env).
-    GEMINI_API_KEY: str = ""
+    GEMINI_API_KEY: SecretStr = SecretStr("")
     # Thinking is turned off (2.x models) or set to the lowest level (3.x and later).
     GEMINI_MODEL: str = "gemini-2.5-flash"
     # USD per million tokens for GEMINI_MODEL (thinking tokens bill as output). Check the
@@ -94,14 +108,20 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":
         if self.APP_ENV != "development" and (
-            self.JWT_SECRET == DEV_JWT_SECRET or len(self.JWT_SECRET) < 32
+            self.JWT_SECRET.get_secret_value() == DEV_JWT_SECRET
+            or len(self.JWT_SECRET.get_secret_value()) < 32
         ):
             raise ValueError(
                 "Set JWT_SECRET to a random value of at least 32 characters "
                 "(or APP_ENV=development on your own PC)."
             )
         if self.STORAGE_BACKEND == "r2" and not all(
-            (self.R2_ACCOUNT_ID, self.R2_ACCESS_KEY_ID, self.R2_SECRET_ACCESS_KEY, self.R2_BUCKET)
+            (
+                self.R2_ACCOUNT_ID,
+                self.R2_ACCESS_KEY_ID,
+                self.R2_SECRET_ACCESS_KEY.get_secret_value(),
+                self.R2_BUCKET,
+            )
         ):
             raise ValueError("STORAGE_BACKEND=r2 needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, ...")
         return self

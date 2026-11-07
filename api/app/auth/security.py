@@ -44,7 +44,9 @@ def create_access_token(user_id: UUID, store_id: UUID) -> tuple[str, int]:
         "iat": now,
         "exp": now + timedelta(seconds=expires_in),
     }
-    token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    token = jwt.encode(
+        payload, settings.JWT_SECRET.get_secret_value(), algorithm=settings.JWT_ALGORITHM
+    )
     return token, expires_in
 
 
@@ -53,7 +55,7 @@ def decode_access_token(token: str) -> TokenData | None:
     try:
         payload = jwt.decode(
             token,
-            settings.JWT_SECRET,
+            settings.JWT_SECRET.get_secret_value(),
             algorithms=[settings.JWT_ALGORITHM],
             options={"require": ["sub", "store_id", "exp", "iat"]},
         )

@@ -79,7 +79,7 @@ class GeminiScanAI:
         if self._client is None:
             try:
                 self._client = genai.Client(
-                    api_key=settings.GEMINI_API_KEY or None,
+                    api_key=settings.GEMINI_API_KEY.get_secret_value() or None,
                     http_options=types.HttpOptions(
                         timeout=int(settings.AI_TIMEOUT_SECONDS * 1000),  # milliseconds
                         retry_options=types.HttpRetryOptions(attempts=settings.AI_MAX_RETRIES + 1),
