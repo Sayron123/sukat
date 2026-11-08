@@ -60,7 +60,7 @@ All paths start with `/v1`, except `GET /health`. The live list with request/res
 1. **A new endpoint in an existing feature:** add the rule to `service.py` (with a docstring), add the endpoint to `router.py`, add shapes to `schemas.py`, add tests.
 2. **A new feature** (e.g. `sales/`): create the four files above, then mount the router in `main.py`.
 3. **A table change:** edit `models.py`, run `uv run alembic revision --autogenerate -m "..."`, read the generated file, then run `uv run alembic upgrade head` and `uv run alembic check`.
-4. **A new AI provider:** implement `VisionReader` (`app/ai/base.py`) in its own module, and select it in `app/ai/provider.py`.
+4. **A new AI provider:** implement `ScanAI` (`app/ai/base.py`: `read_photo`, `match_items`) in its own module, and add a branch for its `AI_PROVIDER` name in `app/ai/provider.py`. The scan pipeline (`app/ai/scan_pipeline.py`) uses it unchanged. See `docs/ai-scan-pipeline.md`.
 
 ## Checks before pushing
 
