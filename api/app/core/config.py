@@ -5,6 +5,8 @@ from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_JWT_SECRET = "dev-only-insecure-secret-change-me"
+# The example database user:password from .env.example and docker-compose (dev only).
+DEFAULT_DB_CREDENTIALS = "//sukat:sukat@"
 
 
 class Settings(BaseSettings):
@@ -19,6 +21,8 @@ class Settings(BaseSettings):
     # Defaults to "production" so a server with no APP_ENV is safe. Only the exact value
     # "development" allows the public dev JWT_SECRET (a typo like "prod" still gets checked).
     APP_ENV: str = "production"
+    # FastAPI debug mode (detailed error pages). Refused in production.
+    DEBUG: bool = False
 
     DATABASE_URL: str = "postgresql+psycopg://sukat:sukat@localhost:5432/sukat"
     # Stores' local time zone. Reports take dates in this zone ("today" = a Manila day)
@@ -105,9 +109,14 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
+    @property
+    def is_production(self) -> bool:
+        """Anything but exactly "development" counts as production (fails closed)."""
+        return self.APP_ENV != "development"
+
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":
-        if self.APP_ENV != "development" and (
+        if self.is_production and (
             self.JWT_SECRET.get_secret_value() == DEV_JWT_SECRET
             or len(self.JWT_SECRET.get_secret_value()) < 32
         ):
@@ -115,6 +124,17 @@ class Settings(BaseSettings):
                 "Set JWT_SECRET to a random value of at least 32 characters "
                 "(or APP_ENV=development on your own PC)."
             )
+        if self.is_production:
+            if self.DEBUG:
+                raise ValueError("DEBUG must be off in production.")
+            if DEFAULT_DB_CREDENTIALS in self.DATABASE_URL:
+                raise ValueError("Set DATABASE_URL with your own database password.")
+            origins = self.cors_origins_list
+            if not origins or any(not o.startswith("https://") for o in origins):
+                raise ValueError(
+                    "Set CORS_ORIGINS to your web app's https:// address(es), comma-separated "
+                    "(no * and no http://)."
+                )
         if self.STORAGE_BACKEND == "r2" and not all(
             (
                 self.R2_ACCOUNT_ID,

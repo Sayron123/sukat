@@ -167,6 +167,13 @@ def test_me_requires_valid_token(api, signup):
     assert api.get("/auth/me", headers=auth_header(expired)).status_code == 401
 
 
+# A production config that passes every check except the one a test is about.
+PROD_OK = {
+    "DATABASE_URL": "postgresql+psycopg://sukat_app:a-real-password@db:5432/sukat",
+    "CORS_ORIGINS": "https://sukat.example.com",
+}
+
+
 def test_production_refuses_default_jwt_secret():
     from pydantic import ValidationError
 
@@ -174,7 +181,7 @@ def test_production_refuses_default_jwt_secret():
 
     with pytest.raises(ValidationError):
         Settings(APP_ENV="production", _env_file=None)
-    Settings(APP_ENV="production", JWT_SECRET="x" * 40, _env_file=None)  # ok
+    Settings(APP_ENV="production", JWT_SECRET="x" * 40, _env_file=None, **PROD_OK)  # ok
 
 
 def test_missing_or_mistyped_app_env_refuses_public_jwt_secret(monkeypatch):
@@ -193,8 +200,8 @@ def test_missing_or_mistyped_app_env_refuses_public_jwt_secret(monkeypatch):
             Settings(_env_file=None)
     monkeypatch.setenv("APP_ENV", "prod")
     with pytest.raises(ValidationError):
-        Settings(JWT_SECRET="too-short", _env_file=None)
-    Settings(JWT_SECRET="x" * 40, _env_file=None)  # ok: private secret
+        Settings(JWT_SECRET="too-short", _env_file=None, **PROD_OK)
+    Settings(JWT_SECRET="x" * 40, _env_file=None, **PROD_OK)  # ok: private secret
     monkeypatch.setenv("APP_ENV", "development")
     Settings(_env_file=None)  # ok on a developer's PC
 
@@ -219,6 +226,6 @@ def test_settings_errors_and_repr_never_show_secrets(monkeypatch):
     assert "zz9leak" not in str(e.value) and "sk-ant" not in str(e.value)
 
     monkeypatch.setenv("JWT_SECRET", "x" * 32 + "zz9leak")
-    ok = Settings(_env_file=None)
+    ok = Settings(_env_file=None, **PROD_OK)
     assert "zz9leak" not in repr(ok) and "sk-ant" not in repr(ok)
     assert ok.ANTHROPIC_API_KEY.get_secret_value() == secrets["ANTHROPIC_API_KEY"]

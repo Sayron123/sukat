@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.auth.router import router as auth_router
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.errors import AppError
 from app.core.health import router as health_router
 from app.insights.chat_router import router as chat_router
@@ -18,33 +18,49 @@ from app.stores.router import router as stores_router
 # phones still on the old app. /health stays at the root (hosts and monitors expect it).
 API_PREFIX = "/v1"
 
-app = FastAPI(title="Sukat API", version="0.1.0")
+
+def create_app(config: Settings = settings) -> FastAPI:
+    """Build the API. In production the interactive docs (/docs, /redoc) and the
+    OpenAPI schema are off: they list every endpoint for anyone who looks."""
+    docs = not config.is_production
+    application = FastAPI(
+        title="Sukat API",
+        version="0.1.0",
+        debug=config.DEBUG,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+    )
+
+    @application.exception_handler(AppError)
+    def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+        """Render business-rule errors the same way FastAPI renders HTTPException."""
+        return JSONResponse(exc.body(), status_code=exc.status_code, headers=exc.headers)
+
+    # Only the configured web origins may call the API from a browser (in production:
+    # https:// origins only; checked in settings).
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+    v1 = APIRouter(prefix=API_PREFIX)
+    for feature_router in (
+        auth_router,
+        stores_router,
+        products_router,
+        inventory_router,
+        insights_router,
+        chat_router,
+    ):
+        v1.include_router(feature_router)
+
+    application.include_router(health_router)
+    application.include_router(v1)
+    return application
 
 
-@app.exception_handler(AppError)
-def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
-    """Render business-rule errors the same way FastAPI renders HTTPException."""
-    return JSONResponse(exc.body(), status_code=exc.status_code, headers=exc.headers)
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-v1 = APIRouter(prefix=API_PREFIX)
-for feature_router in (
-    auth_router,
-    stores_router,
-    products_router,
-    inventory_router,
-    insights_router,
-    chat_router,
-):
-    v1.include_router(feature_router)
-
-app.include_router(health_router)
-app.include_router(v1)
+app = create_app()
