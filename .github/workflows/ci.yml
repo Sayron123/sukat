@@ -80,3 +80,11 @@ jobs:
         run: npm run build
       - name: Types
         run: npx tsc --noEmit
+
+  docker:
+    name: API image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the API image
+        run: docker build -t sukat-api ./api
