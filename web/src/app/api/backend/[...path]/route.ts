@@ -37,6 +37,7 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
 
+  const requestId = crypto.randomUUID().replaceAll("-", "");
   let res: Response;
   try {
     res = await fetch(`${API_URL}${API_PREFIX}/${joined}${req.nextUrl.search}`, {
@@ -45,6 +46,8 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        // One ID per request, shared with the API's log lines (and Sentry).
+        "X-Request-ID": requestId,
       },
       body: req.method === "GET" ? undefined : await req.text(),
     });
@@ -55,7 +58,10 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
   const body = await res.text();
   return new NextResponse(body, {
     status: res.status,
-    headers: { "Content-Type": res.headers.get("Content-Type") ?? "application/json" },
+    headers: {
+      "Content-Type": res.headers.get("Content-Type") ?? "application/json",
+      "X-Request-ID": res.headers.get("X-Request-ID") ?? requestId,
+    },
   });
 }
 

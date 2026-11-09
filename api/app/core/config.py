@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     APP_ENV: str = "production"
     # FastAPI debug mode (detailed error pages). Refused in production.
     DEBUG: bool = False
+    LOG_LEVEL: str = "INFO"
+    # Error reporting (Sentry). Empty = off. No personal data or tokens are sent
+    # (see app/core/observability.py). RELEASE: e.g. the git commit, to tell versions apart.
+    SENTRY_DSN: str = ""
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0  # performance tracing; 0 = errors only
+    RELEASE: str = ""
 
     DATABASE_URL: str = "postgresql+psycopg://sukat:sukat@localhost:5432/sukat"
     # Stores' local time zone. Reports take dates in this zone ("today" = a Manila day)

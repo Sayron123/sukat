@@ -8,6 +8,7 @@ from app.auth.router import router as auth_router
 from app.core.config import Settings, settings
 from app.core.errors import AppError
 from app.core.health import router as health_router
+from app.core.observability import RequestIdMiddleware, init_sentry, setup_logging
 from app.insights.chat_router import router as chat_router
 from app.insights.router import router as insights_router
 from app.inventory.router import router as inventory_router
@@ -22,6 +23,8 @@ API_PREFIX = "/v1"
 def create_app(config: Settings = settings) -> FastAPI:
     """Build the API. In production the interactive docs (/docs, /redoc) and the
     OpenAPI schema are off: they list every endpoint for anyone who looks."""
+    setup_logging(config.LOG_LEVEL)
+    init_sentry(config)
     docs = not config.is_production
     application = FastAPI(
         title="Sukat API",
@@ -60,6 +63,8 @@ def create_app(config: Settings = settings) -> FastAPI:
 
     application.include_router(health_router)
     application.include_router(v1)
+    # Outermost: every response (errors and CORS replies too) gets the request ID.
+    application.add_middleware(RequestIdMiddleware)
     return application
 
 
