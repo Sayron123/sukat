@@ -31,6 +31,7 @@ export default function SignupPage() {
         },
       ]}
       footer={{ text: "Already have an account? Sign in", href: "/login" }}
+      agreement
     />
   );
 }

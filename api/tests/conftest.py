@@ -130,6 +130,7 @@ def signup(api: TestClient) -> Callable[..., dict[str, Any]]:
                 "full_name": full_name,
                 "email": email,
                 "password": password,
+                "accept_terms": True,
             },
         )
         assert res.status_code == 201, res.text

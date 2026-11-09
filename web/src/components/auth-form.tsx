@@ -27,6 +27,7 @@ export function AuthForm({
   fields,
   submitLabel,
   footer,
+  agreement = false,
 }: {
   title: string;
   subtitle: string;
@@ -34,6 +35,8 @@ export function AuthForm({
   fields: FieldDef[];
   submitLabel: string;
   footer: { text: string; href: string };
+  /** Show a required "I agree to the Terms and Privacy Policy" checkbox (signup). */
+  agreement?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,7 +53,9 @@ export function AuthForm({
     e.preventDefault();
     setError(null);
     setPending(true);
-    const body = Object.fromEntries(new FormData(e.currentTarget));
+    const form = new FormData(e.currentTarget);
+    const body: Record<string, unknown> = Object.fromEntries(form);
+    if (agreement) body.accept_terms = form.get("accept_terms") === "on";
     try {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -97,6 +102,28 @@ export function AuthForm({
             required={!f.optional}
           />
         ))}
+        {agreement && (
+          <label htmlFor="accept_terms" className="flex items-start gap-3 text-sm text-text">
+            <input
+              id="accept_terms"
+              name="accept_terms"
+              type="checkbox"
+              required
+              className="mt-0.5 h-5 w-5 shrink-0 accent-text"
+            />
+            <span>
+              I agree to the{" "}
+              <Link href="/terms" target="_blank" className="underline">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" target="_blank" className="underline">
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+        )}
         {error && (
           <p role="alert" className="text-sm text-red">
             {error}

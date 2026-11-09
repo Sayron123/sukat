@@ -1,5 +1,7 @@
 """Accounts: signup and login. No HTTP here; raises AppError subclasses."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -13,7 +15,7 @@ from app.auth.rate_limit import (
     record_failure,
     signup_key,
 )
-from app.auth.schemas import SignupIn, TokenOut
+from app.auth.schemas import TERMS_VERSION, SignupIn, TokenOut
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.core.config import settings
 from app.core.errors import Conflict, Forbidden, Unauthorized
@@ -46,7 +48,11 @@ def signup(db: Session, data: SignupIn, ip: str | None = None) -> TokenOut:
 
     store = Store(name=data.store_name, address=data.store_address)
     user = User(
-        email=data.email, full_name=data.full_name, password_hash=hash_password(data.password)
+        email=data.email,
+        full_name=data.full_name,
+        password_hash=hash_password(data.password),
+        terms_accepted_at=datetime.now(UTC),
+        terms_version=TERMS_VERSION,
     )
     db.add_all([store, user])
     db.flush()  # assigns ids, still inside the same transaction

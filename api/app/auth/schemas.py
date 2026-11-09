@@ -2,6 +2,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+# Version of the Terms and Privacy Policy (web/src/app/terms, web/src/app/privacy) that a
+# new account agrees to. Change it together with the pages' "Last updated" date.
+TERMS_VERSION = "2026-11-09"
+
 
 def _normalize_email(v: str) -> str:
     return v.strip().lower()
@@ -13,8 +17,17 @@ class SignupIn(BaseModel):
     full_name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
+    # Must be true: the person agreed to the Terms and Privacy Policy on the signup form.
+    accept_terms: bool = Field(default=False, validate_default=True)
 
     _norm = field_validator("email")(_normalize_email)
+
+    @field_validator("accept_terms")
+    @classmethod
+    def _must_accept(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("Please agree to the Terms and Privacy Policy")
+        return v
 
     @field_validator("store_name", "full_name")
     @classmethod

@@ -115,6 +115,7 @@ def _signup_req(api, i: int):
             "full_name": "Owner",
             "email": f"owner{i}@example.com",
             "password": "correct-horse-1",
+            "accept_terms": True,
         },
     )
 
@@ -133,7 +134,12 @@ def test_failed_signups_count_too(api, signup, monkeypatch):
     """Probing for taken emails uses up the limit as well."""
     monkeypatch.setattr(settings, "SIGNUP_MAX_PER_IP", 2)
     signup(email="taken@example.com")
-    again = {"store_name": "S", "full_name": "O", "email": "taken@example.com"}
+    again = {
+        "store_name": "S",
+        "full_name": "O",
+        "email": "taken@example.com",
+        "accept_terms": True,
+    }
     assert api.post("/auth/signup", json={**again, "password": "x-pass-123"}).status_code == 409
     assert _signup_req(api, 9).status_code == 429
 

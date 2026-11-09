@@ -39,6 +39,7 @@ def test_signup_saves_store_address(api, db):
             "full_name": "Owner",
             "email": "owner@example.com",
             "password": "correct-horse-1",
+            "accept_terms": True,
         },
     )
 
@@ -57,6 +58,7 @@ def test_signup_without_store_address_saves_none(api, db, extra):
             "full_name": "Owner",
             "email": "owner@example.com",
             "password": "correct-horse-1",
+            "accept_terms": True,
             **extra,
         },
     )
@@ -77,6 +79,7 @@ def test_signup_limits_store_address_to_300_characters(api, db, length, status_c
             "full_name": "Owner",
             "email": "owner@example.com",
             "password": "correct-horse-1",
+            "accept_terms": True,
         },
     )
 
@@ -92,6 +95,7 @@ def test_signup_duplicate_email_is_409_and_creates_nothing(api, db, signup):
             "full_name": "X",
             "email": "A@example.com",
             "password": "another-pass-1",
+            "accept_terms": True,
         },
     )
     assert res.status_code == 409
@@ -114,6 +118,7 @@ def test_signup_is_one_transaction(api, db, monkeypatch):
                 "full_name": "F",
                 "email": "t@example.com",
                 "password": "x" * 8,
+                "accept_terms": True,
             },
         )
     for model in (Store, User, StoreMember):
@@ -229,3 +234,30 @@ def test_settings_errors_and_repr_never_show_secrets(monkeypatch):
     ok = Settings(_env_file=None, **PROD_OK)
     assert "zz9leak" not in repr(ok) and "sk-ant" not in repr(ok)
     assert ok.ANTHROPIC_API_KEY.get_secret_value() == secrets["ANTHROPIC_API_KEY"]
+
+
+SIGNUP_BODY = {
+    "store_name": "Bayan Hardware",
+    "full_name": "Owner",
+    "email": "owner@example.com",
+    "password": "correct-horse-1",
+}
+
+
+@pytest.mark.parametrize("terms", [{}, {"accept_terms": False}])
+def test_signup_requires_agreeing_to_terms(api, db, terms):
+    res = api.post("/auth/signup", json={**SIGNUP_BODY, **terms})
+    assert res.status_code == 422
+    assert "Terms and Privacy Policy" in res.text
+    assert db.scalar(select(func.count()).select_from(User)) == 0
+
+
+def test_signup_records_when_and_which_terms(api, db):
+    from app.auth.schemas import TERMS_VERSION
+
+    before = datetime.now(UTC)
+    assert api.post("/auth/signup", json={**SIGNUP_BODY, "accept_terms": True}).status_code == 201
+    user = db.scalar(select(User))
+    assert user is not None
+    assert user.terms_version == TERMS_VERSION
+    assert user.terms_accepted_at is not None and user.terms_accepted_at >= before
