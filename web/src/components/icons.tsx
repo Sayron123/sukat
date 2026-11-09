@@ -59,6 +59,12 @@ const PATHS = {
       <path d="M12 8v5l3 2" />
     </>
   ),
+  download: (
+    <>
+      <path d="M12 4v11M7 10l5 5 5-5" />
+      <path d="M5 20h14" />
+    </>
+  ),
   edit: (
     <>
       <path d="m4 17-.5 3.5L7 20l11-11-3-3L4 17Z" />

@@ -10,7 +10,15 @@ import { API_PREFIX, API_URL, getToken } from "@/lib/server/backend";
  * client components call /api/backend/<path> and this handler adds the token.
  * Only the API areas the web app uses are allowed through.
  */
-const ALLOWED_PREFIXES = ["products", "auth/me", "scans", "transactions", "reports", "insights"];
+const ALLOWED_PREFIXES = [
+  "products",
+  "auth/me",
+  "scans",
+  "transactions",
+  "reports",
+  "insights",
+  "exports",
+];
 
 /**
  * Only plain segments like "products" or a UUID. Next.js decodes %2F and %2E inside a
@@ -55,14 +63,18 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
     return NextResponse.json({ detail: "API not reachable" }, { status: 502 });
   }
 
-  const body = await res.text();
-  return new NextResponse(body, {
-    status: res.status,
-    headers: {
-      "Content-Type": res.headers.get("Content-Type") ?? "application/json",
-      "X-Request-ID": res.headers.get("X-Request-ID") ?? requestId,
-    },
-  });
+  // Bytes, not text: a CSV export starts with a BOM that text decoding would drop.
+  const body = await res.arrayBuffer();
+  const headers: Record<string, string> = {
+    "Content-Type": res.headers.get("Content-Type") ?? "application/json",
+    "X-Request-ID": res.headers.get("X-Request-ID") ?? requestId,
+  };
+  // Downloads (CSV exports) keep their file name and are never cached.
+  for (const name of ["Content-Disposition", "Cache-Control", "Retry-After"]) {
+    const value = res.headers.get(name);
+    if (value) headers[name] = value;
+  }
+  return new NextResponse(body, { status: res.status, headers });
 }
 
 export const GET = proxy;

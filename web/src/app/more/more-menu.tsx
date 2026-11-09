@@ -12,13 +12,21 @@ import { canEditProducts, type Me } from "@/lib/types";
 
 import { ApiStatus } from "../api-status";
 
-type Item = { href: string; icon: IconName; title: string; detail: string; writersOnly?: boolean };
+type Item = {
+  href: string;
+  icon: IconName;
+  title: string;
+  detail: string;
+  writersOnly?: boolean;
+  managersOnly?: boolean;
+};
 
 const ITEMS: Item[] = [
   { href: "/transactions", icon: "history", title: "History", detail: "Sales and stock movements" },
   { href: "/staff", icon: "users", title: "Staff", detail: "People and permissions" },
   { href: "/stock/new", icon: "plus", title: "Add product", detail: "Create a stock item", writersOnly: true },
   { href: "/stock/import", icon: "box", title: "Import starter items", detail: "Pick from a ready-made list", writersOnly: true },
+  { href: "/more/export", icon: "download", title: "Download store data", detail: "Products, history and stock as CSV", managersOnly: true },
 ];
 
 /** More tab: who is signed in, links to the other screens, and Sign out. */
@@ -28,7 +36,9 @@ export function MoreMenu() {
     api<Me>("auth/me").then(setMe, () => {});
   }, []);
 
-  const items = ITEMS.filter((i) => !i.writersOnly || canEditProducts(me?.role));
+  const items = ITEMS.filter(
+    (i) => (!i.writersOnly || canEditProducts(me?.role)) && (!i.managersOnly || me?.role === "manager"),
+  );
 
   return (
     <>

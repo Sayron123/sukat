@@ -10,6 +10,7 @@ from app.core.config import Settings, settings
 from app.core.errors import AppError
 from app.core.health import router as health_router
 from app.core.observability import RequestIdMiddleware, init_sentry, setup_logging
+from app.exports.router import router as exports_router
 from app.insights.chat_router import router as chat_router
 from app.insights.router import router as insights_router
 from app.inventory.router import router as inventory_router
@@ -65,6 +66,7 @@ def create_app(config: Settings = settings) -> FastAPI:
         inventory_router,
         insights_router,
         chat_router,
+        exports_router,
     ):
         v1.include_router(feature_router)
 
