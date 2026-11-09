@@ -105,3 +105,42 @@ def test_bad_invite_tokens_are_limited_by_ip(api):
         assert r.status_code == 400
     r = api.post("/staff/invites/accept", json={"token": "nope", "password": "whatever-1"})
     assert r.status_code == 429
+
+
+def _signup_req(api, i: int):
+    return api.post(
+        "/auth/signup",
+        json={
+            "store_name": f"Store {i}",
+            "full_name": "Owner",
+            "email": f"owner{i}@example.com",
+            "password": "correct-horse-1",
+        },
+    )
+
+
+def test_signups_are_limited_per_ip(api, monkeypatch):
+    monkeypatch.setattr(settings, "SIGNUP_MAX_PER_IP", 2)
+    assert _signup_req(api, 1).status_code == 201
+    assert _signup_req(api, 2).status_code == 201
+    blocked = _signup_req(api, 3)
+    assert blocked.status_code == 429
+    assert "sign-ups" in blocked.json()["detail"]
+    assert int(blocked.headers["Retry-After"]) > 0
+
+
+def test_failed_signups_count_too(api, signup, monkeypatch):
+    """Probing for taken emails uses up the limit as well."""
+    monkeypatch.setattr(settings, "SIGNUP_MAX_PER_IP", 2)
+    signup(email="taken@example.com")
+    again = {"store_name": "S", "full_name": "O", "email": "taken@example.com"}
+    assert api.post("/auth/signup", json={**again, "password": "x-pass-123"}).status_code == 409
+    assert _signup_req(api, 9).status_code == 429
+
+
+def test_signup_limit_does_not_block_login(api, signup, monkeypatch):
+    monkeypatch.setattr(settings, "SIGNUP_MAX_PER_IP", 1)
+    out = signup()
+    assert _signup_req(api, 2).status_code == 429
+    ok = api.post("/auth/login", json={"email": out["email"], "password": out["password"]})
+    assert ok.status_code == 200

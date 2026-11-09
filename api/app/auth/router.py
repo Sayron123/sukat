@@ -12,9 +12,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/signup", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
-def signup(body: SignupIn, db: DbSession) -> TokenOut:
-    """Create a store, its first user (manager), and return a token."""
-    return service.signup(db, body)
+def signup(body: SignupIn, request: Request, db: DbSession) -> TokenOut:
+    """Create a store, its first user (manager), and return a token. Rate-limited per
+    IP (429)."""
+    return service.signup(db, body, client_ip(request))
 
 
 @router.post("/login", response_model=TokenOut)

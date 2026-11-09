@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { SESSION_COOKIE, backendFetch, errorMessage } from "./backend";
+import { SESSION_COOKIE, SESSION_COOKIE_OPTIONS, backendFetch, errorMessage } from "./backend";
 
 /**
  * CSRF check: reject POSTs sent by other websites.
@@ -75,11 +75,8 @@ export async function forwardAuth(req: NextRequest, apiPath: string): Promise<Ne
   const { access_token, expires_in } = data as { access_token: string; expires_in: number };
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, access_token, {
-    httpOnly: true, // not readable by JavaScript (protects against XSS token theft)
-    secure: process.env.NODE_ENV === "production", // HTTPS only in production
-    sameSite: "lax", // not sent on cross-site POSTs (CSRF protection)
-    path: "/",
-    maxAge: expires_in,
+    ...SESSION_COOKIE_OPTIONS,
+    maxAge: expires_in, // ends with the token
   });
   return response;
 }

@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     AUTH_FAILURE_WINDOW_MINUTES: int = 15
     AUTH_MAX_FAILURES_PER_EMAIL: int = 10
     AUTH_MAX_FAILURES_PER_IP: int = 30
+    # Signups per IP in the same window (every attempt counts, successful or not).
+    SIGNUP_MAX_PER_IP: int = 5
 
     # ----- Photo storage -----
     # "local" saves uploads under LOCAL_UPLOAD_DIR (development); "r2" uses Cloudflare R2.
@@ -61,6 +63,8 @@ class Settings(BaseSettings):
     R2_SECRET_ACCESS_KEY: SecretStr = SecretStr("")
     R2_BUCKET: str = ""
     UPLOAD_MAX_BYTES: int = 5 * 1024 * 1024
+    # Largest JSON request body (forms, chat, imports). Photo uploads use UPLOAD_MAX_BYTES.
+    MAX_REQUEST_BYTES: int = 1024 * 1024
     UPLOAD_URL_EXPIRE_SECONDS: int = 300
 
     # ----- AI (reading list photos) -----

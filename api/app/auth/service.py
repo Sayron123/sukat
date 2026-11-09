@@ -11,13 +11,16 @@ from app.auth.rate_limit import (
     ensure_not_limited,
     limits_for,
     record_failure,
+    signup_key,
 )
 from app.auth.schemas import SignupIn, TokenOut
 from app.auth.security import create_access_token, hash_password, verify_password
+from app.core.config import settings
 from app.core.errors import Conflict, Forbidden, Unauthorized
 from app.stores.models import Role, Store, StoreMember
 
 EMAIL_TAKEN = "An account with this email already exists"
+TOO_MANY_SIGNUPS = "Too many sign-ups from this network. Please wait and try again."
 
 
 def issue_token(user_id, store_id) -> TokenOut:
@@ -25,11 +28,19 @@ def issue_token(user_id, store_id) -> TokenOut:
     return TokenOut(access_token=token, expires_in=expires_in)
 
 
-def signup(db: Session, data: SignupIn) -> TokenOut:
+def signup(db: Session, data: SignupIn, ip: str | None = None) -> TokenOut:
     """Create a store, its first user, and a manager membership in ONE transaction.
 
-    @raises Conflict if the email is taken (also when two signups race)
+    Every attempt from an IP counts (SIGNUP_MAX_PER_IP per window), so one caller can't
+    create stores in bulk or probe which emails are taken.
+
+    @raises Conflict if the email is taken (also when two signups race),
+        TooManyRequests
     """
+    key = signup_key(ip)
+    if key:
+        ensure_not_limited(db, [(key, settings.SIGNUP_MAX_PER_IP)], TOO_MANY_SIGNUPS)
+        record_failure(db, [key])
     if db.scalar(select(User.id).where(User.email == data.email)) is not None:
         raise Conflict(EMAIL_TAKEN)
 

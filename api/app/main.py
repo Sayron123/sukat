@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.auth.router import router as auth_router
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.config import Settings, settings
 from app.core.errors import AppError
 from app.core.health import router as health_router
@@ -42,6 +43,12 @@ def create_app(config: Settings = settings) -> FastAPI:
 
     # Only the configured web origins may call the API from a browser (in production:
     # https:// origins only; checked in settings).
+    # Added before CORS so it runs inside it: a 413 still carries the CORS headers.
+    application.add_middleware(
+        BodySizeLimitMiddleware,
+        max_bytes=config.MAX_REQUEST_BYTES,
+        upload_max_bytes=config.UPLOAD_MAX_BYTES,
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_origins_list,
