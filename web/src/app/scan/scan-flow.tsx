@@ -29,10 +29,9 @@ import { ReviewLineCard } from "./review-line";
 /** Words that differ between a delivery (stock in) and a sale. */
 const TEXT = {
   stock_in: {
-    title: "Scan stock in",
+    title: "Scanning: Stock in",
     pickHelp: "Lay the list flat and avoid shadows",
     exit: "/stock",
-    other: { label: "SALE", name: "sale", href: "/scan/sale" },
     reading: "Reading list…",
     readFailed: "Couldn’t read the list",
     review: "Review stock in",
@@ -42,10 +41,9 @@ const TEXT = {
     again: "Scan another list",
   },
   sale: {
-    title: "Scan receipt",
+    title: "Scanning: Sale",
     pickHelp: "Lay the receipt flat and avoid shadows",
     exit: "/",
-    other: { label: "STOCK IN", name: "stock in", href: "/scan" },
     reading: "Reading receipt…",
     readFailed: "Couldn’t read the receipt",
     review: "Review sale",
@@ -291,13 +289,6 @@ function PickPhoto({ mode, error, onFile }: { mode: ScanMode; error?: string; on
           >
             <span className="block h-full w-full rounded-full bg-white group-active:bg-line" />
           </button>
-          <Link
-            href={text.other.href}
-            aria-label={`Switch to ${text.other.name}`}
-            className="justify-self-center rounded-button bg-[#292524] p-2 text-[13px] font-bold"
-          >
-            {text.other.label}
-          </Link>
         </div>
       </div>
     </div>
