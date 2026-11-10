@@ -127,7 +127,7 @@ export function ReviewLineCard({
       <p className="mt-0.5 mb-3 text-[13px] text-subtle">
         Written as “{line.rawText}”
         {needsCheck && (
-          <span className="text-[#b45309]">
+          <span className="text-amber-text">
             {" "}
             · {line.checkReasons.map((r) => REASON_TEXT[r]).join(" · ")}
           </span>
@@ -212,7 +212,7 @@ export function ReviewLineCard({
       </div>
 
       {differs && line.expectedPrice !== null && (
-        <p className="mt-2 text-[13px] text-[#b45309]">
+        <p className="mt-2 text-[13px] text-amber-text">
           Usual price: {formatPeso(line.expectedPrice)} per {line.unit}
         </p>
       )}

@@ -12,7 +12,7 @@ export default function ManagerSignupPage() {
       endpoint="/api/auth/signup"
       submitLabel="Create Store"
       fields={[
-        { name: "store_name", label: "Store name", autoComplete: "organization" },
+        { name: "store_name", label: "Store name", autoComplete: "organization", placeholder: "Hardware (Branch)" },
         {
           name: "store_address",
           label: "Store address (optional)",

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_DAYS: int = 3650
     INVITE_EXPIRE_HOURS: int = 72
+    MANAGER_INVITE_EXPIRE_HOURS: int = 24
     PASSWORD_RESET_EXPIRE_MINUTES: int = 30
     EMAIL_VERIFY_EXPIRE_HOURS: int = 48
     WEB_APP_URL: str = "http://localhost:3000"

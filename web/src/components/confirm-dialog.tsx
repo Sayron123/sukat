@@ -43,7 +43,7 @@ export function ConfirmDialog({
         e.preventDefault(); // Esc: let the parent decide (keeps state in one place)
         onCancel();
       }}
-      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-card border border-border bg-background p-6 text-text backdrop:bg-text/40"
+      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-card border border-border bg-background p-6 text-text backdrop:bg-dark/40"
     >
       <h2 id="confirm-title" className="text-lg font-bold">
         {title}

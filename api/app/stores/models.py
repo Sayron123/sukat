@@ -1,15 +1,19 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
+    false,
+    text,
     true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,6 +29,16 @@ class Role(StrEnum):
 
 
 ROLE_CHECK = "role IN ('manager', 'secretary', 'member')"
+
+
+class AttendanceStatus(StrEnum):
+    PRESENT = "present"
+    LATE = "late"
+    HALF_DAY = "half_day"
+    ABSENT = "absent"
+
+
+ATTENDANCE_STATUS_CHECK = "status IN ('present', 'late', 'half_day', 'absent')"
 
 
 class Store(Base):
@@ -48,6 +62,12 @@ class StoreMember(Base):
     __table_args__ = (
         UniqueConstraint("store_id", "user_id"),
         CheckConstraint(ROLE_CHECK, name="role"),
+        Index(
+            "uq_store_members_one_owner",
+            "store_id",
+            unique=True,
+            postgresql_where=text("is_owner"),
+        ),
     )
 
     id: Mapped[UUID] = uuid_pk()
@@ -60,10 +80,36 @@ class StoreMember(Base):
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=true())
+    is_owner: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+    alias: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
 
     user: Mapped[User] = relationship(lazy="joined")
+
+
+class Attendance(Base):
+    __tablename__ = "attendance"
+    __table_args__ = (
+        UniqueConstraint("member_id", "work_date"),
+        CheckConstraint(ATTENDANCE_STATUS_CHECK, name="status"),
+    )
+
+    id: Mapped[UUID] = uuid_pk()
+    store_id: Mapped[UUID] = mapped_column(
+        ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    member_id: Mapped[UUID] = mapped_column(
+        ForeignKey("store_members.id", ondelete="RESTRICT"), nullable=False
+    )
+    work_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    recorded_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = created_at_col()
+    updated_at: Mapped[datetime] = updated_at_col()
 
 
 class Invite(Base):

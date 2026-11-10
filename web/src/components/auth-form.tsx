@@ -23,6 +23,7 @@ type FieldDef = {
   maxLength?: number;
   optional?: boolean;
   locked?: string;
+  placeholder?: string;
 };
 
 export function AuthShell({
@@ -49,7 +50,7 @@ export function AuthShell({
       )}
       <div
         aria-hidden
-        className="mb-[30px] grid h-[52px] w-[52px] place-items-center rounded-button bg-text text-base font-bold text-white"
+        className="mb-[30px] grid h-[52px] w-[52px] place-items-center rounded-button bg-text text-base font-bold text-inverse"
       >
         S
       </div>
@@ -173,6 +174,7 @@ export function AuthForm({
               minLength: f.minLength,
               maxLength: f.maxLength,
               required: !f.optional,
+              placeholder: f.placeholder,
               ...locked,
             };
             return f.type === "password" ? (

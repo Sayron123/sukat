@@ -1,16 +1,19 @@
-from datetime import datetime
-from typing import Literal
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.auth.schemas import must_accept_terms
-from app.stores.models import Role
+from app.stores.models import AttendanceStatus, Role
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    return (value or "").strip() or None
 
 
 class InviteIn(BaseModel):
     email: EmailStr
-    role: Literal[Role.SECRETARY, Role.MEMBER]
+    role: Role
 
     @field_validator("email")
     @classmethod
@@ -20,6 +23,34 @@ class InviteIn(BaseModel):
 
 class RoleIn(BaseModel):
     role: Role
+
+
+class AliasIn(BaseModel):
+    alias: str | None = Field(max_length=120)
+
+    @field_validator("alias")
+    @classmethod
+    def _clean(cls, v: str | None) -> str | None:
+        return _blank_to_none(v)
+
+
+class AttendanceIn(BaseModel):
+    work_date: date
+    status: AttendanceStatus
+    note: str | None = Field(default=None, max_length=300)
+
+    @field_validator("note")
+    @classmethod
+    def _clean(cls, v: str | None) -> str | None:
+        return _blank_to_none(v)
+
+
+class AttendanceOut(BaseModel):
+    id: UUID
+    work_date: date
+    status: AttendanceStatus
+    note: str | None
+    updated_at: datetime
 
 
 class InviteOut(BaseModel):
@@ -57,8 +88,10 @@ class AcceptInviteIn(BaseModel):
 class StaffOut(BaseModel):
     member_id: UUID
     user_id: UUID
-    email: str
+    email: str | None
     full_name: str
+    alias: str | None
     role: Role
     active: bool
+    is_owner: bool
     created_at: datetime

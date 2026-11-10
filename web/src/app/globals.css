@@ -16,11 +16,50 @@
   --color-green: #16a34a;
   --color-amber: #d97706;
   --color-dark: #0c0a09; /* camera screen */
+  --color-inverse: #ffffff;
+  --color-accent-text: #c2410c;
+  --color-red-fill: #dc2626;
+  --color-red-soft: #fef2f2;
+  --color-red-edge: #fecaca;
+  --color-amber-soft: #fffbeb;
+  --color-amber-edge: #fde68a;
+  --color-amber-text: #b45309;
+  --color-green-soft: #f0fdf4;
+  --color-green-edge: #bbf7d0;
+  --color-green-text: #15803d;
+  --color-bar: #44403c;
+  --color-bar-muted: #a8a29e;
+  --color-autofill: #e8f0fe;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   --radius-button: 12px; /* buttons, inputs, chips */
   --radius-card: 16px; /* cards */
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #1c1917;
+  --color-surface: #292524;
+  --color-border: #44403c;
+  --color-line: #57534e;
+  --color-text: #fafaf9;
+  --color-muted: #d6d3d1;
+  --color-subtle: #a8a29e;
+  --color-red: #f87171;
+  --color-inverse: #1c1917;
+  --color-accent-text: #fb923c;
+  --color-red-soft: #450a0a;
+  --color-red-edge: #7f1d1d;
+  --color-amber-soft: #451a03;
+  --color-amber-edge: #78350f;
+  --color-amber-text: #fbbf24;
+  --color-green-soft: #052e16;
+  --color-green-edge: #14532d;
+  --color-green-text: #4ade80;
+  --color-bar: #d6d3d1;
+  --color-bar-muted: #78716c;
+  --color-autofill: #1e3a5f;
 }
 
 input::-ms-reveal {

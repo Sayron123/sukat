@@ -36,6 +36,13 @@ def _normalize_email(v: str) -> str:
     return v.strip().lower()
 
 
+def _not_blank(v: str) -> str:
+    v = v.strip()
+    if not v:
+        raise ValueError("must not be blank")
+    return v
+
+
 class SignupIn(BaseModel):
     store_name: str = Field(min_length=1, max_length=120)
     store_address: str | None = Field(default=None, max_length=300)
@@ -51,13 +58,7 @@ class SignupIn(BaseModel):
     def _must_accept(cls, v: bool) -> bool:
         return must_accept_terms(v)
 
-    @field_validator("store_name", "full_name")
-    @classmethod
-    def _strip(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("must not be blank")
-        return v
+    _strip = field_validator("store_name", "full_name")(_not_blank)
 
     @field_validator("store_address")
     @classmethod
@@ -76,6 +77,12 @@ class LoginIn(BaseModel):
 class ChangePasswordIn(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
     new_password: NewPassword
+
+
+class ProfileIn(BaseModel):
+    full_name: str = Field(min_length=1, max_length=120)
+
+    _strip = field_validator("full_name")(_not_blank)
 
 
 class ForgotPasswordIn(BaseModel):

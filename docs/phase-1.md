@@ -68,23 +68,31 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession): ...
 
 | Endpoint | Who | What it does |
 |---|---|---|
-| `POST /staff/invites` | manager | Creates an invite for a `secretary` or `member` and returns a one-time `token`. |
+| `POST /staff/invites` | manager, secretary | Creates an invite and returns a one-time `token`. A manager can invite any role. A secretary can only invite a `member`. |
 | `POST /staff/invites/preview` | anyone with the token | Shows the store, role and email before joining. Does not use up the link. |
 | `POST /staff/invites/accept` | anyone with the token | Creates the account (or uses the existing one) and joins the store. Returns an access token. |
-| `GET /staff` | manager, secretary | Lists everyone in your store. |
+| `GET /staff` | any staff | Lists everyone in your store. Members do not get email addresses. |
 | `GET /staff/{member_id}` | manager, secretary | One staff member. |
 | `PATCH /staff/{member_id}/role` | manager | Changes a staff member's role. Applies on their next request. |
+| `PATCH /staff/{member_id}/alias` | manager | Sets the name shown for this person in this store. Their account name does not change. |
+| `GET /staff/{member_id}/attendance` | manager | The person's latest 31 attendance days, newest first. |
+| `POST /staff/{member_id}/attendance` | manager | Saves one day: present, late, half day or absent. Saving the same date replaces it. |
 | `POST /staff/{member_id}/deactivate` | manager | Turns off a staff member's access. |
 
 **Ideas**
-- Invites expire after `INVITE_EXPIRE_HOURS` (default 72) and work only once.
+- Invites expire after `INVITE_EXPIRE_HOURS` (default 72) and work only once. Manager links expire sooner, after `MANAGER_INVITE_EXPIRE_HOURS` (default 24), because they give full control.
 - Sending a new invite to the same email cancels the older one.
 - If the invitee already has an account (e.g. from another store), they confirm with their own password.
 - Inviting a deactivated person again turns them back on.
 - A manager can't deactivate themselves or change their own role, so a store always keeps a manager.
 - Staff changes in one store run one at a time (the store row is locked), so two managers can't remove each other at the same moment.
 - Invites are not emailed. The manager creates a link on the Staff screen and shares it.
-- The manager must choose Secretary or Member for each link. The link decides the role, so the person joining cannot pick a different one. Nobody can be invited straight in as a manager: invite them first, then change their role on the Staff screen.
+- The manager must choose Manager, Secretary or Member for each link. The link decides the role, so the person joining cannot pick a different one.
+- The person who created the store is its owner (`store_members.is_owner`, migration `0014`). Other managers cannot change or remove the owner, so a second manager is a backup, not a takeover risk.
+- A manager link stops working if the manager who made it is removed or demoted before it is used.
+- A secretary's invite cannot bring back someone a manager removed, and cannot replace a manager's open secretary or manager link.
+- Managers open a person from the Staff list (`/staff/{id}`) to see their details, set an alias and save attendance. The Invite someone button opens `/staff/invite`.
+- A branch is a separate store for now. The store name box suggests the form "Hardware (Branch)".
 - A new person joining by link only sets a password. The email comes from the invite, and their name starts as the part of the email before the @.
 - New passwords need 8 or more characters, a capital letter, a small letter, a number and a symbol. The server checks this for sign up, invites, reset and change password. Older passwords still work at sign in. The form can also suggest a strong password, and browsers that support it offer to save it. Sukat never stores the plain password.
 - Sign up asks "Manager" or "Member". A manager creates a store. A member cannot make an account alone, because every account must belong to a store, so the app asks for the invite link instead.
@@ -175,13 +183,14 @@ Run tests (Postgres must be running): `cd api && uv run pytest`
 | Endpoint | Who | What it does |
 |---|---|---|
 | `POST /auth/logout` | signed in | Ends the session on the server. |
+| `PATCH /auth/me` | signed in | Changes your own name. |
 | `POST /auth/change-password` | signed in | Needs the current password. Returns a new token for this device. |
 | `POST /auth/forgot-password` | anyone | Emails a reset link. Same answer whether or not the account exists. |
 | `POST /auth/reset-password` | anyone with the link | Sets a new password. The person then signs in normally. |
 | `POST /auth/verify-email` | anyone with the link | Confirms the email. |
 | `POST /auth/resend-verification` | signed in | Sends a new confirmation link. |
 
-Web pages: `/forgot-password`, `/reset-password`, `/verify-email`, `/more/password`, and a role picker on `/staff`. An unconfirmed user sees a notice with a resend link on the More tab.
+Web pages: `/forgot-password`, `/reset-password`, `/verify-email`, `/more/settings` (your name, password, and a light, dark or system look, saved on each device), and a role picker on `/staff`. An unconfirmed user sees a notice with a resend link on the More tab.
 
 Migration `0010` adds `users.email_verified_at`, `users.token_version`, and the `auth_tokens` table. Accounts that existed before it count as confirmed. Migration `0011` adds `email_outbox`.
 

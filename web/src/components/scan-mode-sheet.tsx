@@ -45,7 +45,7 @@ export function ScanModeSheet({ open, onClose }: { open: boolean; onClose: () =>
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      className="mx-auto mt-auto mb-0 w-full max-w-lg rounded-t-card bg-background text-text backdrop:bg-text/40"
+      className="mx-auto mt-auto mb-0 w-full max-w-lg rounded-t-card bg-background text-text backdrop:bg-dark/40"
     >
       <div className="flex flex-col gap-3 p-5">
         <h2 id="scan-mode-title" className="text-lg font-bold">
@@ -58,7 +58,7 @@ export function ScanModeSheet({ open, onClose }: { open: boolean; onClose: () =>
             onClick={onClose}
             className="flex min-h-[96px] items-center gap-4 rounded-card border border-line p-4 hover:bg-surface"
           >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-surface text-accent">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-surface text-accent-text">
               <Icon name={o.icon} size={26} />
             </span>
             <span className="min-w-0">
