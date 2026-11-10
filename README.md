@@ -2,8 +2,8 @@
 
 Sukat is a multi-tenant SaaS for Philippine hardware stores: products, inventory, sales, and insights in one app that works on phones (PWA).
 
-This repo is at **Phase 1**: stores, accounts, staff invites, and roles (manager, secretary, member).
-See `docs/phase-0.md` and `docs/phase-1.md` for what each part does and why.
+Built so far (Phases 0-6): accounts and staff, products, stock-ins, sales, photo scans read by AI, reports, and the AI chat.
+See `docs/` for what each part does and why, one file per phase.
 
 ## Folder structure
 
@@ -12,12 +12,13 @@ sukat/
 ├── api/                  # Backend: FastAPI + SQLAlchemy + Alembic (Python, uv)
 │   ├── app/
 │   │   ├── main.py       # FastAPI app entry point
-│   │   ├── core/         # config, db, base model, errors, storage, /health
-│   │   ├── auth/         # accounts, login, JWT, role checks
+│   │   ├── core/         # config, db, base model, errors, storage, email, /health
+│   │   ├── auth/         # accounts, login, passwords, email confirmation, JWT, role checks
 │   │   ├── stores/       # staff and invites
 │   │   ├── products/     # products, aliases, units, starter catalog
 │   │   ├── inventory/    # photo upload, scans, transactions, stock
-│   │   └── ai/           # AI list reader
+│   │   ├── insights/     # reports and the AI chat
+│   │   └── ai/           # AI list reader and chat model
 │   │   (each feature: models.py, schemas.py, service.py, router.py)
 │   ├── alembic/          # database migrations
 │   ├── tests/            # pytest tests
@@ -53,6 +54,8 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0
 ```
 
 API runs at http://localhost:8000 (endpoints under `/v1`; list at http://localhost:8000/docs). Check http://localhost:8000/health.
+
+On your own PC no email is really sent: confirmation and password links are printed in this terminal.
 
 **3. Start the web app** (new terminal)
 

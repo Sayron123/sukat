@@ -1,18 +1,20 @@
 """Reading a list photo with the AI, and turning the result into reviewable lines."""
 
+import logging
 import re
 import uuid
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.ai.base import ImageType, VisionReader
+from app.ai.budget import ensure_within_budget
 from app.ai.errors import AIReadError
-from app.ai.schemas import CatalogConversion, CatalogEntry, ScanLine
+from app.ai.schemas import CatalogConversion, CatalogEntry, ReadResult, ScanLine
 from app.ai.usage import log_usage
 from app.core.config import settings
 from app.core.errors import Conflict, NotFound
@@ -22,6 +24,8 @@ from app.inventory.schemas import ReviewLineOut, ScanOut
 from app.products.models import Product
 from app.products.pricing import price_per_unit, priced_line
 from app.products.units import UnitConversionError, convert
+
+logger = logging.getLogger(__name__)
 
 CONFIDENCE_THRESHOLD = 0.8
 STALE_MESSAGE = "Reading stopped before it finished. Please try again."
@@ -81,7 +85,8 @@ WRITABLE_STATUSES = ("pending", "failed")
 def stale_after_seconds() -> float:
     """After this long, a "pending" scan can't still be reading (the AI client has given
     up by then), e.g. the server restarted mid-read."""
-    return settings.AI_TIMEOUT_SECONDS * (settings.AI_MAX_RETRIES + 1) + 60
+    attempts = 2 if settings.has_ai_fallback else settings.AI_MAX_RETRIES + 1
+    return settings.AI_TIMEOUT_SECONDS * attempts + 60
 
 
 def is_stale_pending(scan: Scan) -> bool:
@@ -91,7 +96,34 @@ def is_stale_pending(scan: Scan) -> bool:
     return age > stale_after_seconds()
 
 
-def run_read(db: Session, scan: Scan, storage: Storage, reader: VisionReader) -> None:
+def _read_with_backup(
+    db: Session,
+    scan: Scan,
+    image: bytes,
+    media_type: ImageType,
+    catalog: list[CatalogEntry],
+    reader: VisionReader,
+    backup: VisionReader | None,
+) -> ReadResult:
+    try:
+        return reader.read_list(image, media_type, catalog, scan.type)
+    except AIReadError as e:
+        if backup is None or not e.retryable:
+            raise
+        logger.warning("Main AI provider failed to read scan %s: %s", scan.id, e)
+        if e.usage:
+            log_usage(db, scan.store_id, "scan_read", e.usage)
+            db.commit()
+    return backup.read_list(image, media_type, catalog, scan.type)
+
+
+def run_read(
+    db: Session,
+    scan: Scan,
+    storage: Storage,
+    reader: VisionReader,
+    backup: VisionReader | None = None,
+) -> None:
     """Read scan's photo with the AI and save the outcome on the scan (status read/failed).
 
     Assumes the caller checked the scan may be (re)read. Commits. The AI call happens
@@ -100,6 +132,7 @@ def run_read(db: Session, scan: Scan, storage: Storage, reader: VisionReader) ->
     """
     scan.status = "pending"
     scan.error_message = None
+    scan.updated_at = func.now()
     db.commit()  # marks the start (updated_at) for stale detection
 
     try:
@@ -115,7 +148,7 @@ def run_read(db: Session, scan: Scan, storage: Storage, reader: VisionReader) ->
     db.commit()  # end the read transaction before the slow AI call
 
     try:
-        result = reader.read_list(image, media_type, catalog, scan.type)
+        result = _read_with_backup(db, scan, image, media_type, catalog, reader, backup)
     except AIReadError as e:
         _finish_failed(db, scan, str(e), e)
         return
@@ -280,6 +313,7 @@ def start_scan(
     scan_type: str,
     storage: Storage,
     reader: VisionReader,
+    backup: VisionReader | None = None,
 ) -> tuple[Scan, bool]:
     """Create a scan for an uploaded photo and read it. Returns (scan, created).
 
@@ -287,6 +321,7 @@ def start_scan(
     of paying for a second AI read, so the phone can safely retry.
 
     @raises NotFound if the key isn't a photo key of this store
+    @raises AIBudgetReached when the store has used this month's AI budget
     """
     if not key_belongs_to_store(photo_key, store_id):
         raise NotFound("Photo not found")
@@ -298,6 +333,7 @@ def start_scan(
     if found is not None:
         return found, False
 
+    ensure_within_budget(db, store_id)
     scan = Scan(
         store_id=store_id, type=scan_type, photo_key=photo_key, status="pending", created_by=user_id
     )
@@ -311,19 +347,24 @@ def start_scan(
         if found is None:
             raise
         return found, False
-    run_read(db, scan, storage, reader)
+    run_read(db, scan, storage, reader, backup)
     db.refresh(scan)
     return scan, True
 
 
 def retry_scan(
-    db: Session, store_id: UUID, scan_id: UUID, storage: Storage, reader: VisionReader
+    db: Session,
+    store_id: UUID,
+    scan_id: UUID,
+    storage: Storage,
+    reader: VisionReader,
+    backup: VisionReader | None = None,
 ) -> Scan:
     """Read the photo again after a failed (or stuck) read. A scan that was read
     successfully or saved is never re-read: its lines may be under review or be the
     record of a saved delivery.
 
-    @raises NotFound, Conflict (saved / already read / still reading)
+    @raises NotFound, Conflict (saved / already read / still reading), AIBudgetReached
     """
     scan = get_scan(db, store_id, scan_id)
     if scan.status == "saved":
@@ -332,7 +373,8 @@ def retry_scan(
         raise Conflict("This scan was already read")
     if scan.status == "pending" and not is_stale_pending(scan):
         raise Conflict("This scan is still being read")
-    run_read(db, scan, storage, reader)
+    ensure_within_budget(db, store_id)
+    run_read(db, scan, storage, reader, backup)
     db.refresh(scan)
     return scan
 

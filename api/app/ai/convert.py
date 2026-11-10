@@ -4,6 +4,8 @@ Kept separate from the provider client so it is easy to unit-test.
 """
 
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from functools import cache
+from pathlib import Path
 
 from pydantic import ValidationError
 
@@ -11,6 +13,14 @@ from app.ai.schemas import CatalogEntry, RawLine, RawResult, ScanLine
 from app.products.units import normalize_unit
 
 MAX_PRICE_CENTAVOS = 999_999_999
+PROMPTS_DIR = Path(__file__).parent / "prompts"
+# One prompt per scan type, each in its own file so they can be improved separately.
+PROMPT_FILES: dict[str, str] = {"stock_in": "read_stock_in.md", "sale": "read_sale.md"}
+
+
+@cache
+def system_prompt(scan_type: str) -> str:
+    return (PROMPTS_DIR / PROMPT_FILES[scan_type]).read_text(encoding="utf-8")
 
 
 def catalog_refs(catalog: list[CatalogEntry]) -> list[tuple[str, CatalogEntry]]:
@@ -85,4 +95,11 @@ def parse_result(data: dict, refs: list[tuple[str, CatalogEntry]]) -> list[ScanL
     return [to_scan_line(line, by_ref) for line in result.lines]
 
 
-__all__ = ["ValidationError", "catalog_refs", "catalog_text", "parse_result", "to_scan_line"]
+__all__ = [
+    "ValidationError",
+    "catalog_refs",
+    "catalog_text",
+    "parse_result",
+    "system_prompt",
+    "to_scan_line",
+]

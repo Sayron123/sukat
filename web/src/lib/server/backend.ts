@@ -5,6 +5,8 @@ import { cookies } from "next/headers";
 /** Name of the httpOnly cookie that holds the API access token. */
 export const SESSION_COOKIE = "sukat_session";
 
+export const SESSION_MAX_AGE = 400 * 24 * 60 * 60;
+
 /** Backend base URL, used only on the server. */
 export const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 

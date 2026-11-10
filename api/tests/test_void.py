@@ -34,7 +34,7 @@ def _join(api, manager, role):
     ).json()
     token = api.post(
         "/staff/invites/accept",
-        json={"token": invite["token"], "password": "staff-pass-1", "full_name": role.title()},
+        json={"token": invite["token"], "password": "Staff-pass-1", "full_name": role.title()},
     ).json()["access_token"]
     return auth_header(token)
 

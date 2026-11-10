@@ -12,8 +12,14 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 
 from app.ai.base import VisionReader
-from app.ai.provider import get_vision_reader
-from app.auth.deps import CurrentMember, CurrentMemberDep, DbSession, require_role
+from app.ai.provider import get_backup_vision_reader, get_vision_reader
+from app.auth.deps import (
+    CurrentMember,
+    CurrentMemberDep,
+    DbSession,
+    VerifiedMemberDep,
+    require_role,
+)
 from app.core.config import settings
 from app.core.errors import AppError, BadRequest, Forbidden, NotFound
 from app.core.storage import LocalStorage, Storage, get_storage
@@ -38,6 +44,7 @@ StorageDep = Annotated[Storage, Depends(get_storage)]
 # Voiding is limited to managers and secretaries; everyone can scan and save.
 Writer = Annotated[CurrentMember, Depends(require_role(Role.MANAGER, Role.SECRETARY))]
 ReaderDep = Annotated[VisionReader, Depends(get_vision_reader)]
+BackupReaderDep = Annotated[VisionReader | None, Depends(get_backup_vision_reader)]
 
 
 # ---------- photo upload ----------
@@ -102,18 +109,20 @@ async def local_upload(
 def create_scan(
     body: ScanIn,
     response: Response,
-    current: CurrentMemberDep,
+    current: VerifiedMemberDep,
     db: DbSession,
     storage: StorageDep,
     reader: ReaderDep,
+    backup: BackupReaderDep,
 ) -> ScanOut:
     """Read an uploaded list photo with the AI. Any staff member can scan.
 
     Answers with the scan: status "read" (lines to review) or "failed" (error_message,
     retryable). 201 when created; 200 with the existing scan for a repeated photo_key.
+    429 with code "ai_budget_reached" when the store has used this month's AI budget.
     """
     scan, created = scan_service.start_scan(
-        db, current.store_id, current.user.id, body.photo_key, body.type, storage, reader
+        db, current.store_id, current.user.id, body.photo_key, body.type, storage, reader, backup
     )
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
     return scan_service.scan_view(db, scan)
@@ -127,13 +136,14 @@ def get_scan(scan_id: UUID, current: CurrentMemberDep, db: DbSession) -> ScanOut
 @router.post("/scans/{scan_id}/retry", response_model=ScanOut, tags=["scans"])
 def retry_scan(
     scan_id: UUID,
-    current: CurrentMemberDep,
+    current: VerifiedMemberDep,
     db: DbSession,
     storage: StorageDep,
     reader: ReaderDep,
+    backup: BackupReaderDep,
 ) -> ScanOut:
     """Read the photo again after a failed (or stuck) read."""
-    scan = scan_service.retry_scan(db, current.store_id, scan_id, storage, reader)
+    scan = scan_service.retry_scan(db, current.store_id, scan_id, storage, reader, backup)
     return scan_service.scan_view(db, scan)
 
 

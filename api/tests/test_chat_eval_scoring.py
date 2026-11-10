@@ -66,7 +66,7 @@ class FakeModel:
     def respond(self, *, items, context, **kwargs):
         assert "Today is Friday, 2026-11-06" in context
         expect = self.by_question[items[-1].text]
-        usage = AIUsageInfo(model="fake", input_tokens=1000, output_tokens=50)
+        usage = AIUsageInfo(model="fake", provider="gemini", input_tokens=1000, output_tokens=50)
         if expect["tool"] is None or expect["tool"] == "low_stock":
             return ChatTurn("No tool.", [], "end", usage)  # wrong for the low_stock cases
         args = dict(expect.get("args", {}))

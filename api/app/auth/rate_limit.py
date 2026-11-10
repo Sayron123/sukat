@@ -46,6 +46,15 @@ def limits_for(email: str | None, ip: str | None) -> list[tuple[str, int]]:
     return pairs
 
 
+def email_send_limits(kind: str, email: str | None, ip: str | None) -> list[tuple[str, int]]:
+    pairs: list[tuple[str, int]] = []
+    if email:
+        pairs.append((f"{kind}:{email.lower()}", settings.AUTH_EMAILS_MAX_PER_EMAIL))
+    if ip:
+        pairs.append((f"{kind}:ip:{ip}", settings.AUTH_EMAILS_MAX_PER_IP))
+    return pairs
+
+
 def _window_start(now: datetime) -> datetime:
     return now - timedelta(minutes=settings.AUTH_FAILURE_WINDOW_MINUTES)
 
@@ -83,6 +92,12 @@ def record_failure(db: Session, keys: list[str]) -> None:
     db.execute(delete(AuthFailure).where(AuthFailure.created_at <= _window_start(now)))
     db.add_all([AuthFailure(key=k, created_at=now) for k in keys])
     db.commit()
+
+
+def count_email_request(db: Session, kind: str, email: str | None, ip: str | None) -> None:
+    limits = email_send_limits(kind, email, ip)
+    ensure_not_limited(db, limits)
+    record_failure(db, [key for key, _ in limits])
 
 
 def clear_failures(db: Session, key: str) -> None:

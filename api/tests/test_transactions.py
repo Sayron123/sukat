@@ -196,7 +196,7 @@ def test_member_can_save_but_cannot_create_products(api, db, manager, nails):
     member = auth_header(
         api.post(
             "/staff/invites/accept",
-            json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+            json={"token": invite["token"], "password": "Member-pass-1", "full_name": "M"},
         ).json()["access_token"]
     )
     ok = _save(api, member, [{"product_id": nails["id"], "qty": "1", "unit": "kg"}])
@@ -465,7 +465,7 @@ def _member(api, manager):
     return auth_header(
         api.post(
             "/staff/invites/accept",
-            json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+            json={"token": invite["token"], "password": "Member-pass-1", "full_name": "M"},
         ).json()["access_token"]
     )
 

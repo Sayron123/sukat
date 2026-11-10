@@ -5,14 +5,19 @@ import { AppPage } from "@/components/app-page";
 import { PageHeader } from "@/components/page-header";
 import { Avatar, Badge, Card, Notice } from "@/components/ui";
 import { backendFetch, getToken } from "@/lib/server/backend";
+import type { Me, Role } from "@/lib/types";
+
+import { InviteForm } from "./invite-form";
+import { RoleSelect } from "./role-select";
 
 export const metadata: Metadata = { title: "Staff · Sukat" };
 
 type Staff = {
   member_id: string;
+  user_id: string;
   email: string;
   full_name: string;
-  role: string;
+  role: Role;
   active: boolean;
 };
 
@@ -42,6 +47,7 @@ async function StaffContent() {
   // Expired, invalid, or deactivated: the cookie is no longer useful.
   if (meRes.status === 401) redirect("/login");
   if (!meRes.ok) throw new Error("Could not load your account");
+  const me = (await meRes.json()) as Me;
   const staff = staffRes.ok ? ((await staffRes.json()) as Staff[]) : null;
 
   return (
@@ -51,12 +57,13 @@ async function StaffContent() {
         title="Staff"
         back="/more"
       />
+      {me.role === "manager" && <InviteForm />}
       {staffRes.status === 403 ? (
         <Card className="text-sm text-muted">Only managers and secretaries can see the staff list.</Card>
       ) : !staff ? (
         <p className="text-sm text-red">Could not load staff.</p>
       ) : (
-        <StaffList staff={staff} />
+        <StaffList staff={staff} me={me} />
       )}
       <Notice icon="users" title="Roles control access" className="mt-5">
         Managers and secretaries can edit products and void sales. Members can scan sales and stock.
@@ -76,7 +83,7 @@ function ApiDown() {
   );
 }
 
-function StaffList({ staff }: { staff: Staff[] }) {
+function StaffList({ staff, me }: { staff: Staff[]; me: Me }) {
   return (
     <ul className="rounded-card border border-border px-4 py-1">
       {staff.map((s) => (
@@ -87,7 +94,11 @@ function StaffList({ staff }: { staff: Staff[] }) {
             <small className="mt-1 block truncate text-[13px] text-muted">{s.email}</small>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <Badge className="capitalize">{s.role}</Badge>
+            {me.role === "manager" && s.active && s.user_id !== me.user_id ? (
+              <RoleSelect memberId={s.member_id} name={s.full_name} role={s.role} />
+            ) : (
+              <Badge className="capitalize">{s.role}</Badge>
+            )}
             {!s.active && <Badge tone="red">Inactive</Badge>}
           </div>
         </li>

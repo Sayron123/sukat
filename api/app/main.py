@@ -1,5 +1,9 @@
 """App entry point: middleware, error handling, and the routers of each feature."""
 
+import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -8,6 +12,7 @@ from app.auth.router import router as auth_router
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.health import router as health_router
+from app.core.outbox import run_email_worker
 from app.insights.chat_router import router as chat_router
 from app.insights.router import router as insights_router
 from app.inventory.router import router as inventory_router
@@ -18,7 +23,21 @@ from app.stores.router import router as stores_router
 # phones still on the old app. /health stays at the root (hosts and monitors expect it).
 API_PREFIX = "/v1"
 
-app = FastAPI(title="Sukat API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    if not settings.EMAIL_WORKER_ENABLED:
+        yield
+        return
+    stop = threading.Event()
+    worker = threading.Thread(target=run_email_worker, args=(stop,), daemon=True)
+    worker.start()
+    yield
+    stop.set()
+    worker.join(timeout=15)
+
+
+app = FastAPI(title="Sukat API", version="0.1.0", lifespan=lifespan)
 
 
 @app.exception_handler(AppError)

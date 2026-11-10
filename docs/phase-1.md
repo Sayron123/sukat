@@ -2,12 +2,6 @@
 
 Phase 1 adds accounts, stores, staff, and roles. Every request knows **who** is calling and **which store** they are in.
 
-## Step 0 — Fixes to Phase 0
-
-**What**
-- Replaced the `httpx` dev package with `httpx2`. Starlette (used by FastAPI) now wants `httpx2` for its test client and warned that `httpx` support is going away.
-- Added `connect_timeout=5` to the database engine. Before, `/health` could hang for a long time if the database host did not answer. Now it returns `503` within about 5 seconds.
-
 ## Step 1 — Database tables (migration)
 
 **What**
@@ -40,7 +34,7 @@ Phase 1 adds accounts, stores, staff, and roles. Every request knows **who** is 
   - `POST /auth/login` — checks email and password, returns an access token.
   - `GET /auth/me` — who am I, which store, which role.
 - `api/app/auth/deps.py` — `get_current_member`: reads the token and loads the caller's active membership.
-- `api/app/core/config.py` — new settings: `JWT_SECRET`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `INVITE_EXPIRE_HOURS`, `APP_ENV`.
+- `api/app/core/config.py` — new settings: `JWT_SECRET`, `ACCESS_TOKEN_EXPIRE_DAYS`, `INVITE_EXPIRE_HOURS`, `APP_ENV`.
 
 **Ideas**
 - **One transaction** — signup adds three rows and saves them with a single `commit()`. If anything fails, none of them are saved. There is a test that proves it.
@@ -74,10 +68,12 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession): ...
 
 | Endpoint | Who | What it does |
 |---|---|---|
-| `POST /staff/invites` | manager | Creates an invite and returns a one-time `token`. |
+| `POST /staff/invites` | manager | Creates an invite for a `secretary` or `member` and returns a one-time `token`. |
+| `POST /staff/invites/preview` | anyone with the token | Shows the store, role and email before joining. Does not use up the link. |
 | `POST /staff/invites/accept` | anyone with the token | Creates the account (or uses the existing one) and joins the store. Returns an access token. |
 | `GET /staff` | manager, secretary | Lists everyone in your store. |
 | `GET /staff/{member_id}` | manager, secretary | One staff member. |
+| `PATCH /staff/{member_id}/role` | manager | Changes a staff member's role. Applies on their next request. |
 | `POST /staff/{member_id}/deactivate` | manager | Turns off a staff member's access. |
 
 **Ideas**
@@ -85,8 +81,13 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession): ...
 - Sending a new invite to the same email cancels the older one.
 - If the invitee already has an account (e.g. from another store), they confirm with their own password.
 - Inviting a deactivated person again turns them back on.
-- A manager can't deactivate themselves, so a store can't lock itself out by accident.
-- Email sending is not built yet. For now, the manager shares the token.
+- A manager can't deactivate themselves or change their own role, so a store always keeps a manager.
+- Staff changes in one store run one at a time (the store row is locked), so two managers can't remove each other at the same moment.
+- Invites are not emailed. The manager creates a link on the Staff screen and shares it.
+- The manager must choose Secretary or Member for each link. The link decides the role, so the person joining cannot pick a different one. Nobody can be invited straight in as a manager: invite them first, then change their role on the Staff screen.
+- A new person joining by link only sets a password. The email comes from the invite, and their name starts as the part of the email before the @.
+- New passwords need 8 or more characters, a capital letter, a small letter, a number and a symbol. The server checks this for sign up, invites, reset and change password. Older passwords still work at sign in. The form can also suggest a strong password, and browsers that support it offer to save it. Sukat never stores the plain password.
+- Sign up asks "Manager" or "Member". A manager creates a store. A member cannot make an account alone, because every account must belong to a store, so the app asks for the invite link instead.
 
 ## Step 5 — Tenant isolation and role tests
 
@@ -128,7 +129,7 @@ Run tests (Postgres must be running): `cd api && uv run pytest`
 - Route handlers reject requests from other origins.
 - Forms use `method="post"` and the button stays disabled until the page is ready. Without this, a fast click could put the password in the URL.
 - `API_URL` (server) and `NEXT_PUBLIC_API_URL` (browser) are in `web/.env.example`.
-- Invite and deactivate are API-only for now. They have no web screens yet.
+- Managers change roles and create invite links on `/staff`. Deactivate is API-only: it has no web screen yet.
 
 ## Step 8 — Fixes from code review
 
@@ -151,7 +152,7 @@ Run tests (Postgres must be running): `cd api && uv run pytest`
 - **Stored in Postgres, not memory**, so limits survive restarts and work with several API servers.
 - **Unknown emails are counted too**, so a 429 does not reveal which emails have accounts.
 - **Email limit is the main protection.** The IP can be faked unless the hosting proxy sets it correctly. The email can't be faked.
-- Trade-off: someone can block a person's login for 15 minutes by typing wrong passwords for their email. That is the usual price of this protection.
+- Trade-off: someone can block a person's login for 15 minutes by typing wrong passwords for their email. Forgot password still works during the block, and a successful reset clears it.
 
 **Deploying:** the API only trusts `X-Forwarded-For` from addresses in `FORWARDED_ALLOW_IPS` (uvicorn setting, default `127.0.0.1`). If Next.js runs on a different machine than the API, set `FORWARDED_ALLOW_IPS` to the Next.js server's address. Otherwise every user looks like the same IP.
 
@@ -166,3 +167,45 @@ Run tests (Postgres must be running): `cd api && uv run pytest`
 **What:** `isSameOrigin` (`web/src/lib/server/auth-route.ts`) compares only the **host** of the browser's `Origin` with the request's `x-forwarded-host` (or `host`).
 
 **Why:** on a real host, HTTPS usually ends at a proxy. The browser says `https://sukat.ph` but Next.js sees `http://`. Comparing the full origin blocked every login. Comparing the host is the same check Next.js uses for its own Server Actions.
+
+## Step 9 — Account security
+
+**What**
+
+| Endpoint | Who | What it does |
+|---|---|---|
+| `POST /auth/logout` | signed in | Ends the session on the server. |
+| `POST /auth/change-password` | signed in | Needs the current password. Returns a new token for this device. |
+| `POST /auth/forgot-password` | anyone | Emails a reset link. Same answer whether or not the account exists. |
+| `POST /auth/reset-password` | anyone with the link | Sets a new password. The person then signs in normally. |
+| `POST /auth/verify-email` | anyone with the link | Confirms the email. |
+| `POST /auth/resend-verification` | signed in | Sends a new confirmation link. |
+
+Web pages: `/forgot-password`, `/reset-password`, `/verify-email`, `/more/password`, and a role picker on `/staff`. An unconfirmed user sees a notice with a resend link on the More tab.
+
+Migration `0010` adds `users.email_verified_at`, `users.token_version`, and the `auth_tokens` table. Accounts that existed before it count as confirmed. Migration `0011` adds `email_outbox`.
+
+**Ideas**
+- **Signing out everywhere.** A JWT stays valid until it expires, so the server needs a way to cancel it. Each user has a `token_version`, every token carries it, and `get_current_member` compares the two. Logout and any password change add 1, which cancels every token that user holds, on all devices.
+- **One-time links.** `auth_tokens` stores only a SHA-256 hash of each link's token, its purpose, and when it expires or was used. A leaked database can't be used to open the links. A link works once, and a newer link cancels the older one of the same kind.
+- **Confirming email protects AI spending.** Reading a photo and asking the AI cost money, so `POST /scans`, `POST /scans/{id}/retry`, and `POST /insights/chat` need a confirmed email (403 with code `email_not_verified`). Everything else works without it. Staff who join by invite count as confirmed, and so does anyone who completes a password reset.
+- **Limits on emails.** Reset and confirmation emails are limited to 3 per address and 20 per IP in 15 minutes. Signups are limited to 20 per IP, because each one sends an email.
+- **Emails can't get lost.** The email is saved in the `email_outbox` table in the same database transaction as the change that caused it, so a failed signup never sends one and a successful one always has one waiting. A background loop in the API (`app/core/outbox.py`) sends waiting emails every few seconds. If sending fails it retries after 2, 4, 8, 16, then 32 minutes, and gives up on the 6th failure. A sent email is deleted right away, because its body contains a working link. Several API servers can run this safely: `FOR UPDATE SKIP LOCKED` stops two of them from taking the same email. If a server dies just after sending, one email can go out twice, which is harmless.
+- **Staying signed in.** Sign-in does not time out: the token lasts 10 years. Browsers keep a cookie for at most 400 days, so the cookie is renewed whenever the app loads `/auth/me`. A session ends only with Sign out, a password change, deactivation, or more than 400 days without opening the app. Anyone holding an unlocked phone stays signed in, so shared phones should use Sign out.
+- **Links use `WEB_APP_URL`, never the request's host**, so a forged `Host` header can't point a reset email at another site.
+- **The reset and confirm pages send no referrer**, so the token in the URL doesn't leak to other sites.
+- **Pages ask for a button press**, so an email scanner that opens links can't use up the token.
+
+| Setting (`api/.env`) | Default | Meaning |
+|---|---|---|
+| `WEB_APP_URL` | `http://localhost:3000` | Where links in emails point |
+| `PASSWORD_RESET_EXPIRE_MINUTES` | 30 | Reset link lifetime |
+| `EMAIL_VERIFY_EXPIRE_HOURS` | 48 | Confirmation link lifetime |
+| `AUTH_EMAILS_MAX_PER_EMAIL` | 3 | Emails per address per window |
+| `AUTH_EMAILS_MAX_PER_IP` | 20 | Emails and signups per IP per window |
+| `EMAIL_BACKEND` | `console` | `console` (development only) or `smtp` |
+| `EMAIL_WORKER_ENABLED` | `true` | Runs the loop that sends waiting emails |
+| `EMAIL_POLL_SECONDS` | 5 | How often it checks |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | port 587 | Mail server, used with `smtp` (needs STARTTLS) |
+
+**Deploying:** set `EMAIL_BACKEND=smtp`, the `SMTP_*` values, and `WEB_APP_URL`. The API refuses to start with `console` unless `APP_ENV=development`.

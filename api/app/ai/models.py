@@ -19,6 +19,7 @@ class AIUsage(Base):
         ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False
     )
     feature: Mapped[str] = mapped_column(String(40), nullable=False)  # e.g. "scan_read"
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
     model: Mapped[str] = mapped_column(String(100), nullable=False)
     tokens_in: Mapped[int] = mapped_column(Integer, nullable=False)
     tokens_out: Mapped[int] = mapped_column(Integer, nullable=False)

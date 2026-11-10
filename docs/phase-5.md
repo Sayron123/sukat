@@ -23,7 +23,7 @@ Phase 5 adds **reports**: today's sales on Home, low stock, photos waiting for r
 - **Dates must be between 2000-01-01 and 2100-12-31.** Year 1 or 9999 used to crash (500) when turned into UTC; now it's a 422. The period before the earliest allowed range may start in 1999; that's fine (it just has no sales).
 - **Needs review includes failed reads that can be retried.** A photo the AI couldn't read is also a paper list not recorded yet; reopening it shows "Try again". That covers reads stuck in "pending" (cut off by a restart), which the phone also shows as retryable. A failure that retrying can't fix isn't listed. A failed scan the user replaced with "Take another photo" stays listed until it is 7 days old, because scans don't record that they were replaced.
 - **`store_id` always comes from the token.** Each function filters every query by it.
-- **Typed in and out (Pydantic).** The AI chat in Phase 6 will call these same functions as tools, so their inputs and outputs need to be exact.
+- **Typed in and out (Pydantic).** The AI chat calls these same functions as tools, so their inputs and outputs need to be exact.
 - **`stock_check` should always be empty.** Stock only changes together with a movement in the same database transaction. If something shows up, it's a bug or someone edited the database by hand.
 - **`tzdata` package added.** Windows Python has no built-in time zone list, so `Asia/Manila` needs it.
 

@@ -23,6 +23,10 @@
   --radius-card: 16px; /* cards */
 }
 
+input::-ms-reveal {
+  display: none;
+}
+
 body {
   background: var(--color-background);
   color: var(--color-text);

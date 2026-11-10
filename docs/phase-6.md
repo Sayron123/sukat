@@ -27,7 +27,7 @@ The Phase 5 report functions, wrapped as tools the AI can call:
 ## Step 2 — Chat service
 
 **What**
-- `api/app/ai/base.py`: a `ChatModel` interface (one model call). `api/app/ai/anthropic_chat.py` is the Claude version; another provider only needs a new file.
+- `api/app/ai/base.py`: a `ChatModel` interface (one model call). `api/app/ai/gemini_chat.py` and `api/app/ai/anthropic_chat.py` are the two versions; another provider only needs a new file. See [ai-hardening.md](ai-hardening.md) for the backup provider and the monthly budget.
 - `api/app/insights/prompts/chat.md`: the instructions, in their own file.
 - `api/app/insights/chat_service.py`: the loop. Ask the model; while it asks for tools, run them and send the results back; then return its answer.
 

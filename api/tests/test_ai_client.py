@@ -221,9 +221,17 @@ def test_catalog_text_is_stable_for_caching():
     assert "no products" in catalog_text([])
 
 
-def test_cost_centavos():
+def test_cost_centavos(monkeypatch):
+    monkeypatch.setattr(settings, "AI_PRICE_INPUT_PER_MTOK_USD", Decimal("4.00"))
+    monkeypatch.setattr(settings, "AI_PRICE_OUTPUT_PER_MTOK_USD", Decimal("20.00"))
+    monkeypatch.setattr(settings, "AI_PRICE_CACHE_READ_PER_MTOK_USD", Decimal("0.20"))
+    monkeypatch.setattr(settings, "USD_TO_PHP", Decimal("58.00"))
     usage = AIUsageInfo(
-        model="m", input_tokens=1_000_000, output_tokens=100_000, cache_read_tokens=1_000_000
+        model="m",
+        provider="gemini",
+        input_tokens=1_000_000,
+        output_tokens=100_000,
+        cache_read_tokens=1_000_000,
     )
     # (4.00 + 2.00 + 0.20) USD * 58 PHP * 100 = 35960 centavos
     assert cost_centavos(usage) == Decimal("35960.0000")

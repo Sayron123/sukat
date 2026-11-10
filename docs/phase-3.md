@@ -37,7 +37,7 @@ Phase 3 lets staff **take a photo of a delivery list**. The AI reads it, staff c
 
 **What** (`api/app/ai/`)
 - `base.py` — `VisionReader`: the interface ("read this photo against these products"). Another provider can be added without touching the rest of the app.
-- `anthropic_reader.py` — the Claude implementation. Model, effort, timeout and prices come from `api/.env`.
+- `gemini_reader.py` and `anthropic_reader.py` — the Gemini and Claude implementations. Model, timeout and prices come from `api/.env`. See [ai-hardening.md](ai-hardening.md).
 - `prompts/read_list.md` — the instructions for the AI, in a separate file so they're easy to improve.
 - `schemas.py` — the shape of the answer, checked with Pydantic.
 - `usage.py` / `pricing.py` — save tokens and cost to `ai_usage`.

@@ -48,7 +48,7 @@ Phase 2 adds **products**: what a store sells, in which units, and the names sta
 | `POST /products/import` | manager, secretary | Copy chosen starter items into the store. |
 
 **Ideas**
-- **`stock_qty` can't be edited here.** Sending it is rejected with 422. Stock will change only through stock movements (deliveries, sales, adjustments) in a later phase, so every change has a record.
+- **`stock_qty` can't be edited here.** Sending it is rejected with 422. Stock changes only through stock movements (deliveries, sales, adjustments), so every change has a record.
 - **Exact matches first.** Searching `sem` lists Portland Cement (exact alias) before "Semi-Gloss" (contains "sem").
 - **`%` and `_` in a search are plain text.** In SQL `LIKE` they are wildcards, so they are escaped.
 - **Import is safe to repeat.** Items already in the store are skipped. An alias already used by another product is left off and reported.

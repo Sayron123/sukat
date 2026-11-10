@@ -3,34 +3,25 @@
 import base64
 import json
 from decimal import Decimal
-from functools import cache
-from pathlib import Path
 from typing import Any
 
 import anthropic
 from pydantic import ValidationError
 
 from app.ai.base import ImageType
-from app.ai.convert import catalog_refs, catalog_text, parse_result
+from app.ai.convert import catalog_refs, catalog_text, parse_result, system_prompt
 from app.ai.errors import AIReadError
 from app.ai.schemas import RAW_RESULT_SCHEMA, AIUsageInfo, CatalogEntry, ReadResult
 from app.core.config import settings
 
-PROMPTS_DIR = Path(__file__).parent / "prompts"
-# One prompt per scan type, each in its own file so they can be improved separately.
-PROMPT_FILES: dict[str, str] = {"stock_in": "read_stock_in.md", "sale": "read_sale.md"}
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
-
-
-@cache
-def system_prompt(scan_type: str) -> str:
-    return (PROMPTS_DIR / PROMPT_FILES[scan_type]).read_text(encoding="utf-8")
 
 
 def _usage(response: Any) -> AIUsageInfo:
     u = response.usage
     return AIUsageInfo(
         model=response.model,
+        provider="anthropic",
         input_tokens=u.input_tokens or 0,
         output_tokens=u.output_tokens or 0,
         cache_write_tokens=u.cache_creation_input_tokens or 0,
@@ -39,12 +30,18 @@ def _usage(response: Any) -> AIUsageInfo:
 
 
 class AnthropicVisionReader:
-    def __init__(self, client: anthropic.Anthropic | None = None) -> None:
-        # timeout + max_retries=1: one automatic retry on timeouts, 429, 5xx and network errors.
+    def __init__(
+        self,
+        client: anthropic.Anthropic | None = None,
+        *,
+        model: str | None = None,
+        max_retries: int | None = None,
+    ) -> None:
+        self.model = model or settings.AI_MODEL
         self.client = client or anthropic.Anthropic(
             api_key=settings.ANTHROPIC_API_KEY.get_secret_value() or None,
             timeout=settings.AI_TIMEOUT_SECONDS,
-            max_retries=settings.AI_MAX_RETRIES,
+            max_retries=settings.AI_MAX_RETRIES if max_retries is None else max_retries,
         )
 
     def read_list(
@@ -63,7 +60,7 @@ class AnthropicVisionReader:
 
         try:
             response = self.client.beta.messages.create(
-                model=settings.AI_MODEL,
+                model=self.model,
                 max_tokens=16000,
                 # Order matters for caching: fixed prompt, then this store's product list
                 # (cached), then the photo, which changes every time.
@@ -97,6 +94,10 @@ class AnthropicVisionReader:
                 },
                 **extra,
             )
+        except TypeError as e:
+            if "authentication" not in str(e):
+                raise
+            raise AIReadError("The reader is not set up correctly.", retryable=False) from e
         except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
             raise AIReadError("Reading took too long. Please try again.", retryable=True) from e
         except anthropic.RateLimitError as e:

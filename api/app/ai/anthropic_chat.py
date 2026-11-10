@@ -54,7 +54,8 @@ def _tools(specs: list[dict[str, Any]]) -> list[BetaToolParam]:
 
 
 class AnthropicChatModel:
-    def __init__(self, client: anthropic.Anthropic | None = None) -> None:
+    def __init__(self, client: anthropic.Anthropic | None = None, *, model: str | None = None):
+        self.model = model or settings.AI_MODEL
         # Retries are off: one question has one overall deadline, and the caller passes
         # the time left to each call.
         self.client = client or anthropic.Anthropic(
@@ -76,7 +77,7 @@ class AnthropicChatModel:
             extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"}
         try:
             response = self.client.with_options(timeout=timeout).beta.messages.create(
-                model=settings.AI_MODEL,
+                model=self.model,
                 max_tokens=settings.AI_CHAT_MAX_TOKENS,
                 # Cache order: tools, then the fixed instructions (breakpoint here), then
                 # the per-request context (date, role), which changes every day.

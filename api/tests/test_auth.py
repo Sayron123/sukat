@@ -38,7 +38,7 @@ def test_signup_saves_store_address(api, db):
             "store_address": "  12 Rizal St, Quezon City ",
             "full_name": "Owner",
             "email": "owner@example.com",
-            "password": "correct-horse-1",
+            "password": "Correct-horse-1",
         },
     )
 
@@ -56,7 +56,7 @@ def test_signup_without_store_address_saves_none(api, db, extra):
             "store_name": "Bayan Hardware",
             "full_name": "Owner",
             "email": "owner@example.com",
-            "password": "correct-horse-1",
+            "password": "Correct-horse-1",
             **extra,
         },
     )
@@ -76,7 +76,7 @@ def test_signup_limits_store_address_to_300_characters(api, db, length, status_c
             "store_address": "x" * length,
             "full_name": "Owner",
             "email": "owner@example.com",
-            "password": "correct-horse-1",
+            "password": "Correct-horse-1",
         },
     )
 
@@ -91,7 +91,7 @@ def test_signup_duplicate_email_is_409_and_creates_nothing(api, db, signup):
             "store_name": "Other",
             "full_name": "X",
             "email": "A@example.com",
-            "password": "another-pass-1",
+            "password": "Another-pass-1",
         },
     )
     assert res.status_code == 409
@@ -113,7 +113,7 @@ def test_signup_is_one_transaction(api, db, monkeypatch):
                 "store_name": "S",
                 "full_name": "F",
                 "email": "t@example.com",
-                "password": "x" * 8,
+                "password": "Xx_xxxx1",
             },
         )
     for model in (Store, User, StoreMember):

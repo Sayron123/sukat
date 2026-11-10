@@ -8,6 +8,7 @@ Two layers:
 """
 
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -93,6 +94,7 @@ class ScanLine(BaseModel):
 @dataclass(frozen=True)
 class AIUsageInfo:
     model: str  # the model that actually answered (a refusal fallback may differ)
+    provider: str
     input_tokens: int = 0
     output_tokens: int = 0
     cache_write_tokens: int = 0
@@ -108,3 +110,14 @@ class ReadResult:
     lines: list[ScanLine]
     usage: AIUsageInfo
     raw: dict = field(default_factory=dict)  # the model's JSON, stored on the scan
+
+
+class AIUsageOut(BaseModel):
+    month: str
+    resets_on: date
+    budget_centavos: int
+    spent_centavos: int
+    remaining_centavos: int
+    scans_centavos: int
+    chat_centavos: int
+    reached: bool

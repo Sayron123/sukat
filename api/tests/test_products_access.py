@@ -13,7 +13,7 @@ def _join(api, manager_headers, email, role):
     ).json()
     res = api.post(
         "/staff/invites/accept",
-        json={"token": invite["token"], "password": "staff-pass-1", "full_name": role},
+        json={"token": invite["token"], "password": "Staff-pass-1", "full_name": role},
     )
     return auth_header(res.json()["access_token"])
 

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { Icon } from "./icons";
 
-const backClass = "-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-button text-text hover:bg-surface";
+export const backClass = "-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-button text-text hover:bg-surface";
 
 /**
  * Sticky screen header: small uppercase line above a bold title, optional back arrow

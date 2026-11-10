@@ -12,6 +12,7 @@ Flow for one question:
    the call, which is also how the hourly limit per store is counted.
 """
 
+import logging
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -34,10 +35,11 @@ from app.ai.base import (
     ToolResults,
     UserText,
 )
+from app.ai.budget import ensure_within_budget
 from app.ai.errors import AIChatError
 from app.ai.models import AIUsage
 from app.ai.schemas import AIUsageInfo
-from app.ai.usage import fill_usage
+from app.ai.usage import fill_usage, log_usage
 from app.core.config import settings
 from app.core.errors import AppError, TooManyRequests
 from app.insights import reports
@@ -54,8 +56,11 @@ from app.insights.chat_tools import (
 from app.insights.schemas import DateRange, MovementPage, SalesSummary, TopProducts
 from app.stores.models import Store
 
+logger = logging.getLogger(__name__)
+
 PROMPT_PATH = Path(__file__).parent / "prompts" / "chat.md"
 FEATURE = "chat"
+FAILED_ATTEMPT_FEATURE = "chat_failed_attempt"
 TABLE_ROWS = 10
 MIN_CALL_SECONDS = 2.0  # don't start a model call with less time than this left
 RATE_WINDOW = timedelta(hours=1)
@@ -97,6 +102,7 @@ def _add(a: AIUsageInfo | None, b: AIUsageInfo) -> AIUsageInfo:
         return b
     return AIUsageInfo(
         model=b.model or a.model,
+        provider=b.provider or a.provider,
         input_tokens=a.input_tokens + b.input_tokens,
         output_tokens=a.output_tokens + b.output_tokens,
         cache_write_tokens=a.cache_write_tokens + b.cache_write_tokens,
@@ -111,6 +117,7 @@ class ChatResult:
     tools_used: list[str]
     usage: AIUsageInfo | None  # None when no model call finished
     outcomes: list[tuple[str, ToolOutcome]] = field(default_factory=list)
+    timed_out: bool = False
 
 
 class ChatFailed(Exception):
@@ -130,7 +137,10 @@ def run_chat(
     model: ChatModel,
     now: datetime | None = None,
 ) -> ChatResult:
-    """Answer the last user message. Does not commit and does not log usage.
+    """Answer the last user message. Does not log usage.
+
+    Commits after each tool round to end the read transaction (the tools only read), so
+    no pooled connection is held while the model thinks.
 
     @raises ChatFailed when a model call fails (with the usage spent so far)
     """
@@ -143,6 +153,7 @@ def run_chat(
     outcomes: list[tuple[str, ToolOutcome]] = []
     calls = 0
     answer = NO_ANSWER
+    timed_out = False
 
     # One model call per round: up to CHAT_MAX_TOOL_CALLS rounds with tools, then a
     # last one that must answer in text.
@@ -150,6 +161,7 @@ def run_chat(
         left = deadline - time.monotonic()
         if left < MIN_CALL_SECONDS:
             answer = TOO_SLOW
+            timed_out = True
             break
         allow_tools = calls < settings.CHAT_MAX_TOOL_CALLS
         try:
@@ -186,6 +198,7 @@ def run_chat(
                 outcomes.append((call.name, outcome))
                 results.append(ToolResult(call.id, outcome.content, is_error=not outcome.ok))
             items.append(ToolResults(results))
+            db.commit()
             continue
         if turn.stop == "max_tokens":
             answer = TOO_LONG
@@ -199,6 +212,7 @@ def run_chat(
         tools_used=[name for name, _ in outcomes],
         usage=usage,
         outcomes=outcomes,
+        timed_out=timed_out,
     )
 
 
@@ -224,8 +238,10 @@ def reserve_question(db: Session, store_id: UUID, now: datetime | None = None) -
 
     The store row is locked for the count, so two questions sent at the same moment
     can't both take the last slot.
+    @raises AIBudgetReached when the store has used this month's AI budget
     @raises ChatRateLimited with the time a slot frees up
     """
+    ensure_within_budget(db, store_id, now)
     now = now or datetime.now(UTC)
     limit = settings.CHAT_QUESTIONS_PER_HOUR
     db.execute(select(Store.id).where(Store.id == store_id).with_for_update())
@@ -251,6 +267,7 @@ def reserve_question(db: Session, store_id: UUID, now: datetime | None = None) -
     row = AIUsage(
         store_id=store_id,
         feature=FEATURE,
+        provider=settings.AI_PROVIDER,
         model=settings.AI_MODEL,
         tokens_in=0,
         tokens_out=0,
@@ -262,23 +279,53 @@ def reserve_question(db: Session, store_id: UUID, now: datetime | None = None) -
     return row
 
 
+def _run_with_backup(
+    db: Session,
+    store_id: UUID,
+    role: str,
+    messages: list[ChatMessageIn],
+    model: ChatModel,
+    backup: ChatModel | None,
+    now: datetime | None,
+) -> ChatResult:
+    try:
+        result = run_chat(db, store_id, role, messages, model, now)
+    except ChatFailed as e:
+        if backup is None or not e.error.retryable:
+            raise
+        db.rollback()
+        logger.warning("Main AI provider failed a chat for store %s: %s", store_id, e)
+        spent = e.usage
+    else:
+        if backup is None or not result.timed_out:
+            return result
+        logger.warning("Main AI provider ran out of time on a chat for store %s", store_id)
+        spent = result.usage
+    if spent is not None:
+        log_usage(db, store_id, FAILED_ATTEMPT_FEATURE, spent)
+    db.commit()
+    return run_chat(db, store_id, role, messages, backup, now)
+
+
 def ask(
     db: Session,
     store_id: UUID,
     role: str,
     messages: list[ChatMessageIn],
     model: ChatModel,
+    backup: ChatModel | None = None,
     now: datetime | None = None,
 ) -> ChatOut:
     """Check the hourly limit, answer, and log the tokens and cost to ai_usage
     (feature "chat"), also when the model failed after spending tokens.
 
+    @raises AIBudgetReached (429) when the store has used this month's AI budget
     @raises ChatRateLimited (429) when the store asked too many questions this hour
     @raises ChatUnavailable (503) when the model could not answer
     """
     row = reserve_question(db, store_id, now)
     try:
-        result = run_chat(db, store_id, role, messages, model, now)
+        result = _run_with_backup(db, store_id, role, messages, model, backup, now)
     except ChatFailed as e:
         db.rollback()  # nothing from the tools is kept; the row is re-read below
         if e.usage is not None:

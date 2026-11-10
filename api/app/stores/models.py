@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Integer,
     String,
     UniqueConstraint,
     true,
@@ -28,10 +29,14 @@ ROLE_CHECK = "role IN ('manager', 'secretary', 'member')"
 
 class Store(Base):
     __tablename__ = "stores"
+    __table_args__ = (
+        CheckConstraint("ai_monthly_budget_centavos >= 0", name="ai_budget_not_negative"),
+    )
 
     id: Mapped[UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    ai_monthly_budget_centavos: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
 

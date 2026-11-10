@@ -44,11 +44,11 @@ def test_success_resets_the_email_counter(api, signup):
 
 def test_one_email_being_attacked_does_not_block_another(api, signup):
     signup(email="a@example.com", store_name="A")
-    signup(email="b@example.com", store_name="B", password="b-password-1")
+    signup(email="b@example.com", store_name="B", password="B-password-1")
     for _ in range(3):
         _login(api, email="a@example.com")
     assert _login(api, email="a@example.com").status_code == 429
-    assert _login(api, email="b@example.com", password="b-password-1").status_code == 200
+    assert _login(api, email="b@example.com", password="B-password-1").status_code == 200
 
 
 def test_ip_limit_across_many_emails(api):
@@ -82,7 +82,7 @@ def test_old_failures_are_cleaned_up(api, db):
 
 def test_invite_accept_wrong_password_is_limited(api, signup):
     manager_a = signup(email="a@example.com", store_name="A")["access_token"]
-    signup(email="b@example.com", store_name="B", password="b-password-1")
+    signup(email="b@example.com", store_name="B", password="B-password-1")
     token = api.post(
         "/staff/invites",
         json={"email": "b@example.com", "role": "member"},
@@ -94,9 +94,9 @@ def test_invite_accept_wrong_password_is_limited(api, signup):
 
     for _ in range(3):
         assert accept("wrong-password").status_code == 401
-    assert accept("b-password-1").status_code == 429
+    assert accept("B-password-1").status_code == 429
     # The same email is also protected on the normal login form.
-    assert _login(api, email="b@example.com", password="b-password-1").status_code == 429
+    assert _login(api, email="b@example.com", password="B-password-1").status_code == 429
 
 
 def test_bad_invite_tokens_are_limited_by_ip(api):

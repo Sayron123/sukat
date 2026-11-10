@@ -16,11 +16,12 @@ dependencies = [
     "anthropic>=2.5.0",
     "boto3>=1.43.124",
     "tzdata>=2026.6",
+    "google-genai>=3.0.0",
+    "httpx2>=2.16.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.16.0",
     "pyright>=1.1.414",
     "pytest",
     "ruff",

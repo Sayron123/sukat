@@ -114,6 +114,7 @@ export function Field({
   hint,
   prefix,
   suffix,
+  action,
   invalid,
   compact = false,
   wrapperClassName = "",
@@ -124,6 +125,7 @@ export function Field({
   hint?: ReactNode;
   prefix?: string;
   suffix?: string;
+  action?: ReactNode;
   invalid?: boolean;
   compact?: boolean;
   wrapperClassName?: string;
@@ -137,7 +139,7 @@ export function Field({
         {label}
       </label>
       <div
-        className={`flex w-full min-w-0 items-center overflow-hidden rounded-button border bg-background focus-within:ring-1 ${
+        className={`flex w-full min-w-0 items-center overflow-hidden rounded-button border bg-background has-[input:autofill]:bg-[#e8f0fe] focus-within:ring-1 ${
           compact ? "h-[42px]" : "h-12"
         } ${invalid ? "border-red focus-within:ring-red" : "border-line focus-within:border-text focus-within:ring-text"}`}
       >
@@ -165,8 +167,9 @@ export function Field({
             {suffix}
           </span>
         )}
+        {action}
       </div>
-      {hint && <p className="mt-1.5 text-[13px] leading-snug text-subtle">{hint}</p>}
+      {hint &&<p className="mt-1.5 text-[13px] leading-snug text-subtle">{hint}</p>}
     </div>
   );
 }
