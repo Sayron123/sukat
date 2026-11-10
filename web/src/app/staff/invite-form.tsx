@@ -4,16 +4,19 @@ import { useState, type FormEvent } from "react";
 
 import { Button, Card, Field, GhostButton } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
+import type { Role } from "@/lib/types";
 
 const ROLES = [
   { value: "secretary", title: "Secretary", detail: "Can edit products and void sales" },
   { value: "member", title: "Member", detail: "Can scan sales and stock" },
+  { value: "manager", title: "Manager", detail: "Full access, including staff. The link lasts 24 hours" },
 ];
 
 type Invite = { email: string; role: string; expires_at: string; token: string };
 type Created = { link: string; email: string; role: string; expires: string };
 
-export function InviteForm() {
+export function InviteForm({ inviterRole }: { inviterRole: Role }) {
+  const roles = inviterRole === "secretary" ? ROLES.filter((r) => r.value === "member") : ROLES;
   const [created, setCreated] = useState<Created | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -34,7 +37,12 @@ export function InviteForm() {
         link: `${window.location.origin}/invite?token=${invite.token}`,
         email: invite.email,
         role: invite.role,
-        expires: new Date(invite.expires_at).toLocaleDateString("en-PH", { month: "long", day: "numeric" }),
+        expires: new Date(invite.expires_at).toLocaleString("en-PH", {
+          month: "long",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        }),
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not create the link.");
@@ -93,16 +101,22 @@ export function InviteForm() {
   return (
     <Card className="mb-4">
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <b className="block text-base text-text">Invite someone</b>
         <Field id="invite-email" name="email" type="email" label="Their email" autoComplete="off" required />
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-[7px] text-[13px] font-bold text-text">What will they be?</legend>
-          {ROLES.map((r) => (
+          {roles.map((r) => (
             <label
               key={r.value}
               className="flex min-h-[64px] cursor-pointer items-center gap-3 rounded-button border border-line px-3 has-checked:border-text has-checked:bg-surface"
             >
-              <input type="radio" name="role" value={r.value} required className="h-5 w-5 accent-accent" />
+              <input
+                type="radio"
+                name="role"
+                value={r.value}
+                required
+                defaultChecked={roles.length === 1}
+                className="h-5 w-5 accent-accent"
+              />
               <span className="min-w-0">
                 <b className="block text-[15px] text-text">{r.title}</b>
                 <small className="block text-[13px] text-muted">{r.detail}</small>

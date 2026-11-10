@@ -262,7 +262,7 @@ function PickPhoto({ mode, error, onFile }: { mode: ScanMode; error?: string; on
           <p
             role={error ? "alert" : undefined}
             className={`absolute inset-x-4 bottom-3.5 mx-auto w-fit rounded-button px-3 py-2 text-center text-[13px] ${
-              error ? "bg-red text-white" : "bg-dark/75"
+              error ? "bg-red-fill text-white" : "bg-dark/75"
             }`}
           >
             {error ?? text.pickHelp}

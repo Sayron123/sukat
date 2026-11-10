@@ -129,7 +129,7 @@ function MovementLine({ m }: { m: MovementRow }) {
           </small>
         </div>
         <div className="shrink-0 text-right">
-          <strong className={`block text-base ${out ? "text-text" : "text-[#15803d]"}`}>
+          <strong className={`block text-base ${out ? "text-text" : "text-green-text"}`}>
             {out ? "−" : "+"} {qty} {m.base_unit}
           </strong>
           <small className="mt-1 block text-sm text-muted">

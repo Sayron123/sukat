@@ -16,6 +16,34 @@ export type Category = (typeof CATEGORIES)[number];
 
 export type Role = "manager" | "secretary" | "member";
 
+export type Staff = {
+  member_id: string;
+  user_id: string;
+  email: string | null;
+  full_name: string;
+  alias: string | null;
+  role: Role;
+  active: boolean;
+  is_owner: boolean;
+  created_at: string;
+};
+
+export type AttendanceStatus = "present" | "late" | "half_day" | "absent";
+
+export const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = {
+  present: "Present",
+  late: "Late",
+  half_day: "Half day",
+  absent: "Absent",
+};
+
+export type Attendance = {
+  id: string;
+  work_date: string;
+  status: AttendanceStatus;
+  note: string | null;
+};
+
 export type Me = {
   user_id: string;
   email: string;

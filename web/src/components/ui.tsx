@@ -36,9 +36,9 @@ export function Notice({
 }
 
 const BADGE_TONES = {
-  red: "border-[#fecaca] bg-[#fef2f2] text-red",
-  amber: "border-[#fde68a] bg-[#fffbeb] text-[#b45309]",
-  green: "border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]",
+  red: "border-red-edge bg-red-soft text-red",
+  amber: "border-amber-edge bg-amber-soft text-amber-text",
+  green: "border-green-edge bg-green-soft text-green-text",
   neutral: "border-border bg-surface text-muted",
 } as const;
 
@@ -57,7 +57,7 @@ export function Badge({
 
 const BUTTON_COLORS = {
   primary: "bg-accent shadow-[0_2px_4px_rgba(124,45,18,0.15)] hover:bg-accent-pressed active:bg-accent-pressed",
-  danger: "bg-red hover:bg-red/90 active:bg-red/90",
+  danger: "bg-red-fill hover:bg-red-fill/90 active:bg-red-fill/90",
   success: "bg-green",
 } as const;
 
@@ -139,7 +139,7 @@ export function Field({
         {label}
       </label>
       <div
-        className={`flex w-full min-w-0 items-center overflow-hidden rounded-button border bg-background has-[input:autofill]:bg-[#e8f0fe] focus-within:ring-1 ${
+        className={`flex w-full min-w-0 items-center overflow-hidden rounded-button border bg-background has-[input:autofill]:bg-autofill focus-within:ring-1 ${
           compact ? "h-[42px]" : "h-12"
         } ${invalid ? "border-red focus-within:ring-red" : "border-line focus-within:border-text focus-within:ring-text"}`}
       >
@@ -178,12 +178,13 @@ export function Select({
   label,
   id,
   children,
+  hideLabel = false,
   wrapperClassName = "",
   ...props
-}: ComponentProps<"select"> & { label: string; id: string; wrapperClassName?: string }) {
+}: ComponentProps<"select"> & { label: string; id: string; hideLabel?: boolean; wrapperClassName?: string }) {
   return (
     <div className={`flex min-w-0 flex-col ${wrapperClassName}`}>
-      <label htmlFor={id} className="mb-[7px] text-[13px] font-bold text-text">
+      <label htmlFor={id} className={hideLabel ? "sr-only" : "mb-[7px] text-[13px] font-bold text-text"}>
         {label}
       </label>
       <select
@@ -223,7 +224,7 @@ export function Chip({
       type="button"
       aria-pressed={selected}
       className={`h-[38px] shrink-0 whitespace-nowrap rounded-button border px-3.5 text-[13px] font-semibold ${
-        selected ? "border-text bg-text text-white" : "border-line bg-background text-muted hover:bg-surface"
+        selected ? "border-text bg-text text-inverse" : "border-line bg-background text-muted hover:bg-surface"
       } ${className}`}
       {...props}
     />

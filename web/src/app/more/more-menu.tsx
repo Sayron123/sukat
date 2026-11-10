@@ -25,7 +25,7 @@ const ITEMS: Item[] = [
   { href: "/transactions", icon: "history", title: "History", detail: "Sales and stock movements" },
   { href: "/staff", icon: "users", title: "Staff", detail: "People and permissions" },
   { href: "/more/ai-usage", icon: "spark", title: "AI usage", detail: "This month's spending and limit", managersOnly: true },
-  { href: "/more/password", icon: "edit", title: "Change password", detail: "Update how you sign in" },
+  { href: "/more/settings", icon: "edit", title: "Settings", detail: "Your name, password and appearance" },
   { href: "/stock/new", icon: "plus", title: "Add product", detail: "Create a stock item", writersOnly: true },
   { href: "/stock/import", icon: "box", title: "Import starter items", detail: "Pick from a ready-made list", writersOnly: true },
   { href: "/more/export", icon: "download", title: "Download store data", detail: "Products, history and stock as CSV", managersOnly: true },

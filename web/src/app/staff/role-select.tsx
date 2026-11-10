@@ -32,6 +32,7 @@ export function RoleSelect({ memberId, name, role }: { memberId: string; name: s
       <Select
         id={`role-${memberId}`}
         label={`Role for ${name}`}
+        hideLabel
         value={value}
         disabled={pending}
         onChange={onChange}

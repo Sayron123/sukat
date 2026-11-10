@@ -45,7 +45,7 @@ function Bars({ data }: { data: ChatData }) {
             </span>
             <span className="mt-1 block h-[9px] overflow-hidden rounded bg-border" aria-hidden>
               <span
-                className={`block h-full rounded-r ${muted ? "bg-[#a8a29e]" : "bg-[#44403c]"}`}
+                className={`block h-full rounded-r ${muted ? "bg-bar-muted" : "bg-bar"}`}
                 style={{ width: `${pct}%` }}
               />
             </span>

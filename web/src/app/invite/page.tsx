@@ -56,7 +56,7 @@ async function InviteContent({ searchParams }: { searchParams: SearchParams }) {
   if (!res.ok) return <InviteProblem message={SERVER_DOWN} />;
 
   const invite = (await res.json()) as Preview;
-  const role = invite.role === "secretary" ? "a secretary" : "a member";
+  const role = `a ${invite.role}`;
   const next = invite.has_account
     ? `${invite.email} already has a Sukat account, so enter its password to join.`
     : "Create your password to join.";

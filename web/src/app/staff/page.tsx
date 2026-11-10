@@ -1,25 +1,16 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AppPage } from "@/components/app-page";
 import { PageHeader } from "@/components/page-header";
-import { Avatar, Badge, Card, Notice } from "@/components/ui";
+import { Avatar, Badge, Notice, buttonClass } from "@/components/ui";
 import { backendFetch, getToken } from "@/lib/server/backend";
-import type { Me, Role } from "@/lib/types";
+import type { Me, Staff } from "@/lib/types";
 
-import { InviteForm } from "./invite-form";
 import { RoleSelect } from "./role-select";
 
 export const metadata: Metadata = { title: "Staff · Sukat" };
-
-type Staff = {
-  member_id: string;
-  user_id: string;
-  email: string;
-  full_name: string;
-  role: Role;
-  active: boolean;
-};
 
 export default function StaffPage() {
   return (
@@ -57,10 +48,12 @@ async function StaffContent() {
         title="Staff"
         back="/more"
       />
-      {me.role === "manager" && <InviteForm />}
-      {staffRes.status === 403 ? (
-        <Card className="text-sm text-muted">Only managers and secretaries can see the staff list.</Card>
-      ) : !staff ? (
+      {me.role !== "member" && (
+        <Link href="/staff/invite" className={`${buttonClass()} mb-4`}>
+          Invite someone
+        </Link>
+      )}
+      {!staff ? (
         <p className="text-sm text-red">Could not load staff.</p>
       ) : (
         <StaffList staff={staff} me={me} />
@@ -86,23 +79,38 @@ function ApiDown() {
 function StaffList({ staff, me }: { staff: Staff[]; me: Me }) {
   return (
     <ul className="rounded-card border border-border px-4 py-1">
-      {staff.map((s) => (
-        <li key={s.member_id} className="flex min-h-[84px] items-center gap-2.5">
-          <Avatar name={s.full_name} />
-          <div className="min-w-0 flex-1">
-            <b className="block truncate text-base text-text">{s.full_name}</b>
-            <small className="mt-1 block truncate text-[13px] text-muted">{s.email}</small>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            {me.role === "manager" && s.active && s.user_id !== me.user_id ? (
-              <RoleSelect memberId={s.member_id} name={s.full_name} role={s.role} />
+      {staff.map((s) => {
+        const name = s.alias ?? s.full_name;
+        const detail = [s.alias && s.full_name, s.email].filter(Boolean).join(" · ");
+        const person = (
+          <>
+            <Avatar name={name} />
+            <div className="min-w-0 flex-1">
+              <b className="block truncate text-base text-text">{name}</b>
+              {detail && <small className="mt-1 block truncate text-[13px] text-muted">{detail}</small>}
+            </div>
+          </>
+        );
+        return (
+          <li key={s.member_id} className="flex min-h-[84px] items-center gap-2.5">
+            {me.role === "manager" ? (
+              <Link href={`/staff/${s.member_id}`} className="flex min-w-0 flex-1 items-center gap-2.5">
+                {person}
+              </Link>
             ) : (
-              <Badge className="capitalize">{s.role}</Badge>
+              <div className="flex min-w-0 flex-1 items-center gap-2.5">{person}</div>
             )}
-            {!s.active && <Badge tone="red">Inactive</Badge>}
-          </div>
-        </li>
-      ))}
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              {me.role === "manager" && s.active && !s.is_owner && s.user_id !== me.user_id ? (
+                <RoleSelect memberId={s.member_id} name={name} role={s.role} />
+              ) : (
+                <Badge className="capitalize">{s.is_owner ? "owner" : s.role}</Badge>
+              )}
+              {!s.active && <Badge tone="red">Inactive</Badge>}
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }

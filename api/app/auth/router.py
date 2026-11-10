@@ -10,6 +10,7 @@ from app.auth.schemas import (
     ForgotPasswordIn,
     LoginIn,
     MeOut,
+    ProfileIn,
     ResetPasswordIn,
     SignupIn,
     TokenOut,
@@ -73,3 +74,8 @@ def resend_verification(request: Request, current: CurrentMemberDep, db: DbSessi
 @router.get("/me", response_model=MeOut)
 def me(current: CurrentMemberDep, db: DbSession) -> MeOut:
     return service.get_me(db, current)
+
+
+@router.patch("/me", response_model=MeOut)
+def update_me(body: ProfileIn, current: CurrentMemberDep, db: DbSession) -> MeOut:
+    return service.update_profile(db, current, body.full_name)

@@ -95,7 +95,7 @@ def test_member_cannot_invite(api, two_stores):
     assert res.status_code == 403
 
 
-def test_secretary_cannot_invite_or_deactivate_but_can_list(api, signup):
+def test_secretary_cannot_invite_above_member_or_deactivate_but_can_list(api, signup):
     manager = signup()["access_token"]
     invite = api.post(
         "/staff/invites",
@@ -116,7 +116,7 @@ def test_secretary_cannot_invite_or_deactivate_but_can_list(api, signup):
     assert api.get("/staff", headers=headers).status_code == 200
     assert (
         api.post(
-            "/staff/invites", json={"email": "y@example.com", "role": "member"}, headers=headers
+            "/staff/invites", json={"email": "y@example.com", "role": "secretary"}, headers=headers
         ).status_code
         == 403
     )
@@ -124,10 +124,10 @@ def test_secretary_cannot_invite_or_deactivate_but_can_list(api, signup):
     assert api.post(f"/staff/{owner_id}/deactivate", headers=headers).status_code == 403
 
 
-def test_member_cannot_list_or_deactivate(api, two_stores):
+def test_member_can_list_staff_but_not_manage_them(api, two_stores):
     a = two_stores["a"]
     headers = auth_header(a["member"])
-    assert api.get("/staff", headers=headers).status_code == 403
+    assert api.get("/staff", headers=headers).status_code == 200
     assert api.get(f"/staff/{a['manager_id']}", headers=headers).status_code == 403
     assert api.post(f"/staff/{a['manager_id']}/deactivate", headers=headers).status_code == 403
 

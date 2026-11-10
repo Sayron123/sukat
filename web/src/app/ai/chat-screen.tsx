@@ -149,7 +149,7 @@ function Chat() {
             m.role === "user" ? (
               <p
                 key={m.id}
-                className="max-w-[80%] self-end rounded-[16px_16px_4px_16px] bg-text px-3.5 py-3 text-sm whitespace-pre-wrap text-white"
+                className="max-w-[80%] self-end rounded-[16px_16px_4px_16px] bg-text px-3.5 py-3 text-sm whitespace-pre-wrap text-inverse"
               >
                 {m.content}
               </p>
@@ -209,7 +209,7 @@ function Chat() {
             type="submit"
             aria-label="Send"
             disabled={!text.trim() || status.name === "loading"}
-            className="grid w-12 shrink-0 place-items-center rounded-button bg-text text-white disabled:opacity-35"
+            className="grid w-12 shrink-0 place-items-center rounded-button bg-text text-inverse disabled:opacity-35"
           >
             <Icon name="send" size={20} />
           </button>

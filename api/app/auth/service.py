@@ -146,7 +146,7 @@ def signup(db: Session, data: SignupIn, ip: str | None) -> TokenOut:
     )
     db.add_all([store, user])
     db.flush()  # assigns ids, still inside the same transaction
-    db.add(StoreMember(store_id=store.id, user_id=user.id, role=Role.MANAGER))
+    db.add(StoreMember(store_id=store.id, user_id=user.id, role=Role.MANAGER, is_owner=True))
     verify_token = _new_token(
         db,
         user.id,
@@ -281,6 +281,12 @@ def resend_verification(db: Session, user: User, ip: str | None) -> None:
     )
     enqueue_email(db, _verify_email_message(user.email, token))
     db.commit()
+
+
+def update_profile(db: Session, current: CurrentMember, full_name: str) -> MeOut:
+    current.user.full_name = full_name
+    db.commit()
+    return get_me(db, current)
 
 
 def get_me(db: Session, current: CurrentMember) -> MeOut:
