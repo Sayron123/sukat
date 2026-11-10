@@ -99,6 +99,11 @@ export function ScanFlow({
     api<Me>("auth/me").then(setMe, () => {});
   }, []);
 
+  const salesOnly = mode === "stock_in" && !initialScan && me?.role === "member";
+  useEffect(() => {
+    if (salesOnly) router.replace("/scan/sale");
+  }, [salesOnly, router]);
+
   async function startWithFile(file: File) {
     setStep({ name: "uploading" });
     let photoKey: string;
@@ -167,6 +172,8 @@ export function ScanFlow({
       setStep({ name: "failed", scan: { ...scan, error_message: e instanceof ApiError ? e.message : "Retry failed", retryable: true } });
     }
   }
+
+  if (salesOnly) return null;
 
   switch (step.name) {
     case "pick":
