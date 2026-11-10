@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ActionDock } from "@/components/action-dock";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -13,7 +13,6 @@ import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
 import { formatPeso, formatQty } from "@/lib/format";
 import { newRequestId } from "@/lib/request-id";
-import { watchPendingPhoto } from "@/lib/pending-photo";
 import {
   canEditProducts,
   type Me,
@@ -99,11 +98,6 @@ export function ScanFlow({
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
   }, []);
-
-  // A photo taken with the home page's "Scan Receipt" button: start with it right away,
-  // whether this page just mounted or was still alive from an earlier visit.
-  const onPendingPhoto = useEffectEvent((file: File) => void startWithFile(file));
-  useEffect(() => watchPendingPhoto(onPendingPhoto), []);
 
   async function startWithFile(file: File) {
     setStep({ name: "uploading" });
