@@ -18,6 +18,7 @@ Category = Literal[
 CATEGORIES: tuple[str, ...] = get_args(Category)
 
 PAGE_SIZE = 20
+MAX_BULK_DELETE = 2000
 
 
 def sql_in_list(values: tuple[str, ...]) -> str:

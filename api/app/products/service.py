@@ -8,20 +8,21 @@ Raises AppError subclasses (see app.core.errors); never commits half a change.
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import Select, case, exists, func, or_, select
+from sqlalchemy import Select, case, delete, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Invalid, NotFound
 from app.inventory.models import StockMovement, TransactionItem
 from app.products.catalog import CatalogItem, catalog_by_key, load_catalog
-from app.products.constants import PAGE_SIZE
+from app.products.constants import MAX_BULK_DELETE, PAGE_SIZE
 from app.products.models import Product, ProductAlias, UnitConversion
 from app.products.schemas import (
     ConversionIn,
     DroppedAlias,
     ImportOut,
     ProductCreate,
+    ProductDeleteOut,
     ProductUpdate,
     SkippedItem,
 )
@@ -57,14 +58,7 @@ class ProductSearch:
     page: int = 1  # 1-based; the caller bounds it (huge offsets overflow Postgres bigint)
 
 
-def search_products(
-    db: Session, store_id: UUID, search: ProductSearch
-) -> tuple[list[Product], int]:
-    """One page (PAGE_SIZE) of products, sorted by name, plus the total match count.
-
-    `q` matches anywhere in the name or any alias, ignoring case and extra spaces.
-    Exact name/alias matches come first, so "sem" puts cement on top.
-    """
+def _matching(store_id: UUID, search: ProductSearch) -> tuple[Select[Product], list]:
     stmt: Select[Product] = select(Product).where(Product.store_id == store_id)
     if not search.include_archived:
         stmt = stmt.where(Product.archived.is_(False))
@@ -93,11 +87,29 @@ def search_products(
         )
         exact = or_(func.lower(Product.name) == term, alias_matches(ProductAlias.alias == term))
         order.insert(0, case((exact, 0), else_=1))
+    return stmt, order
 
+
+def search_products(
+    db: Session, store_id: UUID, search: ProductSearch
+) -> tuple[list[Product], int]:
+    """One page (PAGE_SIZE) of products, sorted by name, plus the total match count.
+
+    `q` matches anywhere in the name or any alias, ignoring case and extra spaces.
+    Exact name/alias matches come first, so "sem" puts cement on top.
+    """
+    stmt, order = _matching(store_id, search)
     total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
     offset = (search.page - 1) * PAGE_SIZE
     rows = db.scalars(stmt.order_by(*order).offset(offset).limit(PAGE_SIZE)).all()
     return list(rows), total
+
+
+def matching_ids(db: Session, store_id: UUID, search: ProductSearch) -> list[UUID]:
+    stmt, order = _matching(store_id, search)
+    return list(
+        db.scalars(stmt.with_only_columns(Product.id).order_by(*order).limit(MAX_BULK_DELETE))
+    )
 
 
 # ---------- writing ----------
@@ -262,6 +274,54 @@ def set_archived(db: Session, store_id: UUID, product_id: UUID, archived: bool) 
     db.commit()
     db.refresh(product)
     return product
+
+
+def delete_products(db: Session, store_id: UUID, product_ids: list[UUID]) -> ProductDeleteOut:
+    rows = db.execute(
+        select(Product.id, Product.name)
+        .where(Product.store_id == store_id, Product.id.in_(set(product_ids)))
+        .order_by(Product.id)
+        .with_for_update()
+    ).all()
+    ids = {row.id for row in rows}
+    used = set(
+        db.scalars(
+            select(StockMovement.product_id).where(
+                StockMovement.store_id == store_id, StockMovement.product_id.in_(ids)
+            )
+        )
+    ) | set(
+        db.scalars(
+            select(TransactionItem.product_id).where(
+                TransactionItem.store_id == store_id, TransactionItem.product_id.in_(ids)
+            )
+        )
+    )
+    unused = ids - used
+    try:
+        if unused:
+            db.execute(
+                delete(Product)
+                .where(Product.store_id == store_id, Product.id.in_(unused))
+                .execution_options(synchronize_session=False)
+            )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise Conflict("Some of these products were just used. Please try again.") from None
+    kept = sorted((row.name for row in rows if row.id in used), key=str.lower)
+    return ProductDeleteOut(deleted=len(unused), kept=kept)
+
+
+def delete_product(db: Session, store_id: UUID, product_id: UUID) -> None:
+    result = delete_products(db, store_id, [product_id])
+    if result.kept:
+        raise Conflict(
+            f'"{result.kept[0]}" has sales or stock history, so it can\'t be deleted. '
+            "Archive it instead."
+        )
+    if not result.deleted:
+        raise NotFound("Product not found")
 
 
 # ---------- starter catalog ----------

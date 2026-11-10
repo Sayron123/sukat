@@ -18,7 +18,7 @@ Phase 2 adds **products**: what a store sells, in which units, and the names sta
 - **`stock_qty` is `NUMERIC(12,3)`.** Exact decimals with 3 places, for things like 2.5 kg of nails or 0.125 gallons.
 - **Every table has `store_id`.** Aliases and conversions point to `(product_id, store_id)` **together**, so the database itself refuses an alias that links Store B to Store A's product.
 - **Unique per store:** two products in one store can't share a name (ignoring upper/lower case) or an alias. Different stores can use the same names.
-- **Archive, don't delete.** Archived products are hidden but kept, so old sales still make sense.
+- **Archive, or delete if never used.** Archived products are hidden but kept, so old sales still make sense. A manager can delete a product only if it has no sales or stock history.
 
 ## Step 2 — Starter catalog
 
@@ -44,6 +44,9 @@ Phase 2 adds **products**: what a store sells, in which units, and the names sta
 | `POST /products` | manager, secretary | Create. |
 | `PATCH /products/{id}` | manager, secretary | Change only the fields you send. Sending `aliases` or `conversions` replaces the whole list. |
 | `POST /products/{id}/archive` / `unarchive` | manager, secretary | Hide / show again. |
+| `DELETE /products/{id}` | manager | Delete a product with no sales or stock history. Otherwise 409. |
+| `POST /products/bulk-delete` | manager | Delete up to 2000 products by id. Products with history are kept and named in the answer. |
+| `GET /products/ids` | manager | Ids matching `q` and `category`, for Select all (up to 2000). |
 | `GET /products/catalog` | everyone | Starter items, each marked `already_in_store`. |
 | `POST /products/import` | manager, secretary | Copy chosen starter items into the store. |
 

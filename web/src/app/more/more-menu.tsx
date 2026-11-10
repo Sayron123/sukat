@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Icon, type IconName } from "@/components/icons";
 import { LogoutButton } from "@/components/logout-button";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Avatar, Notice, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { canEditProducts, type Me } from "@/lib/types";
@@ -25,7 +25,6 @@ const ITEMS: Item[] = [
   { href: "/transactions", icon: "history", title: "History", detail: "Sales and stock movements" },
   { href: "/staff", icon: "users", title: "Staff", detail: "People and permissions" },
   { href: "/more/ai-usage", icon: "spark", title: "AI usage", detail: "This month's spending and limit", managersOnly: true },
-  { href: "/more/settings", icon: "edit", title: "Settings", detail: "Your name, password and appearance" },
   { href: "/stock/new", icon: "plus", title: "Add product", detail: "Create a stock item", writersOnly: true },
   { href: "/stock/import", icon: "box", title: "Import starter items", detail: "Pick from a ready-made list", writersOnly: true },
   { href: "/more/export", icon: "download", title: "Download store data", detail: "Products, history and stock as CSV", managersOnly: true },
@@ -75,7 +74,7 @@ export function MoreMenu() {
       {me && (
         <div className="mb-3 flex items-center gap-3.5 border-b border-border pt-2 pb-6">
           <Avatar name={me.store_name} large />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <b className="block truncate text-base text-text">{me.store_name}</b>
             {me.store_address && (
               <span className="mt-1 block truncate text-sm text-muted">{me.store_address}</span>
@@ -84,6 +83,9 @@ export function MoreMenu() {
               {me.full_name} · <span className="capitalize">{me.role}</span>
             </span>
           </div>
+          <Link href="/more/settings" aria-label="Settings" title="Settings" className={headerIconClass}>
+            <Icon name="settings" />
+          </Link>
         </div>
       )}
       {me && !me.email_verified && <VerifyEmailNotice email={me.email} />}

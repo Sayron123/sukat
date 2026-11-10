@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
 import { PageHeader, headerIconClass } from "@/components/page-header";
-import { Badge, Card, Loading, Pager } from "@/components/ui";
+import { Badge, Button, Card, Loading, Pager } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { formatPeso, formatQty, formatShortWhen } from "@/lib/format";
 import { KIND_TITLE } from "@/lib/labels";
@@ -18,6 +20,10 @@ export function ProductDetail({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [history, setHistory] = useState<MovementPage | null | "error">(null);
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
@@ -37,6 +43,19 @@ export function ProductDetail({ id }: { id: string }) {
     };
   }, [id, page]);
 
+  async function deleteProduct() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api(`products/${encodeURIComponent(id)}`, { method: "DELETE" });
+      router.replace("/stock");
+    } catch (e) {
+      setDeleteError(e instanceof ApiError ? e.message : "Could not delete this product.");
+      setConfirming(false);
+      setDeleting(false);
+    }
+  }
+
   if (error)
     return (
       <>
@@ -45,6 +64,7 @@ export function ProductDetail({ id }: { id: string }) {
       </>
     );
   if (!product) return <Loading />;
+  const canDelete = me?.role === "manager";
 
   return (
     <>
@@ -75,7 +95,7 @@ export function ProductDetail({ id }: { id: string }) {
           {formatQty(product.stock_qty)} <span className="text-base font-semibold text-muted">{product.base_unit}</span>
         </strong>
       </div>
-      <div className="mb-8 grid grid-cols-2 gap-3">
+      <div className={`${canDelete ? "mb-3" : "mb-8"} grid grid-cols-2 gap-3`}>
         <Card>
           <p className="text-[13px] text-muted">Price</p>
           <p className="mt-1 font-bold text-text">
@@ -90,6 +110,19 @@ export function ProductDetail({ id }: { id: string }) {
           </p>
         </Card>
       </div>
+
+      {canDelete && (
+        <div className="mb-8">
+          {deleteError && (
+            <p role="alert" className="mb-3 text-sm text-red">
+              {deleteError}
+            </p>
+          )}
+          <Button type="button" variant="danger" icon="trash" onClick={() => setConfirming(true)}>
+            Delete product
+          </Button>
+        </div>
+      )}
 
       <h2 className="mb-3 text-lg font-bold text-text">Stock history</h2>
       {history === null ? (
@@ -108,6 +141,18 @@ export function ProductDetail({ id }: { id: string }) {
           <Pager page={history.page} pages={history.pages} onPage={setPage} />
         </>
       )}
+
+      <ConfirmDialog
+        open={confirming}
+        title={`Delete ${product.name}?`}
+        confirmLabel="Delete"
+        danger
+        busy={deleting}
+        onConfirm={deleteProduct}
+        onCancel={() => setConfirming(false)}
+      >
+        This can&apos;t be undone.
+      </ConfirmDialog>
     </>
   );
 }
