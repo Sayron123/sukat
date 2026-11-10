@@ -14,6 +14,7 @@ SIGNUP = {
     "full_name": "Owner",
     "email": "new@example.com",
     "password": "Correct-horse-1",
+    "accept_terms": True,
 }
 
 
@@ -38,7 +39,12 @@ def _invite_member(api, manager, email="staff@example.com", role="member"):
     invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager).json()
     res = api.post(
         "/staff/invites/accept",
-        json={"token": invite["token"], "password": "Staff-pass-1", "full_name": "Staff"},
+        json={
+            "accept_terms": True,
+            "token": invite["token"],
+            "password": "Staff-pass-1",
+            "full_name": "Staff",
+        },
     )
     return auth_header(res.json()["access_token"])
 
@@ -275,14 +281,6 @@ def test_inactive_member_role_cannot_change(api, manager):
 def test_unknown_role_is_refused(api, manager):
     _invite_member(api, manager)
     assert _set_role(api, manager, _member_id(api, manager), "owner").status_code == 422
-
-
-def test_signups_are_limited_per_ip(api):
-    for i in range(20):
-        body = {**SIGNUP, "email": f"a{i}@example.com"}
-        assert api.post("/auth/signup", json=body).status_code == 201
-    body = {**SIGNUP, "email": "last@example.com"}
-    assert api.post("/auth/signup", json=body).status_code == 429
 
 
 def test_console_email_is_refused_outside_development(monkeypatch):

@@ -4,7 +4,7 @@ import logging
 import re
 import uuid
 from datetime import UTC, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -14,6 +14,12 @@ from sqlalchemy.orm import Session
 from app.ai.base import ImageType, VisionReader
 from app.ai.budget import ensure_within_budget
 from app.ai.errors import AIReadError
+from app.ai.scan_check import (  # noqa: F401  (quantize_qty, line_total: used by stock_service)
+    CONFIDENCE_THRESHOLD,
+    check_line,
+    line_total,
+    quantize_qty,
+)
 from app.ai.schemas import CatalogConversion, CatalogEntry, ReadResult, ScanLine
 from app.ai.usage import log_usage
 from app.core.config import settings
@@ -23,11 +29,9 @@ from app.inventory.models import Scan
 from app.inventory.schemas import ReviewLineOut, ScanOut
 from app.products.models import Product
 from app.products.pricing import price_per_unit, priced_line
-from app.products.units import UnitConversionError, convert
 
 logger = logging.getLogger(__name__)
 
-CONFIDENCE_THRESHOLD = 0.8
 STALE_MESSAGE = "Reading stopped before it finished. Please try again."
 
 PHOTO_EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
@@ -85,7 +89,7 @@ WRITABLE_STATUSES = ("pending", "failed")
 def stale_after_seconds() -> float:
     """After this long, a "pending" scan can't still be reading (the AI client has given
     up by then), e.g. the server restarted mid-read."""
-    attempts = 2 if settings.has_ai_fallback else settings.AI_MAX_RETRIES + 1
+    attempts = 3 if settings.has_ai_fallback else 2 * (settings.AI_MAX_RETRIES + 1)
     return settings.AI_TIMEOUT_SECONDS * attempts + 60
 
 
@@ -153,7 +157,9 @@ def run_read(
         _finish_failed(db, scan, str(e), e)
         return
 
-    log_usage(db, scan.store_id, "scan_read", result.usage)  # tokens were spent either way
+    # Tokens were spent either way: one ai_usage row per AI request (read, match).
+    for feature, usage in result.calls or [("scan_read", result.usage)]:
+        log_usage(db, scan.store_id, feature, usage)
     if _lock_if_writable(db, scan):
         scan.status = "read"
         scan.error_message = None
@@ -164,10 +170,15 @@ def run_read(
         if scan.type == "sale":
             # A sale can only be of existing products, whatever the AI suggested.
             lines = [line.model_copy(update={"suggested_new_name": None}) for line in lines]
-        scan.ai_result_json = {
+        stored: dict = {
             "lines": [line.model_dump(mode="json") for line in lines],
             "raw": result.raw,
         }
+        if result.steps is not None:
+            # Each step's output (read, match, check), to see where errors happen.
+            stored["steps"] = result.steps
+            stored["ai_requests"] = result.ai_requests
+        scan.ai_result_json = stored
     db.commit()
 
 
@@ -193,16 +204,6 @@ def _finish_failed(db: Session, scan: Scan, message: str, error: AIReadError | N
     db.commit()
 
 
-def quantize_qty(value: Decimal) -> Decimal:
-    return value.quantize(QTY_STEP, rounding=ROUND_HALF_UP)
-
-
-def line_total(qty: Decimal | None, unit_price_centavos: int | None) -> int | None:
-    if qty is None or unit_price_centavos is None:
-        return None
-    return int((qty * unit_price_centavos).quantize(Decimal(1), rounding=ROUND_HALF_UP))
-
-
 def review_line(line: ScanLine, products: dict[UUID, Product], scan_type: str) -> dict:
     """Add what the review screen needs: product details, qty in base unit, the price to
     use, why the line needs checking (`check_reasons`), and softer `warnings`.
@@ -214,27 +215,17 @@ def review_line(line: ScanLine, products: dict[UUID, Product], scan_type: str) -
     product = products.get(line.product_id) if line.product_id else None
     is_sale = scan_type == "sale"
     suggested = None if (product or is_sale) else line.suggested_new_name
-    reasons: list[str] = []
     warnings: list[str] = []
-    qty_base: Decimal | None = None
-
-    if line.confidence < CONFIDENCE_THRESHOLD:
-        reasons.append("low_confidence")
-    if product is None:
-        reasons.append("new_product" if suggested else "no_product")
-    if line.qty is None:
-        reasons.append("no_qty")
-    if not line.unit:
-        # Never guess the unit (1 box of nails is not 1 kg): staff must enter it.
-        reasons.append("no_unit")
-    if product is not None and line.qty is not None and line.unit:
-        try:
-            qty_base = quantize_qty(convert(product, line.qty, line.unit))
-            if qty_base <= 0:
-                reasons.append("qty_too_small")
-                qty_base = None
-        except UnitConversionError:
-            reasons.append("unknown_unit")
+    # Same rules as the scan's check step (app/ai/scan_check.py), with today's products.
+    reasons, qty_base = check_line(
+        confidence=line.confidence,
+        product=product,
+        is_new=bool(suggested),
+        qty=line.qty,
+        unit=line.unit,
+        unit_price_centavos=line.unit_price_centavos,
+        written_total_centavos=line.line_total_centavos,
+    )
 
     unit_price = line.unit_price_centavos
     price_source = "receipt" if unit_price is not None else None

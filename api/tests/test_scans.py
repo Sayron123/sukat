@@ -29,7 +29,12 @@ def _member(api, manager):
     ).json()
     token = api.post(
         "/staff/invites/accept",
-        json={"token": invite["token"], "password": "Member-pass-1", "full_name": "M"},
+        json={
+            "accept_terms": True,
+            "token": invite["token"],
+            "password": "Member-pass-1",
+            "full_name": "M",
+        },
     ).json()["access_token"]
     return auth_header(token)
 

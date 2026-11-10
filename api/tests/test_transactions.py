@@ -7,7 +7,6 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.ai.convert import catalog_refs, parse_result
 from app.auth.deps import get_current_member
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.schemas import TransactionIn
@@ -196,7 +195,12 @@ def test_member_can_save_but_cannot_create_products(api, db, manager, nails):
     member = auth_header(
         api.post(
             "/staff/invites/accept",
-            json={"token": invite["token"], "password": "Member-pass-1", "full_name": "M"},
+            json={
+                "accept_terms": True,
+                "token": invite["token"],
+                "password": "Member-pass-1",
+                "full_name": "M",
+            },
         ).json()["access_token"]
     )
     ok = _save(api, member, [{"product_id": nails["id"], "qty": "1", "unit": "kg"}])
@@ -465,7 +469,12 @@ def _member(api, manager):
     return auth_header(
         api.post(
             "/staff/invites/accept",
-            json={"token": invite["token"], "password": "Member-pass-1", "full_name": "M"},
+            json={
+                "accept_terms": True,
+                "token": invite["token"],
+                "password": "Member-pass-1",
+                "full_name": "M",
+            },
         ).json()["access_token"]
     )
 
@@ -473,23 +482,33 @@ def _member(api, manager):
 def test_line_without_unit_cannot_be_saved_without_a_unit(
     api, db, manager, storage, reader, cement
 ):
-    # Audit H1, end to end through the real AI-output converter: the AI wrote no unit.
-    raw = {
-        "raw_text": "5 sem",
-        "product_ref": "P1",
-        "suggested_new_name": None,
-        "qty": 5,
-        "unit": "",
-        "unit_price": None,
-        "line_total": None,
-        "confidence": 0.97,
-    }
+    # Audit H1, end to end through the real scan pipeline: the photo has no unit.
+    from app.ai.scan_pipeline import MultiStepReader
+    from app.ai.schemas import AIUsageInfo, ReadLine
+
+    class NoUnitRead:
+        def read_photo(self, image, media_type):
+            row = ReadLine(
+                raw_text="5 sem",
+                qty_text="5",
+                unit_text=None,
+                price_text=None,
+                total_text=None,
+                confidence=0.97,
+            )
+            return [row], AIUsageInfo(model="fake", provider="gemini", input_tokens=10)
+
+        def match_items(self, items, catalog_text):
+            raise AssertionError("'sem' is an alias: matched by code")
+
     scan = _scan(
         api,
         manager,
         storage,
         reader,
-        lambda catalog: parse_result({"lines": [raw]}, catalog_refs(catalog)),
+        lambda catalog: (
+            MultiStepReader(NoUnitRead()).read_list(b"", "image/jpeg", catalog, "stock_in").lines
+        ),
     )
     line = scan["lines"][0]
     assert line["unit"] == "" and "no_unit" in line["check_reasons"]

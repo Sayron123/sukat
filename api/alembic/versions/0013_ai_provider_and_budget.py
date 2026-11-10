@@ -1,7 +1,7 @@
 """ai provider log and per-store monthly budget.
 
-Revision ID: 0012
-Revises: 0011
+Revision ID: 0013
+Revises: 0012
 Create Date: 2026-11-09 20:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0012"
-down_revision: str | Sequence[str] | None = "0011"
+revision: str = "0013"
+down_revision: str | Sequence[str] | None = "0012"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

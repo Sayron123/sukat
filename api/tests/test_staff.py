@@ -15,7 +15,12 @@ def _invite(api, token, email="staff@example.com", role="member"):
 def _accept(api, invite_token, password="Staff-pass-1", full_name="Staff One"):
     return api.post(
         "/staff/invites/accept",
-        json={"token": invite_token, "password": password, "full_name": full_name},
+        json={
+            "accept_terms": True,
+            "token": invite_token,
+            "password": password,
+            "full_name": full_name,
+        },
     )
 
 

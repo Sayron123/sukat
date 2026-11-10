@@ -23,7 +23,8 @@ def _prices(provider: str) -> tuple[Decimal, Decimal, Decimal, Decimal]:
 
 
 def cost_centavos(usage: AIUsageInfo) -> Decimal:
-    """Estimated cost of one call in PHP centavos, from the price settings.
+    """Estimated cost of one call in PHP centavos, from the price settings of the
+    provider that answered (main: AI_PRICE_*, backup: AI_FALLBACK_PRICE_*).
 
     Uses the configured model's prices even if a refusal fallback answered; fallbacks
     are rare and priced the same or lower.

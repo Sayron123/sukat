@@ -18,8 +18,9 @@ from app.auth.rate_limit import (
     ip_key,
     limits_for,
     record_failure,
+    signup_key,
 )
-from app.auth.schemas import MeOut, SignupIn, TokenOut
+from app.auth.schemas import TERMS_VERSION, MeOut, SignupIn, TokenOut
 from app.auth.security import create_access_token, hash_password, hash_token, verify_password
 from app.core.config import settings
 from app.core.errors import BadRequest, Conflict, Forbidden, Invalid, Unauthorized
@@ -28,6 +29,7 @@ from app.core.outbox import enqueue_email
 from app.stores.models import Role, Store, StoreMember
 
 EMAIL_TAKEN = "An account with this email already exists"
+TOO_MANY_SIGNUPS = "Too many sign-ups from this network. Please wait and try again."
 
 
 def issue_token(user: User, store_id: UUID) -> TokenOut:
@@ -121,15 +123,26 @@ def _set_password(db: Session, user: User, new_password: str) -> None:
 def signup(db: Session, data: SignupIn, ip: str | None) -> TokenOut:
     """Create a store, its first user, and a manager membership in ONE transaction.
 
-    @raises Conflict if the email is taken (also when two signups race)
+    Every attempt from an IP counts (SIGNUP_MAX_PER_IP per window), so one caller can't
+    create stores in bulk or probe which emails are taken.
+
+    @raises Conflict if the email is taken (also when two signups race),
+        TooManyRequests
     """
-    count_email_request(db, "signup", None, ip)
+    key = signup_key(ip)
+    if key:
+        ensure_not_limited(db, [(key, settings.SIGNUP_MAX_PER_IP)], TOO_MANY_SIGNUPS)
+        record_failure(db, [key])
     if db.scalar(select(User.id).where(User.email == data.email)) is not None:
         raise Conflict(EMAIL_TAKEN)
 
     store = Store(name=data.store_name, address=data.store_address)
     user = User(
-        email=data.email, full_name=data.full_name, password_hash=hash_password(data.password)
+        email=data.email,
+        full_name=data.full_name,
+        password_hash=hash_password(data.password),
+        terms_accepted_at=datetime.now(UTC),
+        terms_version=TERMS_VERSION,
     )
     db.add_all([store, user])
     db.flush()  # assigns ids, still inside the same transaction

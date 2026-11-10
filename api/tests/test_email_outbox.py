@@ -10,6 +10,7 @@ SIGNUP = {
     "full_name": "Owner",
     "email": "new@example.com",
     "password": "Correct-horse-1",
+    "accept_terms": True,
 }
 
 

@@ -2,7 +2,15 @@ import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { SESSION_COOKIE, SESSION_MAX_AGE, backendFetch, errorMessage, getToken } from "./backend";
+import {
+  SESSION_COOKIE,
+  SESSION_COOKIE_OPTIONS,
+  SESSION_MAX_AGE,
+  backendFetch,
+  clientIpHeaders,
+  errorMessage,
+  getToken,
+} from "./backend";
 
 /**
  * CSRF check: reject POSTs sent by other websites.
@@ -27,24 +35,8 @@ export function isSameOrigin(req: NextRequest): boolean {
   }
 }
 
-/**
- * The caller's IP chain, passed on so the API can rate-limit per IP. Only trustworthy
- * when a proxy in front of Next.js sets X-Forwarded-For (most hosts do); the API also
- * limits per email, which cannot be faked.
- */
-function forwardedFor(req: NextRequest): Record<string, string> {
-  const xff = req.headers.get("x-forwarded-for");
-  return xff ? { "X-Forwarded-For": xff } : {};
-}
-
 export function setSessionCookie(response: NextResponse, token: string): void {
-  response.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true, // not readable by JavaScript (protects against XSS token theft)
-    secure: process.env.NODE_ENV === "production", // HTTPS only in production
-    sameSite: "lax", // not sent on cross-site POSTs (CSRF protection)
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  });
+  response.cookies.set(SESSION_COOKIE, token, { ...SESSION_COOKIE_OPTIONS, maxAge: SESSION_MAX_AGE });
 }
 
 type Forwarded = { ok: true; data: unknown } | { ok: false; response: NextResponse };
@@ -66,7 +58,7 @@ async function forward(req: NextRequest, apiPath: string, token?: string): Promi
     res = await backendFetch(apiPath, {
       method: "POST",
       body: JSON.stringify(body),
-      headers: forwardedFor(req),
+      headers: clientIpHeaders(req.headers.get("x-forwarded-for")),
       token,
     });
   } catch {

@@ -30,6 +30,7 @@ export default function ManagerSignupPage() {
       ]}
       footer={{ text: "Already have an account? Sign in", href: "/login" }}
       back="/signup"
+      agreement
     />
   );
 }

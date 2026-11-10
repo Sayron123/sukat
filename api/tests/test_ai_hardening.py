@@ -17,16 +17,19 @@ from app.ai.base import AssistantText, ToolResult, ToolResults, UserText
 from app.ai.budget import month_bounds
 from app.ai.errors import AIChatError, AIReadError
 from app.ai.gemini_chat import GeminiChatModel
-from app.ai.gemini_reader import GeminiVisionReader
+from app.ai.gemini_reader import GeminiScanAI
 from app.ai.models import AIUsage
 from app.ai.pricing import cost_centavos
 from app.ai.provider import (
     get_backup_chat_model,
     get_backup_vision_reader,
     get_chat_model,
+    get_scan_ai,
     get_vision_reader,
 )
-from app.ai.schemas import RAW_RESULT_SCHEMA, AIUsageInfo, CatalogEntry
+from app.ai.scan_output import READ_REQUEST
+from app.ai.scan_pipeline import MultiStepReader
+from app.ai.schemas import READ_SCHEMA, AIUsageInfo, CatalogEntry
 from app.core.config import Settings, settings
 from app.insights import chat_service
 from app.insights.chat_service import TOO_SLOW
@@ -43,7 +46,12 @@ def _invite(api, manager, role, email):
     invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager).json()
     token = api.post(
         "/staff/invites/accept",
-        json={"token": invite["token"], "password": "Staff-pass-1", "full_name": role.title()},
+        json={
+            "accept_terms": True,
+            "token": invite["token"],
+            "password": "Staff-pass-1",
+            "full_name": role.title(),
+        },
     ).json()["access_token"]
     return auth_header(token)
 
@@ -371,22 +379,25 @@ def test_only_managers_see_usage(api, manager, role):
 
 def test_provider_setting_picks_gemini_or_claude(monkeypatch):
     from app.ai.anthropic_chat import AnthropicChatModel
-    from app.ai.anthropic_reader import AnthropicVisionReader
+    from app.ai.anthropic_reader import AnthropicScanAI
 
     monkeypatch.setattr(settings, "AI_PROVIDER", "gemini")
     monkeypatch.setattr(settings, "AI_FALLBACK_PROVIDER", "anthropic")
     monkeypatch.setattr(settings, "AI_MODEL", "main-model")
     monkeypatch.setattr(settings, "AI_FALLBACK_MODEL", "backup-model")
     monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", settings.ANTHROPIC_API_KEY)
+    get_scan_ai.cache_clear()
     reader = get_vision_reader.__wrapped__()
+    get_scan_ai.cache_clear()
     chat = get_chat_model.__wrapped__()
     backup_reader = get_backup_vision_reader.__wrapped__()
     backup_chat = get_backup_chat_model.__wrapped__()
-    assert isinstance(reader, GeminiVisionReader) and reader.max_retries == 0
+    assert isinstance(reader, MultiStepReader) and isinstance(reader.ai, GeminiScanAI)
+    assert reader.ai.model == "main-model" and reader.ai.max_retries == 0
     assert isinstance(chat, GeminiChatModel) and chat.model == "main-model"
-    assert (
-        isinstance(backup_reader, AnthropicVisionReader) and backup_reader.client.max_retries == 0
-    )
+    assert isinstance(backup_reader, MultiStepReader)
+    assert isinstance(backup_reader.ai, AnthropicScanAI)
+    assert backup_reader.ai.model == "backup-model" and backup_reader.ai.client.max_retries == 0
     assert isinstance(backup_chat, AnthropicChatModel) and backup_chat.model == "backup-model"
 
 
@@ -409,10 +420,10 @@ def test_stale_time_covers_both_providers(monkeypatch):
     monkeypatch.setattr(settings, "AI_TIMEOUT_SECONDS", 10.0)
     monkeypatch.setattr(settings, "AI_MAX_RETRIES", 1)
     monkeypatch.setattr(settings, "AI_FALLBACK_PROVIDER", "none")
-    assert stale_after_seconds() == 80
+    assert stale_after_seconds() == 100
     monkeypatch.setattr(settings, "AI_MAX_RETRIES", 3)
     monkeypatch.setattr(settings, "AI_FALLBACK_PROVIDER", "anthropic")
-    assert stale_after_seconds() == 80
+    assert stale_after_seconds() == 90
 
 
 def test_default_model_and_prices_match_googles_price_list():
@@ -426,14 +437,12 @@ def test_default_model_and_prices_match_googles_price_list():
 
 
 LINE = {
-    "raw_text": "10 sem",
-    "product_ref": "P1",
-    "suggested_new_name": None,
-    "qty": 10,
-    "unit": "bag",
-    "unit_price": 250.5,
-    "line_total": None,
-    "confidence": 0.97,
+    "raw_text": "2 bags Cement",
+    "qty_text": "2",
+    "unit_text": "bag",
+    "price_text": "250.50",
+    "total_text": None,
+    "confidence": 0.9,
 }
 USAGE_JSON = {
     "promptTokenCount": 1000,
@@ -485,13 +494,13 @@ def _chat(fake, items=None, tools=None, allow_tools=True, timeout=12.5):
     )
 
 
-def _read(fake, scan_type="stock_in", max_retries=0):
+def _read(fake, scan_type="stock_in"):
     product = CatalogEntry(
         product_id=UUID("00000000-0000-0000-0000-0000000000c1"),
         name="Cement",
         base_unit="bag",
     )
-    reader = GeminiVisionReader(fake.client, model="gemini-test", max_retries=max_retries)
+    reader = MultiStepReader(GeminiScanAI(fake.client, model="gemini-test", max_retries=0))
     return reader.read_list(b"\xff\xd8img", "image/jpeg", [product], scan_type)
 
 
@@ -605,16 +614,15 @@ def test_gemini_reader_request_and_result():
     fake = FakeGoogle(_api_reply([{"text": json.dumps({"lines": [LINE]})}]))
     result = _read(fake, "sale")
     request = fake.requests[0]
-    assert "P1 | Cement" in request["systemInstruction"]["parts"][0]["text"]
     assert request["generationConfig"]["responseMimeType"] == "application/json"
-    assert request["generationConfig"]["responseJsonSchema"] == RAW_RESULT_SCHEMA
+    assert request["generationConfig"]["responseJsonSchema"] == READ_SCHEMA
     assert "MINIMAL" in request["generationConfig"]["thinkingConfig"].values()
     image, prompt = request["contents"][0]["parts"]
     assert base64.urlsafe_b64decode(image["inlineData"]["data"]) == b"\xff\xd8img"
-    assert "customer sale" in prompt["text"]
+    assert prompt["text"] == READ_REQUEST
     assert result.lines[0].unit_price_centavos == 25050
     assert result.usage.provider == "gemini"
-    assert result.raw["lines"][0]["unit"] == "bag"
+    assert result.lines[0].unit == "bag"
 
 
 @pytest.mark.parametrize(
@@ -633,19 +641,13 @@ def test_gemini_reader_blocked_and_too_long_are_permanent():
         assert message in str(e.value) and e.value.retryable is False
 
 
-def test_gemini_reader_retries_when_no_backup_is_set():
-    fake = FakeGoogle(503, _api_reply([{"text": json.dumps({"lines": [LINE]})}]))
-    assert len(_read(fake, max_retries=1).lines) == 1
-    assert len(fake.requests) == 2
-
-
 def test_claude_reader_without_key_says_not_set_up():
-    from app.ai.anthropic_reader import AnthropicVisionReader
+    from app.ai.anthropic_reader import AnthropicScanAI
 
     def no_key(**_):
         raise TypeError('"Could not resolve authentication method."')
 
     client = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=no_key)))
     with pytest.raises(AIReadError) as e:
-        AnthropicVisionReader(client).read_list(b"x", "image/jpeg", [], "sale")  # type: ignore[arg-type]
+        AnthropicScanAI(client).read_photo(b"x", "image/jpeg")  # type: ignore[arg-type]
     assert e.value.retryable is False

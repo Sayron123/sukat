@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { isSameOrigin, setSessionCookie } from "@/lib/server/auth-route";
-import { API_PREFIX, API_URL, getToken } from "@/lib/server/backend";
+import { API_PREFIX, API_URL, clientIpHeaders, getToken } from "@/lib/server/backend";
 
 /**
  * Same-origin proxy from the browser to the FastAPI backend.
@@ -19,6 +19,7 @@ const ALLOWED_PREFIXES = [
   "transactions",
   "reports",
   "insights",
+  "exports",
 ];
 
 /**
@@ -46,6 +47,7 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
 
+  const requestId = crypto.randomUUID().replaceAll("-", "");
   let res: Response;
   try {
     res = await fetch(`${API_URL}${API_PREFIX}/${joined}${req.nextUrl.search}`, {
@@ -54,6 +56,8 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        "X-Request-ID": requestId,
+        ...clientIpHeaders(req.headers.get("x-forwarded-for")),
       },
       body: req.method === "GET" ? undefined : await req.text(),
     });
@@ -61,11 +65,15 @@ async function proxy(req: NextRequest, ctx: RouteContext<"/api/backend/[...path]
     return NextResponse.json({ detail: "API not reachable" }, { status: 502 });
   }
 
-  const body = await res.text();
-  const response = new NextResponse(res.status === 204 ? null : body, {
-    status: res.status,
-    headers: { "Content-Type": res.headers.get("Content-Type") ?? "application/json" },
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": res.headers.get("Content-Type") ?? "application/json",
+    "X-Request-ID": res.headers.get("X-Request-ID") ?? requestId,
+  };
+  for (const name of ["Content-Disposition", "Cache-Control", "Retry-After"]) {
+    const value = res.headers.get(name);
+    if (value) headers[name] = value;
+  }
+  const response = new NextResponse(res.status === 204 ? null : res.body, { status: res.status, headers });
   if (joined === "auth/me" && res.ok) setSessionCookie(response, token);
   return response;
 }

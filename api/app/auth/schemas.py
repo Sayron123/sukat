@@ -23,6 +23,14 @@ def _strong_password(value: str) -> str:
 NewPassword = Annotated[str, Field(min_length=8, max_length=128), AfterValidator(_strong_password)]
 LinkToken = Annotated[str, Field(max_length=200)]
 
+TERMS_VERSION = "2026-11-09"
+
+
+def must_accept_terms(accepted: bool) -> bool:
+    if not accepted:
+        raise ValueError("Please agree to the Terms and Privacy Policy")
+    return accepted
+
 
 def _normalize_email(v: str) -> str:
     return v.strip().lower()
@@ -34,8 +42,14 @@ class SignupIn(BaseModel):
     full_name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     password: NewPassword
+    accept_terms: bool = Field(default=False, validate_default=True)
 
     _norm = field_validator("email")(_normalize_email)
+
+    @field_validator("accept_terms")
+    @classmethod
+    def _must_accept(cls, v: bool) -> bool:
+        return must_accept_terms(v)
 
     @field_validator("store_name", "full_name")
     @classmethod

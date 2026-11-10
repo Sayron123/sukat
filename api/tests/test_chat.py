@@ -45,7 +45,12 @@ def _invite(api, manager, role, email):
     inv = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager).json()
     token = api.post(
         "/staff/invites/accept",
-        json={"token": inv["token"], "password": "Staff-pass-1", "full_name": role.title()},
+        json={
+            "accept_terms": True,
+            "token": inv["token"],
+            "password": "Staff-pass-1",
+            "full_name": role.title(),
+        },
     ).json()["access_token"]
     return auth_header(token)
 

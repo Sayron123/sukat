@@ -1,17 +1,30 @@
-"""VisionReader implementation on the Anthropic Messages API (Claude)."""
+"""ScanAI implementation on the Anthropic Messages API (Claude)."""
 
 import base64
-import json
-from decimal import Decimal
 from typing import Any
 
 import anthropic
-from pydantic import ValidationError
 
 from app.ai.base import ImageType
-from app.ai.convert import catalog_refs, catalog_text, parse_result, system_prompt
 from app.ai.errors import AIReadError
-from app.ai.schemas import RAW_RESULT_SCHEMA, AIUsageInfo, CatalogEntry, ReadResult
+from app.ai.scan_output import (
+    MATCH_PROMPT,
+    MAX_OUTPUT_TOKENS,
+    READ_PROMPT,
+    READ_REQUEST,
+    match_request,
+    parse_match,
+    parse_read,
+    prompt,
+)
+from app.ai.schemas import (
+    MATCH_SCHEMA,
+    READ_SCHEMA,
+    AIUsageInfo,
+    MatchAnswer,
+    MatchItem,
+    ReadLine,
+)
 from app.core.config import settings
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -29,7 +42,7 @@ def _usage(response: Any) -> AIUsageInfo:
     )
 
 
-class AnthropicVisionReader:
+class AnthropicScanAI:
     def __init__(
         self,
         client: anthropic.Anthropic | None = None,
@@ -44,53 +57,21 @@ class AnthropicVisionReader:
             max_retries=settings.AI_MAX_RETRIES if max_retries is None else max_retries,
         )
 
-    def read_list(
-        self,
-        image: bytes,
-        media_type: ImageType,
-        catalog: list[CatalogEntry],
-        scan_type: str,
-    ) -> ReadResult:
-        refs = catalog_refs(catalog)
-        kind = "a supplier delivery (stock in)" if scan_type == "stock_in" else "a customer sale"
+    def _create(
+        self, system: list[Any], content: list[Any], schema: dict
+    ) -> tuple[Any, AIUsageInfo]:
         extra: dict[str, Any] = {}
         if settings.AI_REFUSAL_FALLBACK:
-            # If a safety classifier declines, the API re-runs on a recommended model.
             extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"}
-
         try:
             response = self.client.beta.messages.create(
                 model=self.model,
-                max_tokens=16000,
-                # Order matters for caching: fixed prompt, then this store's product list
-                # (cached), then the photo, which changes every time.
-                system=[
-                    {"type": "text", "text": system_prompt(scan_type)},
-                    {
-                        "type": "text",
-                        "text": catalog_text(refs),
-                        "cache_control": {"type": "ephemeral"},
-                    },
-                ],
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": media_type,
-                                    "data": base64.standard_b64encode(image).decode("ascii"),
-                                },
-                            },
-                            {"type": "text", "text": f"This list is {kind}. Read every item line."},
-                        ],
-                    }
-                ],
+                max_tokens=MAX_OUTPUT_TOKENS,
+                system=system,
+                messages=[{"role": "user", "content": content}],
                 output_config={
                     "effort": settings.AI_EFFORT,
-                    "format": {"type": "json_schema", "schema": RAW_RESULT_SCHEMA},
+                    "format": {"type": "json_schema", "schema": schema},
                 },
                 **extra,
             )
@@ -107,7 +88,6 @@ class AnthropicVisionReader:
                 raise AIReadError(
                     "The reader had a problem. Please try again.", retryable=True
                 ) from e
-            # 400/401/403/404: our request or configuration is wrong; retrying won't help.
             raise AIReadError("The reader is not set up correctly.", retryable=False) from e
 
         usage = _usage(response)
@@ -119,15 +99,37 @@ class AnthropicVisionReader:
                 retryable=False,
                 usage=usage,
             )
-
         text = next((b.text for b in response.content if b.type == "text"), None)
-        try:
-            data = json.loads(text or "", parse_float=Decimal)
-            lines = parse_result(data, refs)
-        except (json.JSONDecodeError, ValidationError) as e:
-            raise AIReadError(
-                "The reader gave an unexpected answer. Please try again.",
-                retryable=True,
-                usage=usage,
-            ) from e
-        return ReadResult(lines=lines, usage=usage, raw=json.loads(text or "{}"))
+        return text, usage
+
+    def read_photo(self, image: bytes, media_type: ImageType) -> tuple[list[ReadLine], AIUsageInfo]:
+        text, usage = self._create(
+            [{"type": "text", "text": prompt(READ_PROMPT)}],
+            [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": base64.standard_b64encode(image).decode("ascii"),
+                    },
+                },
+                {"type": "text", "text": READ_REQUEST},
+            ],
+            READ_SCHEMA,
+        )
+        return parse_read(text, usage), usage
+
+    def match_items(
+        self, items: list[MatchItem], catalog_text: str
+    ) -> tuple[list[MatchAnswer], AIUsageInfo]:
+        text, usage = self._create(
+            [
+                {"type": "text", "text": prompt(MATCH_PROMPT)},
+                # The store's product list changes rarely: cache it across scans.
+                {"type": "text", "text": catalog_text, "cache_control": {"type": "ephemeral"}},
+            ],
+            [{"type": "text", "text": match_request(items)}],
+            MATCH_SCHEMA,
+        )
+        return parse_match(text, usage), usage

@@ -72,6 +72,7 @@ export function AuthForm({
   altLink,
   extra,
   done,
+  agreement = false,
 }: {
   title: string;
   subtitle: string;
@@ -83,6 +84,7 @@ export function AuthForm({
   altLink?: { text: string; href: string };
   extra?: Record<string, string>;
   done?: string;
+  agreement?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -103,6 +105,7 @@ export function AuthForm({
       ...Object.fromEntries(new FormData(e.currentTarget)),
       ...extra,
     };
+    if (agreement) body.accept_terms = body.accept_terms === "on";
     const newPassword = fields.find((f) => f.type === "new-password")?.name;
     if (newPassword) {
       if (!passwordIsStrong(String(body[newPassword]))) {
@@ -182,6 +185,28 @@ export function AuthForm({
             <Link href={altLink.href} className={`${textLinkClass} -mt-4 self-start`}>
               {altLink.text}
             </Link>
+          )}
+          {agreement && (
+            <label htmlFor="accept_terms" className="flex items-start gap-3 text-sm text-text">
+              <input
+                id="accept_terms"
+                name="accept_terms"
+                type="checkbox"
+                required
+                className="mt-0.5 h-5 w-5 shrink-0 accent-text"
+              />
+              <span>
+                I agree to the{" "}
+                <Link href="/terms" target="_blank" className="underline">
+                  Terms
+                </Link>{" "}
+                and{" "}
+                <Link href="/privacy" target="_blank" className="underline">
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
           )}
           {error && (
             <p role="alert" className="text-sm text-red">

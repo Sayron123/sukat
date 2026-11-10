@@ -5,6 +5,7 @@ from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_JWT_SECRET = "dev-only-insecure-secret-change-me"
+DEFAULT_DB_CREDENTIALS = "//sukat:sukat@"
 
 
 class Settings(BaseSettings):
@@ -19,6 +20,11 @@ class Settings(BaseSettings):
     # Defaults to "production" so a server with no APP_ENV is safe. Only the exact value
     # "development" allows the public dev JWT_SECRET (a typo like "prod" still gets checked).
     APP_ENV: str = "production"
+    DEBUG: bool = False
+    LOG_LEVEL: str = "INFO"
+    SENTRY_DSN: str = ""
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
+    RELEASE: str = ""
 
     DATABASE_URL: str = "postgresql+psycopg://sukat:sukat@localhost:5432/sukat"
     DB_POOL_SIZE: int = 5
@@ -55,6 +61,8 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: SecretStr = SecretStr("")
     SMTP_FROM: str = ""
+    SIGNUP_MAX_PER_IP: int = 5
+    INTERNAL_API_SECRET: SecretStr = SecretStr("")
 
     # ----- Photo storage -----
     # "local" saves uploads under LOCAL_UPLOAD_DIR (development); "r2" uses Cloudflare R2.
@@ -67,6 +75,7 @@ class Settings(BaseSettings):
     R2_SECRET_ACCESS_KEY: SecretStr = SecretStr("")
     R2_BUCKET: str = ""
     UPLOAD_MAX_BYTES: int = 5 * 1024 * 1024
+    MAX_REQUEST_BYTES: int = 1024 * 1024
     UPLOAD_URL_EXPIRE_SECONDS: int = 300
 
     # ----- AI (reading list photos) -----
@@ -104,6 +113,14 @@ class Settings(BaseSettings):
     CHAT_QUESTIONS_PER_HOUR: int = 30  # per store
     CHAT_HISTORY_MESSAGES: int = 10  # only the last N messages are sent to the model
 
+    # ----- Multi-step scan -----
+    # Step 2 "match": a fuzzy match (rapidfuzz, 0-100) must score at least this, and
+    # clearly beat any other product, or the line goes to the AI.
+    SCAN_FUZZY_THRESHOLD: int = 90
+    # Step 3 "check": qty x price may differ from a written line total by this much
+    # (written totals are often rounded) before the line is marked "check".
+    SCAN_TOTAL_TOLERANCE_CENTAVOS: int = 100
+
     @property
     def has_ai_fallback(self) -> bool:
         return self.AI_FALLBACK_PROVIDER != "none"
@@ -112,9 +129,13 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
+    @property
+    def is_production(self) -> bool:
+        return self.APP_ENV != "development"
+
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":
-        if self.APP_ENV != "development" and (
+        if self.is_production and (
             self.JWT_SECRET.get_secret_value() == DEV_JWT_SECRET
             or len(self.JWT_SECRET.get_secret_value()) < 32
         ):
@@ -128,6 +149,19 @@ class Settings(BaseSettings):
             raise ValueError("EMAIL_BACKEND=smtp needs SMTP_HOST and SMTP_FROM.")
         if self.AI_FALLBACK_PROVIDER == self.AI_PROVIDER:
             raise ValueError("AI_FALLBACK_PROVIDER must be different from AI_PROVIDER.")
+        if self.is_production:
+            if self.DEBUG:
+                raise ValueError("DEBUG must be off in production.")
+            if len(self.INTERNAL_API_SECRET.get_secret_value()) < 32:
+                raise ValueError("Set INTERNAL_API_SECRET to a random value of 32+ characters.")
+            if DEFAULT_DB_CREDENTIALS in self.DATABASE_URL:
+                raise ValueError("Set DATABASE_URL with your own database password.")
+            origins = self.cors_origins_list
+            if not origins or any(not o.startswith("https://") for o in origins):
+                raise ValueError(
+                    "Set CORS_ORIGINS to your web app's https:// address(es), comma-separated "
+                    "(no * and no http://)."
+                )
         if self.STORAGE_BACKEND == "r2" and not all(
             (
                 self.R2_ACCOUNT_ID,

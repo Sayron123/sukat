@@ -13,7 +13,7 @@ The setting `AI_PROVIDER` picks who answers first. It can be `gemini` or `anthro
 
 The default is Gemini, with the model `gemini-3.1-flash-lite`.
 
-Both providers do both jobs, and the rest of the app does not care which one is used. Chat uses the same tools, the same role limits and the same tests on both.
+Both providers do both jobs, and the rest of the app does not care which one is used. Photo reading runs in three steps: read, match, check (see `docs/ai-scan-pipeline.md`). If the backup is needed, all the steps run again on it. Chat uses the same tools, the same role limits and the same tests on both.
 
 | Job | Gemini file | Claude file |
 | --- | --- | --- |

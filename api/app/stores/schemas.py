@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.auth.schemas import must_accept_terms
 from app.stores.models import Role
 
 
@@ -45,6 +46,12 @@ class AcceptInviteIn(BaseModel):
     token: str = Field(min_length=1, max_length=200)
     full_name: str | None = Field(default=None, max_length=120)
     password: str = Field(min_length=8, max_length=128)
+    accept_terms: bool = Field(default=False, validate_default=True)
+
+    @field_validator("accept_terms")
+    @classmethod
+    def _must_accept(cls, v: bool) -> bool:
+        return must_accept_terms(v)
 
 
 class StaffOut(BaseModel):

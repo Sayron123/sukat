@@ -110,7 +110,7 @@ class GeminiChatModel:
                 config=types.GenerateContentConfig(
                     system_instruction=f"{system}\n\n{context}",
                     max_output_tokens=settings.AI_CHAT_MAX_TOKENS,
-                    thinking_config=thinking_config(),
+                    thinking_config=thinking_config(self.model),
                     tools=_tools(tools),
                     tool_config=_tool_config(tools, allow_tools),
                     http_options=types.HttpOptions(timeout=max(1, int(timeout * 1000))),

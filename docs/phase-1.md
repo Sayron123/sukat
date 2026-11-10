@@ -154,7 +154,7 @@ Run tests (Postgres must be running): `cd api && uv run pytest`
 - **Email limit is the main protection.** The IP can be faked unless the hosting proxy sets it correctly. The email can't be faked.
 - Trade-off: someone can block a person's login for 15 minutes by typing wrong passwords for their email. Forgot password still works during the block, and a successful reset clears it.
 
-**Deploying:** the API only trusts `X-Forwarded-For` from addresses in `FORWARDED_ALLOW_IPS` (uvicorn setting, default `127.0.0.1`). If Next.js runs on a different machine than the API, set `FORWARDED_ALLOW_IPS` to the Next.js server's address. Otherwise every user looks like the same IP.
+**Deploying:** set the same `INTERNAL_API_SECRET` on the API and the web app. The web app sends each visitor's IP with that secret, and the API ignores the IP header without it. Otherwise every user looks like the same IP. See `docs/deploy.md`.
 
 ### Staff page when the API is down
 

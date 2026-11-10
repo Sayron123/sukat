@@ -1,26 +1,6 @@
-"""Turning the model's raw JSON into ScanLines, and the catalog into prompt text.
+"""The store's product list as prompt text, with short refs (P1, P2, ...)."""
 
-Kept separate from the provider client so it is easy to unit-test.
-"""
-
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from functools import cache
-from pathlib import Path
-
-from pydantic import ValidationError
-
-from app.ai.schemas import CatalogEntry, RawLine, RawResult, ScanLine
-from app.products.units import normalize_unit
-
-MAX_PRICE_CENTAVOS = 999_999_999
-PROMPTS_DIR = Path(__file__).parent / "prompts"
-# One prompt per scan type, each in its own file so they can be improved separately.
-PROMPT_FILES: dict[str, str] = {"stock_in": "read_stock_in.md", "sale": "read_sale.md"}
-
-
-@cache
-def system_prompt(scan_type: str) -> str:
-    return (PROMPTS_DIR / PROMPT_FILES[scan_type]).read_text(encoding="utf-8")
+from app.ai.schemas import CatalogEntry
 
 
 def catalog_refs(catalog: list[CatalogEntry]) -> list[tuple[str, CatalogEntry]]:
@@ -50,56 +30,4 @@ def catalog_text(refs: list[tuple[str, CatalogEntry]]) -> str:
     return "\n".join(rows)
 
 
-def _to_centavos(pesos: Decimal | None) -> int | None:
-    if pesos is None or not pesos.is_finite() or pesos < 0:
-        return None
-    try:
-        value = int((pesos * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
-    except InvalidOperation:
-        return None
-    return value if value <= MAX_PRICE_CENTAVOS else None
-
-
-def to_scan_line(raw: RawLine, refs: dict[str, CatalogEntry]) -> ScanLine:
-    """Map one raw line to a ScanLine. Never raises: odd values become None / low
-    confidence so the line is flagged for checking instead of breaking the scan."""
-    entry = refs.get((raw.product_ref or "").strip().upper())
-    qty = raw.qty if raw.qty.is_finite() and raw.qty > 0 else None
-    # No unit written -> "". Never fill in the product's unit: the review asks staff for it.
-    unit = normalize_unit(raw.unit)
-
-    price = _to_centavos(raw.unit_price)
-    if price is None and qty and raw.line_total is not None:
-        # Only a line total was written: derive the unit price from it.
-        price = _to_centavos(raw.line_total / qty)
-
-    name = (raw.suggested_new_name or "").strip()[:160] or None
-    return ScanLine(
-        raw_text=raw.raw_text.strip()[:300],
-        product_id=entry.product_id if entry else None,
-        suggested_new_name=None if entry else name,
-        qty=qty,
-        unit=unit[:20],
-        unit_price_centavos=price,
-        confidence=min(max(float(raw.confidence), 0.0), 1.0),
-    )
-
-
-def parse_result(data: dict, refs: list[tuple[str, CatalogEntry]]) -> list[ScanLine]:
-    """Validate the model's JSON and map it.
-
-    @raises ValidationError if the overall shape is wrong
-    """
-    result = RawResult.model_validate(data)
-    by_ref = dict(refs)
-    return [to_scan_line(line, by_ref) for line in result.lines]
-
-
-__all__ = [
-    "ValidationError",
-    "catalog_refs",
-    "catalog_text",
-    "parse_result",
-    "system_prompt",
-    "to_scan_line",
-]
+__all__ = ["catalog_refs", "catalog_text"]

@@ -1,4 +1,5 @@
-"""Run the AI list reader on every case in evals/cases/ and print accuracy per field.
+"""Run the scan pipeline on every case in evals/cases/ and print accuracy per step
+(read, match, final) and how many AI requests each scan used.
 
     cd api
     uv run python -m evals.run_eval                 # all cases
@@ -21,7 +22,7 @@ from app.ai.base import ScanType
 from app.ai.errors import AIReadError
 from app.ai.pricing import cost_centavos
 from app.ai.provider import get_vision_reader
-from app.ai.schemas import CatalogConversion, CatalogEntry
+from app.ai.schemas import CatalogConversion, CatalogEntry, ReadResult
 from app.core.config import settings
 from app.inventory.scan_service import sniff_image_type
 from app.products.catalog import load_catalog
@@ -33,8 +34,8 @@ KEY_NAMESPACE = uuid.UUID("5b0c2f0e-5a1c-4f5e-9d0a-2e7c1d9a3f11")
 # Text in the expected file -> scan type (an explicit table keeps the type checker happy).
 SCAN_TYPES: dict[str, ScanType] = {"stock_in": "stock_in", "sale": "sale"}
 
-COLUMNS = ("case", "lines", "product", "qty", "unit", "all 3", "price", "miss", "extra")
-WIDTHS = (-26, 6, 9, 8, 8, 8, 8, 6, 6)
+COLUMNS = ("case", "lines", "read", "match", "final", "price", "miss", "extra", "AI req")
+WIDTHS = (-26, 6, 8, 8, 8, 8, 6, 6, 7)
 
 
 def row(*values: object) -> str:
@@ -50,14 +51,28 @@ def score_row(name: str, s: CaseScore) -> str:
     return row(
         name,
         n,
+        pct(s.read_ok, n),
         pct(s.product_ok, n),
-        pct(s.qty_ok, n),
-        pct(s.unit_ok, n),
         pct(s.all_ok, n),
         pct(s.price_ok, s.price_checked),
         s.missing,
         s.extra,
+        f"{s.ai_requests / s.scans:.1f}" if s.scans else "-",
     )
+
+
+def add_steps(s: CaseScore, result: ReadResult) -> None:
+    """How many AI requests the scan used, and how each line was matched."""
+    s.scans += 1
+    s.ai_requests += result.ai_requests
+    s.one_request_scans += result.ai_requests == 1
+    for m in (result.steps or {}).get("match", {}).get("lines", []):
+        if m["method"] in ("exact", "fuzzy"):
+            s.matched_by_code += 1
+        elif m["method"] == "ai":
+            s.matched_by_ai += 1
+        else:
+            s.not_matched += 1
 
 
 def catalog_entries() -> tuple[list[CatalogEntry], dict[str, uuid.UUID]]:
@@ -136,7 +151,8 @@ def main() -> None:
     cost = Decimal(0)
     failed = 0
 
-    print(f"Model: {settings.AI_MODEL} (effort {settings.AI_EFFORT})\n")
+    model = settings.AI_MODEL
+    print(f"Provider: {settings.AI_PROVIDER}, model: {model}\n")
     print(row(*COLUMNS))
     for image_path in images:
         expected_path = image_path.with_suffix(".json")
@@ -159,8 +175,11 @@ def main() -> None:
                 cost += cost_centavos(e.usage)
             print(f"{image_path.stem:<26}FAILED: {e}")
             continue
-        cost += cost_centavos(result.usage)
+        cost += sum((cost_centavos(u) for _, u in result.calls), Decimal(0)) or cost_centavos(
+            result.usage
+        )
         s = score_case(expected, result.lines)
+        add_steps(s, result)
         totals[scan_type].add(s)
         print(score_row(f"{image_path.stem} ({'sale' if scan_type == 'sale' else 'in'})", s))
         if args.verbose:
@@ -174,6 +193,17 @@ def main() -> None:
             print(score_row(f"TOTAL {scan_type}", s))
             overall.add(s)
     print(score_row("TOTAL", overall))
+    lines = overall.matched_by_code + overall.matched_by_ai + overall.not_matched
+    if overall.scans:
+        print(
+            f"\nAI requests: {overall.ai_requests} for {overall.scans} scans "
+            f"({overall.ai_requests / overall.scans:.1f} per scan; "
+            f"{overall.one_request_scans} matched fully by code with 1 request)"
+        )
+        print(
+            f"Lines matched by code: {overall.matched_by_code}/{lines}, "
+            f"by AI: {overall.matched_by_ai}, not matched: {overall.not_matched}"
+        )
     if failed:
         print(f"\n{failed} case(s) failed to read.")
     print(f"\nCost: ₱{cost / 100:.2f}")

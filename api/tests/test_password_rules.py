@@ -16,7 +16,9 @@ def _invite(api, manager, email="new@example.com", role="member"):
 
 
 def _accept(api, token, password):
-    return api.post("/staff/invites/accept", json={"token": token, "password": password})
+    return api.post(
+        "/staff/invites/accept", json={"accept_terms": True, "token": token, "password": password}
+    )
 
 
 @pytest.mark.parametrize("password", ["Fresh_pass1", "Aa1!aaaa", "Ab3-xyz9", "Pässw0rd!"])

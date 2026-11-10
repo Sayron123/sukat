@@ -1,15 +1,18 @@
-"""Failed-attempt limits for login and invite acceptance, stored in Postgres.
+"""Attempt limits for login, signup and invite acceptance, stored in Postgres.
 
 Stored in the database (not in memory) so limits survive restarts and are shared by
 every API worker/instance.
 
-Keys look like "email:juan@example.com" or "ip:203.0.113.5".
+Keys look like "email:juan@example.com", "ip:203.0.113.5" (failed logins and invite
+accepts) or "signup:203.0.113.5" (every signup attempt).
 - The email key cannot be faked by the caller, so it is the main protection for an account.
 - The ip key is best-effort: it depends on the proxy in front passing the real client IP
-  (see FORWARDED_ALLOW_IPS in docs/phase-1.md).
+  (see INTERNAL_API_SECRET in docs/deploy.md).
 """
 
+import hmac
 from datetime import UTC, datetime, timedelta
+from ipaddress import ip_address
 
 from fastapi import Request
 from sqlalchemy import delete, func, select
@@ -19,20 +22,32 @@ from app.auth.models import AuthFailure
 from app.core.config import settings
 from app.core.errors import TooManyRequests
 
+PROXY_SECRET_HEADER = "x-sukat-proxy-secret"
+CLIENT_IP_HEADER = "x-sukat-client-ip"
+
 
 def email_key(email: str) -> str:
     return f"email:{email.lower()}"
 
 
 def client_ip(request: Request) -> str | None:
-    """Client IP as seen by the API (uvicorn rewrites it from X-Forwarded-For for trusted
-    proxies). None when unknown. Used by routers; services take the plain IP string."""
+    secret = settings.INTERNAL_API_SECRET.get_secret_value()
+    sent = request.headers.get(PROXY_SECRET_HEADER, "")
+    if secret and hmac.compare_digest(sent.encode(), secret.encode()):
+        try:
+            return str(ip_address(request.headers.get(CLIENT_IP_HEADER, "").strip()))
+        except ValueError:
+            pass
     return request.client.host if request.client else None
 
 
 def ip_key(ip: str | None) -> str | None:
     """None when the IP is unknown, so we never lump all unknown callers into one bucket."""
     return f"ip:{ip}" if ip else None
+
+
+def signup_key(ip: str | None) -> str | None:
+    return f"signup:{ip}" if ip else None
 
 
 def limits_for(email: str | None, ip: str | None) -> list[tuple[str, int]]:
@@ -59,7 +74,12 @@ def _window_start(now: datetime) -> datetime:
     return now - timedelta(minutes=settings.AUTH_FAILURE_WINDOW_MINUTES)
 
 
-def ensure_not_limited(db: Session, limits: list[tuple[str, int]]) -> None:
+TOO_MANY_FAILURES = "Too many failed attempts. Please wait and try again."
+
+
+def ensure_not_limited(
+    db: Session, limits: list[tuple[str, int]], message: str = TOO_MANY_FAILURES
+) -> None:
     """Raise 429 (with Retry-After) if any key reached its limit inside the window.
 
     Note: check-then-record is not atomic, so a burst of parallel requests can get a few
@@ -77,13 +97,14 @@ def ensure_not_limited(db: Session, limits: list[tuple[str, int]]) -> None:
             # The block lifts when the oldest failure in the window ages out.
             retry_after = int((oldest - since).total_seconds()) + 1
             raise TooManyRequests(
-                "Too many failed attempts. Please wait and try again.",
+                message,
                 headers={"Retry-After": str(max(retry_after, 1))},
             )
 
 
 def record_failure(db: Session, keys: list[str]) -> None:
-    """Save one failed attempt per key, and delete rows older than the window.
+    """Save one attempt per key (a failure, or any signup), and delete rows older than
+    the window.
 
     Commits immediately, because the caller is about to raise an error response.
     Assumes the session has no other pending changes that should be rolled back.

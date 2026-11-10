@@ -1,7 +1,7 @@
 """email outbox: emails wait here until they are delivered.
 
-Revision ID: 0011
-Revises: 0010
+Revision ID: 0012
+Revises: 0011
 Create Date: 2026-11-09 18:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0011"
-down_revision: str | Sequence[str] | None = "0010"
+revision: str = "0012"
+down_revision: str | Sequence[str] | None = "0011"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

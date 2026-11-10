@@ -5,7 +5,7 @@ import { Suspense } from "react";
 
 import { AuthForm, AuthShell } from "@/components/auth-form";
 import { Loading, Notice, textLinkClass } from "@/components/ui";
-import { backendFetch, errorMessage } from "@/lib/server/backend";
+import { backendFetch, clientIpHeaders, errorMessage } from "@/lib/server/backend";
 
 export const metadata: Metadata = { title: "Join a store · Sukat", referrer: "no-referrer" };
 
@@ -44,7 +44,7 @@ async function InviteContent({ searchParams }: { searchParams: SearchParams }) {
     res = await backendFetch("/staff/invites/preview", {
       method: "POST",
       body: JSON.stringify({ token }),
-      headers: forwardedFor ? { "X-Forwarded-For": forwardedFor } : {},
+      headers: clientIpHeaders(forwardedFor),
     });
   } catch {
     return <InviteProblem message={SERVER_DOWN} />;
@@ -67,6 +67,7 @@ async function InviteContent({ searchParams }: { searchParams: SearchParams }) {
       endpoint="/api/auth/accept-invite"
       submitLabel="Join Store"
       extra={{ token }}
+      agreement
       fields={
         invite.has_account
           ? [

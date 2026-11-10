@@ -21,6 +21,10 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    terms_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
 

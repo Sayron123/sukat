@@ -1,0 +1,90 @@
+# Runs on every pull request (and on pushes to main): API checks and tests against a
+# real Postgres, and the web app's lint, type check and production build.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same PR cancels the run that is still going.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sukat
+          POSTGRES_PASSWORD: sukat
+          POSTGRES_DB: sukat
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sukat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Tests create and migrate their own database (sukat_test) on this server.
+      TEST_DATABASE_URL: postgresql+psycopg://sukat:sukat@localhost:5432/sukat_test
+      APP_ENV: development
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --frozen
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Format (ruff)
+        run: uv run ruff format --check .
+      - name: Types (pyright)
+        run: uv run pyright
+      - name: Tests (pytest)
+        run: uv run pytest -q
+      - name: Models match migrations (alembic check)
+        env:
+          DATABASE_URL: postgresql+psycopg://sukat:sukat@localhost:5432/sukat_test
+        run: uv run alembic check
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Types
+        run: npx tsc --noEmit
+
+  docker:
+    name: API image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the API image
+        run: docker build -t sukat-api ./api

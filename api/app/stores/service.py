@@ -16,7 +16,12 @@ from app.auth.rate_limit import (
     limits_for,
     record_failure,
 )
-from app.auth.schemas import PASSWORD_RULES_MESSAGE, TokenOut, password_is_strong
+from app.auth.schemas import (
+    PASSWORD_RULES_MESSAGE,
+    TERMS_VERSION,
+    TokenOut,
+    password_is_strong,
+)
 from app.auth.security import hash_password, hash_token, verify_password
 from app.auth.service import issue_token
 from app.core.config import settings
@@ -141,6 +146,9 @@ def accept_invite(
         raise Unauthorized("Incorrect password for this account")
     else:
         clear_failures(db, email_key(row.email))
+
+    user.terms_accepted_at = datetime.now(UTC)
+    user.terms_version = TERMS_VERSION
 
     member = db.scalar(
         select(StoreMember).where(

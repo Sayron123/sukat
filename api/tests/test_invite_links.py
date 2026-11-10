@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import text
 
+from app.auth.schemas import TERMS_VERSION
 from tests.conftest import auth_header
 
 
@@ -17,7 +18,7 @@ def _preview(api, token):
 def _accept(api, token, password="Staff-pass-1", full_name="New Person"):
     return api.post(
         "/staff/invites/accept",
-        json={"token": token, "password": password, "full_name": full_name},
+        json={"accept_terms": True, "token": token, "password": password, "full_name": full_name},
     )
 
 
@@ -43,6 +44,7 @@ def test_the_person_joining_cannot_pick_another_role(api, manager):
     res = api.post(
         "/staff/invites/accept",
         json={
+            "accept_terms": True,
             "token": token,
             "password": "Staff-pass-1",
             "full_name": "Sneaky",
@@ -112,3 +114,18 @@ def test_only_managers_create_links(api, manager, role):
     token = _invite(api, manager, email=f"{role}@example.com", role=role).json()["token"]
     staff = auth_header(_accept(api, token).json()["access_token"])
     assert _invite(api, staff, email="x@example.com").status_code == 403
+
+
+@pytest.mark.parametrize("terms", [{}, {"accept_terms": False}])
+def test_joining_needs_the_terms(api, manager, terms):
+    token = _invite(api, manager).json()["token"]
+    body = {"token": token, "password": "Staff-pass-1", **terms}
+    res = api.post("/staff/invites/accept", json=body)
+    assert res.status_code == 422 and "Terms and Privacy Policy" in res.text
+    assert _accept(api, token).status_code == 200
+
+
+def test_joining_records_the_terms(api, db, manager):
+    assert _accept(api, _invite(api, manager).json()["token"]).status_code == 200
+    version = db.scalar(text("SELECT terms_version FROM users WHERE email = 'new@example.com'"))
+    assert version == TERMS_VERSION

@@ -25,14 +25,22 @@ class ExpectedLine:
 class CaseScore:
     expected: int = 0
     predicted: int = 0
-    product_ok: int = 0
+    product_ok: int = 0  # step 2 "match": right product
     qty_ok: int = 0
     unit_ok: int = 0
-    all_ok: int = 0
+    read_ok: int = 0  # step 1 "read": qty and unit both right (they come only from the read)
+    all_ok: int = 0  # final: product, qty and unit all right
     price_checked: int = 0  # paired lines whose expected price is given
     price_ok: int = 0
     missing: int = 0  # expected lines with no predicted line
     extra: int = 0  # predicted lines with no expected line
+    # From the scan's stored steps (filled by the runner, not by score_case):
+    scans: int = 0
+    ai_requests: int = 0
+    one_request_scans: int = 0  # every line matched by code: only the read call
+    matched_by_code: int = 0
+    matched_by_ai: int = 0
+    not_matched: int = 0
     notes: list[str] = field(default_factory=list)
 
     def add(self, other: "CaseScore") -> None:
@@ -82,6 +90,7 @@ def score_case(expected: list[ExpectedLine], predicted: list[ScanLine]) -> CaseS
         s.product_ok += product
         s.qty_ok += qty
         s.unit_ok += unit
+        s.read_ok += qty and unit
         s.all_ok += product and qty and unit
         problems = []
         if not product:
