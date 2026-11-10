@@ -34,7 +34,7 @@ const TEXT = {
     exit: "/stock",
     reading: "Reading list…",
     readFailed: "Couldn’t read the list",
-    review: "Review stock in",
+    review: "Review Stock In",
     totalLabel: "Stock value",
     save: "Save Stock In",
     saved: "Stock saved",
@@ -46,7 +46,7 @@ const TEXT = {
     exit: "/",
     reading: "Reading receipt…",
     readFailed: "Couldn’t read the receipt",
-    review: "Review sale",
+    review: "Review Sale",
     totalLabel: "Total",
     save: "Save Sale",
     saved: "Sale saved",
@@ -210,8 +210,7 @@ export function ScanFlow({
       return (
         <Review
           scan={step.scan}
-          mode={mode}
-          canCreate={mode === "stock_in" && canEditProducts(me?.role)}
+          canCreate={step.scan.type === "stock_in" && canEditProducts(me?.role)}
           onSaved={(txn) => setStep({ name: "done", txn })}
           onCancel={() => (exitHref ? router.push(exitHref) : setStep({ name: "pick" }))}
         />
@@ -338,17 +337,16 @@ function Busy({
 }
 function Review({
   scan,
-  mode,
   canCreate,
   onSaved,
   onCancel,
 }: {
   scan: Scan;
-  mode: ScanMode;
   canCreate: boolean;
   onSaved: (txn: Transaction) => void;
   onCancel: () => void;
 }) {
+  const mode = scan.type;
   const text = TEXT[mode];
   const [lines, setLines] = useState<EditLine[]>(() => scan.lines.map(toEditLine));
   // One id per review. Kept in sessionStorage so a page reload mid-save reuses it.
