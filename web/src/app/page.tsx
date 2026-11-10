@@ -13,7 +13,7 @@ export default function Home() {
     <AppPage tab="home">
       <HomeScreen />
       <ActionDock>
-        <ScanButton href="/scan/sale" />
+        <ScanButton />
       </ActionDock>
     </AppPage>
   );

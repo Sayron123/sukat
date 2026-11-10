@@ -152,7 +152,7 @@ export function StockList() {
       )}
 
       <ActionDock>
-        <ScanButton href="/scan" />
+        <ScanButton />
       </ActionDock>
     </>
   );

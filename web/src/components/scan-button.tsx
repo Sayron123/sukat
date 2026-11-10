@@ -1,13 +1,20 @@
-import Link from "next/link";
+"use client";
+
+import { useState } from "react";
 
 import { Icon } from "./icons";
+import { ScanModeSheet } from "./scan-mode-sheet";
 import { buttonClass } from "./ui";
 
-export function ScanButton({ href }: { href: string }) {
+export function ScanButton() {
+  const [open, setOpen] = useState(false);
   return (
-    <Link href={href} className={buttonClass("primary", "lg")}>
-      <Icon name="camera" />
-      Scan
-    </Link>
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass("primary", "lg")}>
+        <Icon name="camera" />
+        Scan
+      </button>
+      <ScanModeSheet open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }
