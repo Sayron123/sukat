@@ -16,6 +16,8 @@ export type Category = (typeof CATEGORIES)[number];
 
 export type Role = "manager" | "secretary" | "member";
 
+export type ProductDeleteResult = { deleted: number; kept: string[] };
+
 export type Staff = {
   member_id: string;
   user_id: string;

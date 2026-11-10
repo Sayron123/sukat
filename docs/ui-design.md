@@ -27,7 +27,7 @@ The web app now follows the Figma design ("Hardware Store Inventory App").
 | Stock | "N products", search box, category chips, one card per product with a red **Low** badge and big stock number, **Scan** button. **+** opens Add product. |
 | Add / Edit product | Design form: Product name, Category, Base unit, Selling price (₱), Low stock alert (with unit). Extra fields kept: In stock, Other names, Other units. Archive at the bottom. |
 | Import starter items | Grouped list with checkboxes, **Import N items** button at the bottom. |
-| More (new, `/more`) | Store and user, links to History, Staff, Add product, Import, and **Sign out**. Add product / Import are shown to managers and secretaries only. |
+| More (new, `/more`) | Store and user with a Settings gear beside them, links to History, Staff, Add product, Import, and **Sign out**. Add product / Import are shown to managers and secretaries only. |
 | Staff | Avatar, name, email, role badge; "Roles control access" note. |
 | Scan (stock in and sale) | Dark camera screen: close, gallery, big round shutter. The header says "Scanning: Sale" or "Scanning: Stock in". See Scan flow below. |
 | Review | "N items found", "Check highlighted items" note, one card per line with **Qty / Unit / Price / Total**, amber left edge for lines to check, total row. The title and button follow the scan's mode: **Review Stock In** with **Save Stock In**, **Review Sale** with **Save Sale**. |

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-from app.products.constants import Category
+from app.products.constants import MAX_BULK_DELETE, Category
 from app.products.units import normalize_unit
 
 
@@ -135,6 +135,17 @@ class ImportIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     keys: list[str] = Field(min_length=1, max_length=500)
+
+
+class ProductDeleteIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ids: list[UUID] = Field(min_length=1, max_length=MAX_BULK_DELETE)
+
+
+class ProductDeleteOut(BaseModel):
+    deleted: int
+    kept: list[str]
 
 
 class SkippedItem(BaseModel):

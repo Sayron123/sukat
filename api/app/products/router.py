@@ -16,6 +16,8 @@ from app.products.schemas import (
     ImportIn,
     ImportOut,
     ProductCreate,
+    ProductDeleteIn,
+    ProductDeleteOut,
     ProductOut,
     ProductPage,
     ProductUpdate,
@@ -26,6 +28,7 @@ router = APIRouter(tags=["products"])
 
 # Manager and secretary can change products; members can only read.
 Writer = Annotated[CurrentMember, Depends(require_role(Role.MANAGER, Role.SECRETARY))]
+Manager = Annotated[CurrentMember, Depends(require_role(Role.MANAGER))]
 
 
 def product_out(p: Product) -> ProductOut:
@@ -94,6 +97,16 @@ def get_catalog(current: CurrentMemberDep, db: DbSession) -> list[CatalogItemOut
     ]
 
 
+@router.get("/products/ids", response_model=list[UUID])
+def list_product_ids(
+    current: Manager,
+    db: DbSession,
+    q: Annotated[str | None, Query(max_length=80)] = None,
+    category: Category | None = None,
+) -> list[UUID]:
+    return service.matching_ids(db, current.store_id, service.ProductSearch(q, category))
+
+
 @router.get("/products/{product_id}", response_model=ProductOut)
 def get_product(product_id: UUID, current: CurrentMemberDep, db: DbSession) -> ProductOut:
     return product_out(service.get_product(db, current.store_id, product_id))
@@ -116,6 +129,16 @@ def archive_product(product_id: UUID, current: Writer, db: DbSession) -> Product
 @router.post("/products/{product_id}/unarchive", response_model=ProductOut)
 def unarchive_product(product_id: UUID, current: Writer, db: DbSession) -> ProductOut:
     return product_out(service.set_archived(db, current.store_id, product_id, False))
+
+
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_product(product_id: UUID, current: Manager, db: DbSession) -> None:
+    service.delete_product(db, current.store_id, product_id)
+
+
+@router.post("/products/bulk-delete", response_model=ProductDeleteOut)
+def delete_products(body: ProductDeleteIn, current: Manager, db: DbSession) -> ProductDeleteOut:
+    return service.delete_products(db, current.store_id, body.ids)
 
 
 @router.post("/products/import", response_model=ImportOut)
