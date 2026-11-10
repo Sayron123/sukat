@@ -1,6 +1,7 @@
 import { formatQty, pesosToCentavos } from "@/lib/format";
 import type { CheckReason, ReviewLine } from "@/lib/types";
 
+import { guessCategory } from "./guess-category";
 import type { PickedProduct } from "./product-picker";
 
 /** One line as the user edits it on the review screen (all inputs are text). */
@@ -44,7 +45,7 @@ export function toEditLine(line: ReviewLine, index: number): EditLine {
           }
         : null,
     newProduct: line.is_new
-      ? { name: line.suggested_new_name ?? "", category: "Others", base_unit: line.unit }
+      ? { name: line.suggested_new_name ?? "", category: guessCategory(line.suggested_new_name ?? ""), base_unit: line.unit }
       : null,
     // formatQty only trims zeros after a decimal point ("10.000" -> "10", "10" stays "10").
     qty: line.qty === null ? "" : formatQty(line.qty),

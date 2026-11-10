@@ -13,6 +13,7 @@ import {
   lineTotal,
   priceDiffers,
 } from "./lines";
+import { guessCategory } from "./guess-category";
 import { type PickedProduct, ProductPicker } from "./product-picker";
 
 /**
@@ -100,7 +101,7 @@ export function ReviewLineCard({
                           product: null,
                           newProduct: {
                             name,
-                            category: "Others",
+                            category: guessCategory(name),
                             base_unit: line.unit,
                           },
                         })

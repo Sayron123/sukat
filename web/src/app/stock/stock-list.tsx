@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ActionDock } from "@/components/action-dock";
 import { Icon } from "@/components/icons";
 import { PageHeader, headerIconClass } from "@/components/page-header";
+import { ScanButton } from "@/components/scan-button";
 import { Badge, Card, Chip, Pager, SearchBox, buttonClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { formatPeso, formatQty } from "@/lib/format";
@@ -151,10 +152,7 @@ export function StockList() {
       )}
 
       <ActionDock>
-        <Link href="/scan" className={buttonClass("primary", "lg")}>
-          <Icon name="camera" />
-          Scan Stock In
-        </Link>
+        <ScanButton />
       </ActionDock>
     </>
   );

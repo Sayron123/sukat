@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ActionDock } from "@/components/action-dock";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -13,7 +13,6 @@ import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
 import { formatPeso, formatQty } from "@/lib/format";
 import { newRequestId } from "@/lib/request-id";
-import { watchPendingPhoto } from "@/lib/pending-photo";
 import {
   canEditProducts,
   type Me,
@@ -30,26 +29,24 @@ import { ReviewLineCard } from "./review-line";
 /** Words that differ between a delivery (stock in) and a sale. */
 const TEXT = {
   stock_in: {
-    title: "Scan stock in",
+    title: "Scanning: Stock in",
     pickHelp: "Lay the list flat and avoid shadows",
     exit: "/stock",
-    other: { label: "SALE", name: "sale", href: "/scan/sale" },
     reading: "Reading list…",
     readFailed: "Couldn’t read the list",
-    review: "Review stock in",
+    review: "Review Stock In",
     totalLabel: "Stock value",
     save: "Save Stock In",
     saved: "Stock saved",
     again: "Scan another list",
   },
   sale: {
-    title: "Scan receipt",
+    title: "Scanning: Sale",
     pickHelp: "Lay the receipt flat and avoid shadows",
     exit: "/",
-    other: { label: "STOCK IN", name: "stock in", href: "/scan" },
     reading: "Reading receipt…",
     readFailed: "Couldn’t read the receipt",
-    review: "Review sale",
+    review: "Review Sale",
     totalLabel: "Total",
     save: "Save Sale",
     saved: "Sale saved",
@@ -100,10 +97,10 @@ export function ScanFlow({
     api<Me>("auth/me").then(setMe, () => {});
   }, []);
 
-  // A photo taken with the home page's "Scan Receipt" button: start with it right away,
-  // whether this page just mounted or was still alive from an earlier visit.
-  const onPendingPhoto = useEffectEvent((file: File) => void startWithFile(file));
-  useEffect(() => watchPendingPhoto(onPendingPhoto), []);
+  const salesOnly = mode === "stock_in" && !initialScan && me?.role === "member";
+  useEffect(() => {
+    if (salesOnly) router.replace("/scan/sale");
+  }, [salesOnly, router]);
 
   async function startWithFile(file: File) {
     setStep({ name: "uploading" });
@@ -174,6 +171,8 @@ export function ScanFlow({
     }
   }
 
+  if (salesOnly) return null;
+
   switch (step.name) {
     case "pick":
       return <PickPhoto mode={mode} error={step.error} onFile={startWithFile} />;
@@ -211,8 +210,7 @@ export function ScanFlow({
       return (
         <Review
           scan={step.scan}
-          mode={mode}
-          canCreate={mode === "stock_in" && canEditProducts(me?.role)}
+          canCreate={step.scan.type === "stock_in" && canEditProducts(me?.role)}
           onSaved={(txn) => setStep({ name: "done", txn })}
           onCancel={() => (exitHref ? router.push(exitHref) : setStep({ name: "pick" }))}
         />
@@ -290,13 +288,6 @@ function PickPhoto({ mode, error, onFile }: { mode: ScanMode; error?: string; on
           >
             <span className="block h-full w-full rounded-full bg-white group-active:bg-line" />
           </button>
-          <Link
-            href={text.other.href}
-            aria-label={`Switch to ${text.other.name}`}
-            className="justify-self-center rounded-button bg-[#292524] p-2 text-[13px] font-bold"
-          >
-            {text.other.label}
-          </Link>
         </div>
       </div>
     </div>
@@ -346,17 +337,16 @@ function Busy({
 }
 function Review({
   scan,
-  mode,
   canCreate,
   onSaved,
   onCancel,
 }: {
   scan: Scan;
-  mode: ScanMode;
   canCreate: boolean;
   onSaved: (txn: Transaction) => void;
   onCancel: () => void;
 }) {
+  const mode = scan.type;
   const text = TEXT[mode];
   const [lines, setLines] = useState<EditLine[]>(() => scan.lines.map(toEditLine));
   // One id per review. Kept in sessionStorage so a page reload mid-save reuses it.
