@@ -21,7 +21,12 @@ def two_stores(api, signup):
         ).json()
         member = api.post(
             "/staff/invites/accept",
-            json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+            json={
+                "accept_terms": True,
+                "token": invite["token"],
+                "password": "Member-pass-1",
+                "full_name": "M",
+            },
         ).json()
         staff = api.get("/staff", headers=auth_header(manager["access_token"])).json()
         out[name] = {
@@ -74,7 +79,7 @@ def test_token_for_a_store_you_do_not_belong_to_is_rejected(api, db, two_stores)
     """Even a validly signed token is refused if the user is not an active member there."""
     a, b = two_stores["a"], two_stores["b"]
     user_a = db.scalar(select(StoreMember.user_id).where(StoreMember.id == a["manager_id"]))
-    forged, _ = create_access_token(user_a, b["store_id"])
+    forged, _ = create_access_token(user_a, b["store_id"], 0)
     assert api.get("/staff", headers=auth_header(forged)).status_code == 401
 
 
@@ -99,7 +104,12 @@ def test_secretary_cannot_invite_or_deactivate_but_can_list(api, signup):
     ).json()
     secretary = api.post(
         "/staff/invites/accept",
-        json={"token": invite["token"], "password": "sec-pass-123", "full_name": "S"},
+        json={
+            "accept_terms": True,
+            "token": invite["token"],
+            "password": "Sec-pass-123",
+            "full_name": "S",
+        },
     ).json()["access_token"]
 
     headers = auth_header(secretary)

@@ -151,7 +151,7 @@ def main() -> None:
     cost = Decimal(0)
     failed = 0
 
-    model = settings.GEMINI_MODEL if settings.AI_PROVIDER == "gemini" else settings.AI_MODEL
+    model = settings.AI_MODEL
     print(f"Provider: {settings.AI_PROVIDER}, model: {model}\n")
     print(row(*COLUMNS))
     for image_path in images:

@@ -1,13 +1,21 @@
 """App entry point: middleware, error handling, and the routers of each feature."""
 
+import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.auth.router import router as auth_router
-from app.core.config import settings
+from app.core.body_limit import BodySizeLimitMiddleware
+from app.core.config import Settings, settings
 from app.core.errors import AppError
 from app.core.health import router as health_router
+from app.core.observability import RequestIdMiddleware, init_sentry, setup_logging
+from app.core.outbox import run_email_worker
+from app.exports.router import router as exports_router
 from app.insights.chat_router import router as chat_router
 from app.insights.router import router as insights_router
 from app.inventory.router import router as inventory_router
@@ -18,33 +26,68 @@ from app.stores.router import router as stores_router
 # phones still on the old app. /health stays at the root (hosts and monitors expect it).
 API_PREFIX = "/v1"
 
-app = FastAPI(title="Sukat API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    if not settings.EMAIL_WORKER_ENABLED:
+        yield
+        return
+    stop = threading.Event()
+    worker = threading.Thread(target=run_email_worker, args=(stop,), daemon=True)
+    worker.start()
+    yield
+    stop.set()
+    worker.join(timeout=15)
 
 
-@app.exception_handler(AppError)
-def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
-    """Render business-rule errors the same way FastAPI renders HTTPException."""
-    return JSONResponse(exc.body(), status_code=exc.status_code, headers=exc.headers)
+def create_app(config: Settings = settings) -> FastAPI:
+    setup_logging(config.LOG_LEVEL)
+    init_sentry(config)
+    docs = not config.is_production
+    application = FastAPI(
+        title="Sukat API",
+        version="0.1.0",
+        lifespan=lifespan,
+        debug=config.DEBUG,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+    )
+
+    @application.exception_handler(AppError)
+    def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+        """Render business-rule errors the same way FastAPI renders HTTPException."""
+        return JSONResponse(exc.body(), status_code=exc.status_code, headers=exc.headers)
+
+    application.add_middleware(
+        BodySizeLimitMiddleware,
+        max_bytes=config.MAX_REQUEST_BYTES,
+        upload_max_bytes=config.UPLOAD_MAX_BYTES,
+    )
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+    v1 = APIRouter(prefix=API_PREFIX)
+    for feature_router in (
+        auth_router,
+        stores_router,
+        products_router,
+        inventory_router,
+        insights_router,
+        chat_router,
+        exports_router,
+    ):
+        v1.include_router(feature_router)
+
+    application.include_router(health_router)
+    application.include_router(v1)
+    application.add_middleware(RequestIdMiddleware)
+    return application
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-v1 = APIRouter(prefix=API_PREFIX)
-for feature_router in (
-    auth_router,
-    stores_router,
-    products_router,
-    inventory_router,
-    insights_router,
-    chat_router,
-):
-    v1.include_router(feature_router)
-
-app.include_router(health_router)
-app.include_router(v1)
+app = create_app()

@@ -2,7 +2,15 @@ import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { SESSION_COOKIE, backendFetch, errorMessage } from "./backend";
+import {
+  SESSION_COOKIE,
+  SESSION_COOKIE_OPTIONS,
+  SESSION_MAX_AGE,
+  backendFetch,
+  clientIpHeaders,
+  errorMessage,
+  getToken,
+} from "./backend";
 
 /**
  * CSRF check: reject POSTs sent by other websites.
@@ -27,30 +35,22 @@ export function isSameOrigin(req: NextRequest): boolean {
   }
 }
 
-/**
- * The caller's IP chain, passed on so the API can rate-limit per IP. Only trustworthy
- * when a proxy in front of Next.js sets X-Forwarded-For (most hosts do); the API also
- * limits per email, which cannot be faked.
- */
-function forwardedFor(req: NextRequest): Record<string, string> {
-  const xff = req.headers.get("x-forwarded-for");
-  return xff ? { "X-Forwarded-For": xff } : {};
+export function setSessionCookie(response: NextResponse, token: string): void {
+  response.cookies.set(SESSION_COOKIE, token, { ...SESSION_COOKIE_OPTIONS, maxAge: SESSION_MAX_AGE });
 }
 
-/**
- * Forward a login/signup request to the API. On success, store the token in an
- * httpOnly cookie so browser JavaScript can never read it. The token is NOT returned.
- */
-export async function forwardAuth(req: NextRequest, apiPath: string): Promise<NextResponse> {
+type Forwarded = { ok: true; data: unknown } | { ok: false; response: NextResponse };
+
+async function forward(req: NextRequest, apiPath: string, token?: string): Promise<Forwarded> {
   if (!isSameOrigin(req)) {
-    return NextResponse.json({ error: "Bad origin" }, { status: 403 });
+    return { ok: false, response: NextResponse.json({ error: "Bad origin" }, { status: 403 }) };
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return { ok: false, response: NextResponse.json({ error: "Invalid request" }, { status: 400 }) };
   }
 
   let res: Response;
@@ -58,28 +58,45 @@ export async function forwardAuth(req: NextRequest, apiPath: string): Promise<Ne
     res = await backendFetch(apiPath, {
       method: "POST",
       body: JSON.stringify(body),
-      headers: forwardedFor(req),
+      headers: clientIpHeaders(req.headers.get("x-forwarded-for")),
+      token,
     });
   } catch {
-    return NextResponse.json({ error: "API not reachable" }, { status: 502 });
+    return { ok: false, response: NextResponse.json({ error: "API not reachable" }, { status: 502 }) };
   }
 
   const data: unknown = await res.json().catch(() => null);
   if (!res.ok) {
-    return NextResponse.json(
-      { error: errorMessage(data, "Something went wrong") },
-      { status: res.status },
-    );
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: errorMessage(data, "Something went wrong") },
+        { status: res.status },
+      ),
+    };
   }
+  return { ok: true, data };
+}
 
-  const { access_token, expires_in } = data as { access_token: string; expires_in: number };
+/**
+ * Forward a login/signup request to the API. On success, store the token in an
+ * httpOnly cookie so browser JavaScript can never read it. The token is NOT returned.
+ */
+export async function forwardAuth(
+  req: NextRequest,
+  apiPath: string,
+  options: { sendToken?: boolean } = {},
+): Promise<NextResponse> {
+  const result = await forward(req, apiPath, options.sendToken ? await getToken() : undefined);
+  if (!result.ok) return result.response;
+
+  const { access_token } = result.data as { access_token: string };
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, access_token, {
-    httpOnly: true, // not readable by JavaScript (protects against XSS token theft)
-    secure: process.env.NODE_ENV === "production", // HTTPS only in production
-    sameSite: "lax", // not sent on cross-site POSTs (CSRF protection)
-    path: "/",
-    maxAge: expires_in,
-  });
+  setSessionCookie(response, access_token);
   return response;
+}
+
+export async function forwardPublic(req: NextRequest, apiPath: string): Promise<NextResponse> {
+  const result = await forward(req, apiPath);
+  return result.ok ? NextResponse.json({ ok: true }) : result.response;
 }

@@ -42,6 +42,7 @@ EXPECTED_RULES = {
     "fk_product_aliases_product_id_products": "c",  # CASCADE
     "fk_unit_conversions_product_id_products": "c",  # CASCADE
     "fk_invites_invited_by_user_id_users": "n",  # SET NULL
+    "fk_auth_tokens_user_id_users": "c",  # CASCADE
 }
 
 

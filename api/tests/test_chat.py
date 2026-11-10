@@ -12,7 +12,7 @@ from uuid import UUID
 import anthropic
 import httpx2
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.ai.models import AIUsage
 from app.ai.pricing import cost_centavos
@@ -45,7 +45,12 @@ def _invite(api, manager, role, email):
     inv = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager).json()
     token = api.post(
         "/staff/invites/accept",
-        json={"token": inv["token"], "password": "staff-pass-1", "full_name": role.title()},
+        json={
+            "accept_terms": True,
+            "token": inv["token"],
+            "password": "Staff-pass-1",
+            "full_name": role.title(),
+        },
     ).json()["access_token"]
     return auth_header(token)
 
@@ -223,7 +228,7 @@ def test_tokens_and_cost_are_logged_once_per_question(api, db, manager, shop, ch
     chat_model(calls(("sales_summary", {})), say("₱..."))
     assert ask(api, manager, "sales?").status_code == 200
     [row] = db.scalars(select(AIUsage).where(AIUsage.feature == "chat")).all()
-    both = AIUsageInfo(model="fake-chat", input_tokens=2000, output_tokens=200)
+    both = AIUsageInfo(model="fake-chat", provider="gemini", input_tokens=2000, output_tokens=200)
     assert (row.store_id, row.model, row.tokens_in, row.tokens_out) == (
         shop.store_id,
         "fake-chat",
@@ -233,6 +238,28 @@ def test_tokens_and_cost_are_logged_once_per_question(api, db, manager, shop, ch
     assert row.cost_centavos == cost_centavos(both)
 
 
+def test_no_open_transaction_while_the_model_thinks(api, db, manager, shop, chat_model):
+    """After a tool round the connection is back in the pool before the next model call."""
+    open_transactions = []
+
+    def count_open(kwargs):
+        db.rollback()  # a new transaction, so pg_stat_activity is read fresh
+        open_transactions.append(
+            db.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                    "AND state = 'idle in transaction' AND pid <> pg_backend_pid()"
+                )
+            )
+        )
+        db.rollback()
+        return say("₱...")
+
+    chat_model(calls(("sales_summary", {})), count_open)
+    assert ask(api, manager, "sales?").status_code == 200
+    assert open_transactions == [0]
+
+
 def test_failed_question_still_logs_spent_tokens(api, db, manager, shop, chat_model):
     from app.ai.errors import AIChatError
 
@@ -240,7 +267,7 @@ def test_failed_question_still_logs_spent_tokens(api, db, manager, shop, chat_mo
         raise AIChatError(
             "That took too long. Please try again.",
             retryable=True,
-            usage=AIUsageInfo(model="fake-chat", input_tokens=300),
+            usage=AIUsageInfo(model="fake-chat", provider="gemini", input_tokens=300),
         )
 
     chat_model(calls(("low_stock", {})), fail)
@@ -265,6 +292,7 @@ def test_rate_limit_per_store(api, db, manager, signup, shop, chat_model, monkey
         AIUsage(
             store_id=shop.store_id,
             feature="chat",
+            provider="gemini",
             model="m",
             tokens_in=0,
             tokens_out=0,

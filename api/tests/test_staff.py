@@ -12,10 +12,15 @@ def _invite(api, token, email="staff@example.com", role="member"):
     )
 
 
-def _accept(api, invite_token, password="staff-pass-1", full_name="Staff One"):
+def _accept(api, invite_token, password="Staff-pass-1", full_name="Staff One"):
     return api.post(
         "/staff/invites/accept",
-        json={"token": invite_token, "password": password, "full_name": full_name},
+        json={
+            "accept_terms": True,
+            "token": invite_token,
+            "password": password,
+            "full_name": full_name,
+        },
     )
 
 
@@ -48,7 +53,7 @@ def test_invite_accept_list_deactivate_flow(api, db, signup):
     # Deactivation takes effect immediately, even for an existing token...
     assert api.get("/auth/me", headers=auth_header(staff_token)).status_code == 401
     # ...and for new logins.
-    login = api.post("/auth/login", json={"email": "staff@example.com", "password": "staff-pass-1"})
+    login = api.post("/auth/login", json={"email": "staff@example.com", "password": "Staff-pass-1"})
     assert login.status_code == 403
 
 
@@ -87,11 +92,11 @@ def test_cannot_invite_active_staff(api, signup):
 
 def test_existing_user_joins_with_own_password(api, signup):
     manager_a = signup(email="a@example.com", store_name="A")["access_token"]
-    signup(email="b@example.com", store_name="B", password="b-password-1")
+    signup(email="b@example.com", store_name="B", password="B-password-1")
     token = _invite(api, manager_a, email="b@example.com").json()["token"]
 
     assert _accept(api, token, password="wrong-password").status_code == 401
-    res = _accept(api, token, password="b-password-1")
+    res = _accept(api, token, password="B-password-1")
     assert res.status_code == 200
     me = api.get("/auth/me", headers=auth_header(res.json()["access_token"])).json()
     assert me["store_name"] == "A" and me["role"] == "member"
@@ -109,10 +114,11 @@ def test_reinvite_reactivates_deactivated_staff(api, signup):
     assert again["active"] is True and again["role"] == "secretary"
 
 
-def test_new_user_needs_full_name(api, signup):
+def test_new_user_name_defaults_to_start_of_email(api, signup):
     manager = signup()["access_token"]
     token = _invite(api, manager).json()["token"]
-    assert _accept(api, token, full_name="").status_code == 422
+    joined = auth_header(_accept(api, token, full_name="").json()["access_token"])
+    assert api.get("/auth/me", headers=joined).json()["full_name"] == "staff"
 
 
 def test_manager_cannot_deactivate_self(api, signup):

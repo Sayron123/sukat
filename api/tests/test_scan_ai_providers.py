@@ -93,7 +93,7 @@ def gemini_response(payload, finish=types.FinishReason.STOP, blocked=None):
 
 
 def test_gemini_read_request_and_usage(monkeypatch):
-    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-2.5-flash")
+    monkeypatch.setattr(settings, "AI_MODEL", "gemini-2.5-flash")
     fake = FakeGemini(gemini_response({"lines": [ROW]}))
     lines, usage = GeminiScanAI(fake).read_photo(JPEG, "image/jpeg")  # type: ignore[arg-type]
     call = fake.calls[0]
@@ -293,29 +293,28 @@ def test_ai_provider_setting_picks_the_implementation(monkeypatch, provider, cls
         module.get_vision_reader.cache_clear()
 
 
-def test_cost_uses_the_providers_prices():
+def test_cost_uses_the_providers_prices(monkeypatch):
+    monkeypatch.setattr(settings, "AI_FALLBACK_PROVIDER", "anthropic")
+    monkeypatch.setattr(settings, "USD_TO_PHP", Decimal("58"))
+    for name, price in {
+        "AI_PRICE_INPUT_PER_MTOK_USD": "0.25",
+        "AI_PRICE_OUTPUT_PER_MTOK_USD": "1.50",
+        "AI_PRICE_CACHE_READ_PER_MTOK_USD": "0.025",
+        "AI_FALLBACK_PRICE_INPUT_PER_MTOK_USD": "4",
+        "AI_FALLBACK_PRICE_OUTPUT_PER_MTOK_USD": "20",
+    }.items():
+        monkeypatch.setattr(settings, name, Decimal(price))
     gemini = AIUsageInfo(
         model="g", input_tokens=1_000_000, output_tokens=100_000, cache_read_tokens=1_000_000,
         provider="gemini",
     )  # fmt: skip
-    # (0.30 + 0.25 + 0.03) USD * 58 PHP * 100 = 3364 centavos
-    assert cost_centavos(gemini) == Decimal("3364.0000")
-    claude = AIUsageInfo(model="c", input_tokens=1_000_000, output_tokens=100_000)
+    # (0.25 + 0.15 + 0.025) USD * 58 PHP * 100 = 2465 centavos
+    assert cost_centavos(gemini) == Decimal("2465.0000")
+    claude = AIUsageInfo(
+        model="c", input_tokens=1_000_000, output_tokens=100_000, provider="anthropic"
+    )
     # (4.00 + 2.00) USD * 58 * 100 = 34800 centavos
     assert cost_centavos(claude) == Decimal("34800.0000")
-
-
-def test_chat_stays_on_claude_when_scans_use_gemini(monkeypatch):
-    from app.ai import provider as module
-    from app.ai.anthropic_chat import AnthropicChatModel
-
-    monkeypatch.setattr(settings, "AI_PROVIDER", "gemini")
-    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", SecretStr("test"))
-    module.get_chat_model.cache_clear()
-    try:
-        assert isinstance(module.get_chat_model(), AnthropicChatModel)
-    finally:
-        module.get_chat_model.cache_clear()
 
 
 def test_gemini_key_is_hidden_in_repr():

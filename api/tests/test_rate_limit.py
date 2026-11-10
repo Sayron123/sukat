@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from pydantic import SecretStr
 from sqlalchemy import select, update
 
 from app.auth.models import AuthFailure
@@ -44,11 +45,11 @@ def test_success_resets_the_email_counter(api, signup):
 
 def test_one_email_being_attacked_does_not_block_another(api, signup):
     signup(email="a@example.com", store_name="A")
-    signup(email="b@example.com", store_name="B", password="b-password-1")
+    signup(email="b@example.com", store_name="B", password="B-password-1")
     for _ in range(3):
         _login(api, email="a@example.com")
     assert _login(api, email="a@example.com").status_code == 429
-    assert _login(api, email="b@example.com", password="b-password-1").status_code == 200
+    assert _login(api, email="b@example.com", password="B-password-1").status_code == 200
 
 
 def test_ip_limit_across_many_emails(api):
@@ -82,7 +83,7 @@ def test_old_failures_are_cleaned_up(api, db):
 
 def test_invite_accept_wrong_password_is_limited(api, signup):
     manager_a = signup(email="a@example.com", store_name="A")["access_token"]
-    signup(email="b@example.com", store_name="B", password="b-password-1")
+    signup(email="b@example.com", store_name="B", password="B-password-1")
     token = api.post(
         "/staff/invites",
         json={"email": "b@example.com", "role": "member"},
@@ -90,18 +91,114 @@ def test_invite_accept_wrong_password_is_limited(api, signup):
     ).json()["token"]
 
     def accept(pw):
-        return api.post("/staff/invites/accept", json={"token": token, "password": pw})
+        return api.post(
+            "/staff/invites/accept", json={"accept_terms": True, "token": token, "password": pw}
+        )
 
     for _ in range(3):
         assert accept("wrong-password").status_code == 401
-    assert accept("b-password-1").status_code == 429
+    assert accept("B-password-1").status_code == 429
     # The same email is also protected on the normal login form.
-    assert _login(api, email="b@example.com", password="b-password-1").status_code == 429
+    assert _login(api, email="b@example.com", password="B-password-1").status_code == 429
 
 
 def test_bad_invite_tokens_are_limited_by_ip(api):
     for _ in range(5):
-        r = api.post("/staff/invites/accept", json={"token": "nope", "password": "whatever-1"})
+        r = api.post(
+            "/staff/invites/accept",
+            json={"accept_terms": True, "token": "nope", "password": "whatever-1"},
+        )
         assert r.status_code == 400
-    r = api.post("/staff/invites/accept", json={"token": "nope", "password": "whatever-1"})
+    r = api.post(
+        "/staff/invites/accept",
+        json={"accept_terms": True, "token": "nope", "password": "whatever-1"},
+    )
     assert r.status_code == 429
+
+
+def _signup_req(api, i: int):
+    return api.post(
+        "/auth/signup",
+        json={
+            "store_name": f"Store {i}",
+            "full_name": "Owner",
+            "email": f"owner{i}@example.com",
+            "password": "Correct-horse-1",
+            "accept_terms": True,
+        },
+    )
+
+
+def test_signups_are_limited_per_ip(api, monkeypatch):
+    monkeypatch.setattr(settings, "SIGNUP_MAX_PER_IP", 2)
+    assert _signup_req(api, 1).status_code == 201
+    assert _signup_req(api, 2).status_code == 201
+    blocked = _signup_req(api, 3)
+    assert blocked.status_code == 429
+    assert "sign-ups" in blocked.json()["detail"]
+    assert int(blocked.headers["Retry-After"]) > 0
+
+
+def test_failed_signups_count_too(api, signup, monkeypatch):
+    monkeypatch.setattr(settings, "SIGNUP_MAX_PER_IP", 2)
+    signup(email="taken@example.com")
+    again = {
+        "store_name": "S",
+        "full_name": "O",
+        "email": "taken@example.com",
+        "accept_terms": True,
+    }
+    assert api.post("/auth/signup", json={**again, "password": "X-pass-123"}).status_code == 409
+    assert _signup_req(api, 9).status_code == 429
+
+
+def test_signup_limit_does_not_block_login(api, signup, monkeypatch):
+    monkeypatch.setattr(settings, "SIGNUP_MAX_PER_IP", 1)
+    out = signup()
+    assert _signup_req(api, 2).status_code == 429
+    ok = api.post("/auth/login", json={"email": out["email"], "password": out["password"]})
+    assert ok.status_code == 200
+
+
+PROXY_SECRET = "s" * 40
+
+
+def _login_from(api, ip, secret=PROXY_SECRET):
+    return api.post(
+        "/auth/login",
+        json={"email": "nobody@example.com", "password": "Wrong-pass-1"},
+        headers={"X-Sukat-Proxy-Secret": secret, "X-Sukat-Client-IP": ip},
+    )
+
+
+def _ip_limits_on(monkeypatch):
+    monkeypatch.setattr(settings, "INTERNAL_API_SECRET", SecretStr(PROXY_SECRET))
+    monkeypatch.setattr(settings, "AUTH_MAX_FAILURES_PER_IP", 2)
+    monkeypatch.setattr(settings, "AUTH_MAX_FAILURES_PER_EMAIL", 100)
+
+
+def test_each_visitor_gets_their_own_ip_limit(api, monkeypatch):
+    _ip_limits_on(monkeypatch)
+    assert _login_from(api, "203.0.113.1").status_code == 401
+    assert _login_from(api, "203.0.113.1").status_code == 401
+    assert _login_from(api, "203.0.113.1").status_code == 429
+    assert _login_from(api, "203.0.113.2").status_code == 401
+
+
+def test_a_forged_client_ip_is_ignored_without_the_secret(api, monkeypatch):
+    _ip_limits_on(monkeypatch)
+    for i, expected in enumerate((401, 401, 429)):
+        assert _login_from(api, f"203.0.113.{i}", secret="guess").status_code == expected
+
+
+def test_a_bad_client_ip_is_ignored(api, monkeypatch):
+    _ip_limits_on(monkeypatch)
+    for expected in (401, 401, 429):
+        assert _login_from(api, "not-an-ip").status_code == expected
+
+
+def test_no_secret_set_never_trusts_the_header(api, monkeypatch):
+    _ip_limits_on(monkeypatch)
+    monkeypatch.setattr(settings, "INTERNAL_API_SECRET", SecretStr(""))
+    for i, expected in enumerate((401, 401, 429)):
+        assert _login_from(api, f"203.0.113.{i}", secret="").status_code == expected

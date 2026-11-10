@@ -29,7 +29,12 @@ def _member(api, manager):
     ).json()
     token = api.post(
         "/staff/invites/accept",
-        json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+        json={
+            "accept_terms": True,
+            "token": invite["token"],
+            "password": "Member-pass-1",
+            "full_name": "M",
+        },
     ).json()["access_token"]
     return auth_header(token)
 
@@ -85,7 +90,7 @@ def test_same_photo_twice_returns_same_scan_without_second_ai_call(api, manager,
 
 
 def test_failed_read_can_be_retried(api, db, manager, storage, reader):
-    usage = AIUsageInfo(model="fake-model", input_tokens=500, output_tokens=10)
+    usage = AIUsageInfo(model="fake-model", provider="gemini", input_tokens=500, output_tokens=10)
     reader.error = AIReadError(
         "Reading took too long. Please try again.", retryable=True, usage=usage
     )
@@ -186,6 +191,43 @@ def test_stuck_pending_scan_is_reported_failed_and_can_be_retried(
     stuck = api.get(f"/scans/{scan_id}", headers=manager).json()
     assert stuck["status"] == "failed" and stuck["retryable"] is True
     assert api.post(f"/scans/{scan_id}/retry", headers=manager).json()["status"] == "read"
+
+
+def test_retrying_a_stuck_scan_restarts_its_stale_clock(
+    api, db, db_sessionmaker, manager, storage, reader
+):
+    """During the retry's AI call the scan is not stale, so a second retry can't pay again."""
+    from sqlalchemy import text
+
+    from app.inventory.scan_service import is_stale_pending
+
+    me = api.get("/auth/me", headers=manager).json()
+    key = upload_photo(api, manager, storage)
+    db.add(
+        Scan(
+            store_id=me["store_id"],
+            type="stock_in",
+            photo_key=key,
+            status="pending",
+            created_by=me["user_id"],
+        )
+    )
+    db.commit()
+    db.execute(text("UPDATE scans SET updated_at = now() - interval '1 hour'"))
+    db.commit()
+    scan_id = db.scalar(select(Scan.id))
+    stale_during_read = []
+
+    def check_stale(catalog):
+        with db_sessionmaker() as other:
+            scan = other.get(Scan, scan_id)
+            assert scan is not None
+            stale_during_read.append(is_stale_pending(scan))
+        return []
+
+    reader.lines = check_stale
+    assert api.post(f"/scans/{scan_id}/retry", headers=manager).status_code == 200
+    assert stale_during_read == [False]
 
 
 def test_late_ai_answer_never_overwrites_a_saved_scan(

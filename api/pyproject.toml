@@ -17,12 +17,13 @@ dependencies = [
     "boto3>=1.43.124",
     "tzdata>=2026.6",
     "google-genai>=3.0.0",
+    "httpx2>=2.16.0",
     "rapidfuzz>=3.14.6",
+    "sentry-sdk[fastapi]>=2.74.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.16.0",
     "pyright>=1.1.414",
     "pytest",
     "ruff",

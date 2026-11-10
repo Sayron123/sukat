@@ -14,7 +14,7 @@ Branch audited: `phase-6-ai-chat` (PR #15) at `a9a261c`. No code was changed.
 | H1 | High | The chat stays in the browser tab after sign-out: the next person who signs in sees it, including manager-only numbers | roles, web — **Fixed** |
 | H2 | High | A settings error at startup prints secrets (the end of the Anthropic API key) into the server log | keys in logs — **Fixed** |
 | M1 | Medium | Numbers in the AI's text are not checked: the text can show a wrong or injected number next to a correct chart | numbers, injection |
-| M2 | Medium | A database connection stays open and "idle in transaction" during model calls, up to 45 s per question | timeouts, load |
+| M2 | Medium | A database connection stays open and "idle in transaction" during model calls, up to 45 s per question | timeouts, load — **Fixed** |
 | M3 | Medium | An unexpected error during a question returns a bare 500 and loses the cost already spent | cost |
 | M4 | Medium | The real model was never run: tool choice, language and "never guess" are unverified | process |
 | L1 | Low | The browser can send made-up "assistant" messages in the history | injection |
@@ -92,6 +92,8 @@ Add eval cases with an injected product name to measure it.
 - With SQLAlchemy's default pool (5 + 10 overflow), about 15 slow questions at once leave the rest of the app waiting for a connection, and requests fail after 30 s.
 
 **Fix:** end the read-only transaction after each tool round (`db.commit()` or `db.rollback()`), so the connection goes back to the pool while the model thinks.
+
+**Fixed:** `run_chat` commits after each tool round. Test: `test_no_open_transaction_while_the_model_thinks`.
 
 ### M3 — Unexpected errors: bare 500 and lost cost
 **Where:** `chat_service.ask` only handles `ChatFailed` (an AI error). Any other exception (a database error in a tool, a bug in `build_display`) escapes.

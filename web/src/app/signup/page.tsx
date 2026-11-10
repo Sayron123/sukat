@@ -1,36 +1,49 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
-import { AuthForm } from "@/components/auth-form";
+import { AuthShell } from "@/components/auth-form";
+import { Icon, type IconName } from "@/components/icons";
+import { textLinkClass } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Create your store · Sukat" };
+export const metadata: Metadata = { title: "Create an account · Sukat" };
+
+const CHOICES: { href: string; icon: IconName; title: string; detail: string }[] = [
+  {
+    href: "/signup/manager",
+    icon: "home",
+    title: "Manager",
+    detail: "I run the store. Set it up and invite my staff.",
+  },
+  {
+    href: "/signup/member",
+    icon: "users",
+    title: "Member",
+    detail: "I work at a store. Join with my manager's invite link.",
+  },
+];
 
 export default function SignupPage() {
   return (
-    <AuthForm
-      title="Set up your store"
-      subtitle="Create your store and your manager account."
-      endpoint="/api/auth/signup"
-      submitLabel="Create Store"
-      fields={[
-        { name: "store_name", label: "Store name", autoComplete: "organization" },
-        {
-          name: "store_address",
-          label: "Store address (optional)",
-          autoComplete: "street-address",
-          maxLength: 300,
-          optional: true,
-        },
-        { name: "full_name", label: "Your name", autoComplete: "name" },
-        { name: "email", label: "Email", type: "email", autoComplete: "email" },
-        {
-          name: "password",
-          label: "Password (8+ characters)",
-          type: "password",
-          autoComplete: "new-password",
-          minLength: 8,
-        },
-      ]}
-      footer={{ text: "Already have an account? Sign in", href: "/login" }}
-    />
+    <AuthShell title="Create an account" subtitle="Which one are you?" back="/login">
+      <div className="flex flex-col gap-3">
+        {CHOICES.map((c) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            className="flex min-h-[84px] items-center gap-3 rounded-card border border-border bg-background px-4 text-text hover:bg-surface"
+          >
+            <Icon name={c.icon} size={22} />
+            <span className="min-w-0 flex-1">
+              <b className="block text-base">{c.title}</b>
+              <small className="mt-1 block text-sm leading-snug text-muted">{c.detail}</small>
+            </span>
+            <Icon name="chevron" size={19} />
+          </Link>
+        ))}
+      </div>
+      <Link href="/login" className={`${textLinkClass} mt-3`}>
+        Already have an account? Sign in
+      </Link>
+    </AuthShell>
   );
 }

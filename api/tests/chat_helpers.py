@@ -8,9 +8,11 @@ tool results the previous step produced. Every call is recorded in `.calls`.
 import itertools
 import json
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from google.genai import types
 
 from app.ai.base import ChatTurn, ToolCall, ToolResults
 from app.ai.schemas import AIUsageInfo
@@ -20,7 +22,9 @@ _ids = itertools.count(1)
 
 
 def usage(tokens_in: int = 1000, tokens_out: int = 100) -> AIUsageInfo:
-    return AIUsageInfo(model="fake-chat", input_tokens=tokens_in, output_tokens=tokens_out)
+    return AIUsageInfo(
+        model="fake-chat", provider="gemini", input_tokens=tokens_in, output_tokens=tokens_out
+    )
 
 
 def calls(*pairs: tuple[str, dict[str, Any]]) -> ChatTurn:
@@ -58,14 +62,57 @@ class ScriptedModel:
         return step(kwargs) if callable(step) else step
 
 
-@pytest.fixture
-def chat_model(api):
-    """Install a ScriptedModel as the app's chat model: `chat_model(*steps)`."""
+def gemini_reply(turn: ChatTurn) -> SimpleNamespace:
+    parts = [
+        SimpleNamespace(
+            text=None,
+            thought=False,
+            function_call=SimpleNamespace(id=c.id, name=c.name, args=c.input),
+        )
+        for c in turn.tool_calls
+    ]
+    if turn.text:
+        parts.append(SimpleNamespace(text=turn.text, thought=False, function_call=None))
+    reason = {
+        "refusal": types.FinishReason.SAFETY,
+        "max_tokens": types.FinishReason.MAX_TOKENS,
+    }.get(turn.stop, types.FinishReason.STOP)
+    return SimpleNamespace(
+        model_version=turn.usage.model,
+        prompt_feedback=None,
+        candidates=[
+            SimpleNamespace(
+                finish_reason=reason,
+                content=SimpleNamespace(role="model", parts=parts),
+            )
+        ],
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=turn.usage.input_tokens + turn.usage.cache_read_tokens,
+            cached_content_token_count=turn.usage.cache_read_tokens,
+            candidates_token_count=turn.usage.output_tokens,
+            thoughts_token_count=0,
+        ),
+    )
+
+
+class GeminiScriptedModel(ScriptedModel):
+    def respond(self, **kwargs: Any) -> ChatTurn:
+        from app.ai.gemini_chat import GeminiChatModel
+
+        turn = super().respond(**kwargs)
+        client = SimpleNamespace(
+            models=SimpleNamespace(generate_content=lambda **_: gemini_reply(turn))
+        )
+        return GeminiChatModel(client).respond(**kwargs)  # type: ignore[arg-type]
+
+
+@pytest.fixture(params=["scripted", "gemini"])
+def chat_model(api, request):
     from app.ai.provider import get_chat_model
     from app.main import app
 
     def install(*steps: Step) -> ScriptedModel:
-        model = ScriptedModel(*steps)
+        model = (GeminiScriptedModel if request.param == "gemini" else ScriptedModel)(*steps)
         app.dependency_overrides[get_chat_model] = lambda: model
         return model
 

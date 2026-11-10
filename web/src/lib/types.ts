@@ -20,10 +20,22 @@ export type Me = {
   user_id: string;
   email: string;
   full_name: string;
+  email_verified: boolean;
   store_id: string;
   store_name: string;
   store_address: string | null;
   role: Role;
+};
+
+export type AiUsage = {
+  month: string;
+  resets_on: string;
+  budget_centavos: number;
+  spent_centavos: number;
+  remaining_centavos: number;
+  scans_centavos: number;
+  chat_centavos: number;
+  reached: boolean;
 };
 
 export type Conversion = { from_unit: string; factor: string };

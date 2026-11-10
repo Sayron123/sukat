@@ -6,20 +6,57 @@ import { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 import { LogoutButton } from "@/components/logout-button";
 import { PageHeader } from "@/components/page-header";
-import { Avatar } from "@/components/ui";
-import { api } from "@/lib/api-client";
+import { Avatar, Notice, textLinkClass } from "@/components/ui";
+import { ApiError, api } from "@/lib/api-client";
 import { canEditProducts, type Me } from "@/lib/types";
 
 import { ApiStatus } from "../api-status";
 
-type Item = { href: string; icon: IconName; title: string; detail: string; writersOnly?: boolean };
+type Item = {
+  href: string;
+  icon: IconName;
+  title: string;
+  detail: string;
+  writersOnly?: boolean;
+  managersOnly?: boolean;
+};
 
 const ITEMS: Item[] = [
   { href: "/transactions", icon: "history", title: "History", detail: "Sales and stock movements" },
   { href: "/staff", icon: "users", title: "Staff", detail: "People and permissions" },
+  { href: "/more/ai-usage", icon: "spark", title: "AI usage", detail: "This month's spending and limit", managersOnly: true },
+  { href: "/more/password", icon: "edit", title: "Change password", detail: "Update how you sign in" },
   { href: "/stock/new", icon: "plus", title: "Add product", detail: "Create a stock item", writersOnly: true },
   { href: "/stock/import", icon: "box", title: "Import starter items", detail: "Pick from a ready-made list", writersOnly: true },
+  { href: "/more/export", icon: "download", title: "Download store data", detail: "Products, history and stock as CSV", managersOnly: true },
+  { href: "/privacy", icon: "check", title: "Privacy and terms", detail: "What we store and why" },
 ];
+
+function VerifyEmailNotice({ email }: { email: string }) {
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function resend() {
+    try {
+      await api("auth/resend-verification", { method: "POST" });
+      setStatus(`Link sent to ${email}.`);
+    } catch (e) {
+      setStatus(e instanceof ApiError ? e.message : "Could not send the link.");
+    }
+  }
+
+  return (
+    <Notice title="Confirm your email" className="mb-4">
+      Photo reading and the AI assistant unlock after you confirm.
+      {status ? (
+        <p className="mt-1">{status}</p>
+      ) : (
+        <button type="button" onClick={resend} className={`${textLinkClass} block`}>
+          Resend the link
+        </button>
+      )}
+    </Notice>
+  );
+}
 
 /** More tab: who is signed in, links to the other screens, and Sign out. */
 export function MoreMenu() {
@@ -28,7 +65,9 @@ export function MoreMenu() {
     api<Me>("auth/me").then(setMe, () => {});
   }, []);
 
-  const items = ITEMS.filter((i) => !i.writersOnly || canEditProducts(me?.role));
+  const items = ITEMS.filter(
+    (i) => (!i.writersOnly || canEditProducts(me?.role)) && (!i.managersOnly || me?.role === "manager"),
+  );
 
   return (
     <>
@@ -47,6 +86,7 @@ export function MoreMenu() {
           </div>
         </div>
       )}
+      {me && !me.email_verified && <VerifyEmailNotice email={me.email} />}
       <ul className="border-t border-border">
         {items.map((i) => (
           <li key={i.href}>

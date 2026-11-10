@@ -75,7 +75,9 @@ def test_runner_end_to_end_with_fake_reader(tmp_path, monkeypatch, capsys):
                 scan_line(ids["portland-cement-40kg"], qty=Decimal("10"), unit="sako"),
                 scan_line(ids["common-wire-nail-4in"], qty=Decimal("3"), unit="bx"),
             ]
-            return ReadResult(lines, AIUsageInfo("fake", input_tokens=1000, output_tokens=100))
+            return ReadResult(
+                lines, AIUsageInfo("fake", "gemini", input_tokens=1000, output_tokens=100)
+            )
 
     monkeypatch.setattr(run_eval, "CASES_DIR", tmp_path)
     monkeypatch.setattr(run_eval, "get_vision_reader", FakeReader)
@@ -140,7 +142,9 @@ def test_runner_reports_sale_and_stock_in_separately(tmp_path, monkeypatch, caps
         def read_list(self, image, media_type, catalog, scan_type):
             seen.append(scan_type)
             line = scan_line(ids[cement], qty=Decimal("2"), unit="bag", unit_price_centavos=26000)
-            return ReadResult([line], AIUsageInfo("fake", input_tokens=10, output_tokens=5))
+            return ReadResult(
+                [line], AIUsageInfo("fake", "gemini", input_tokens=10, output_tokens=5)
+            )
 
     monkeypatch.setattr(run_eval, "CASES_DIR", tmp_path)
     monkeypatch.setattr(run_eval, "get_vision_reader", FakeReader)
@@ -187,7 +191,7 @@ def test_runner_reports_each_step_and_ai_requests(tmp_path, monkeypatch, capsys)
 
     class FakeAI:
         def read_photo(self, image, media_type):
-            return reads[image], AIUsageInfo(model="fake", input_tokens=100)
+            return reads[image], AIUsageInfo(model="fake", provider="gemini", input_tokens=100)
 
         def match_items(self, items, catalog_text):
             ref = next(
@@ -195,7 +199,7 @@ def test_runner_reports_each_step_and_ai_requests(tmp_path, monkeypatch, capsys)
                 for line in catalog_text.splitlines()
                 if 'Common Wire Nail 4"' in line
             )
-            usage = AIUsageInfo(model="fake", input_tokens=50)
+            usage = AIUsageInfo(model="fake", provider="gemini", input_tokens=50)
             return [MatchAnswer(line=i.line, product_id=ref) for i in items], usage
 
     for name, image in (

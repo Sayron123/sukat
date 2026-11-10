@@ -53,7 +53,7 @@ def get_current_member(
             StoreMember.active.is_(True),
         )
     )
-    if member is None:
+    if member is None or member.user.token_version != data.token_version:
         raise _unauthorized()
     return CurrentMember(
         user=member.user, member_id=member.id, store_id=member.store_id, role=member.role
@@ -61,6 +61,21 @@ def get_current_member(
 
 
 CurrentMemberDep = Annotated[CurrentMember, Depends(get_current_member)]
+
+
+class EmailNotVerified(Forbidden):
+    code = "email_not_verified"
+
+
+def get_verified_member(current: CurrentMemberDep) -> CurrentMember:
+    if current.user.email_verified_at is None:
+        raise EmailNotVerified(
+            "Confirm your email first. Check your inbox, or resend the link from the More tab."
+        )
+    return current
+
+
+VerifiedMemberDep = Annotated[CurrentMember, Depends(get_verified_member)]
 
 
 def require_role(*roles: str) -> Callable[[CurrentMember], CurrentMember]:

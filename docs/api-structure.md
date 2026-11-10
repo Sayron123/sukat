@@ -8,13 +8,13 @@ How the backend (`api/`) is organized, and where new code goes.
 api/app/
 ├── main.py          # app setup: CORS, error handler, mounts every feature under /v1
 ├── models.py        # imports every table (for Alembic)
-├── core/            # shared: settings, DB session, base model, errors, storage, /health
-├── auth/            # accounts, login, JWT, role checks, login rate limit
+├── core/            # shared: settings, DB session, base model, errors, storage, email, /health
+├── auth/            # accounts, login, passwords, email confirmation, JWT, role checks, rate limits
 ├── stores/          # staff and invites
 ├── products/        # products, aliases, unit conversions, starter catalog
 ├── inventory/       # photo upload, scans, transactions, stock movements
 ├── insights/        # reports (sales, low stock, history, stock check) and the AI chat
-└── ai/              # AI: list reader and chat model interfaces, provider choice, Claude
+└── ai/              # AI: list reader and chat model interfaces, provider choice, Gemini and Claude, fallback and budget
 ```
 
 Every feature folder has the same files:
@@ -32,7 +32,7 @@ Every feature folder has the same files:
 
 ```
 Browser -> Next.js proxy (adds the token from the httpOnly cookie)
-        -> FastAPI /v1/... -> auth deps (valid token? still an active member? right role?)
+        -> FastAPI /v1/... -> auth deps (valid token? not signed out? still active? right role?)
         -> router.py -> service.py -> database
 ```
 
@@ -42,14 +42,20 @@ Browser -> Next.js proxy (adds the token from the httpOnly cookie)
 
 Services raise errors from `app/core/errors.py`: `BadRequest` 400, `Unauthorized` 401, `Forbidden` 403, `NotFound` 404, `Conflict` 409, `Invalid` 422, `TooManyRequests` 429. One handler in `main.py` turns them into `{"detail": "..."}` with that status. Business code never imports FastAPI to report an error.
 
+## Sending email
+
+Services never send email. They call `enqueue_email` (`app/core/outbox.py`), which saves the email in the same database transaction as the change that caused it. A background loop started in `main.py` delivers waiting emails through the `Mailer` (`app/core/mailer.py`) and retries failures, so a mail server outage or a restart doesn't lose them, and a slow mail server can't slow a response or reveal whether an account exists.
+
+`EMAIL_BACKEND=console` prints emails in the terminal (development only). `EMAIL_BACKEND=smtp` sends them. The API refuses to start with `console` unless `APP_ENV=development`. Tests use a fake mailer.
+
 ## Endpoints
 
 All paths start with `/v1`, except `GET /health`. The live list with request/response shapes is at http://localhost:8000/docs.
 
 | Feature | Endpoints |
 |---|---|
-| auth | `POST /auth/signup`, `POST /auth/login`, `GET /auth/me` |
-| stores (staff) | `POST /staff/invites`, `POST /staff/invites/accept`, `GET /staff`, `GET /staff/{id}`, `POST /staff/{id}/deactivate` |
+| auth | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/change-password`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `POST /auth/verify-email`, `POST /auth/resend-verification` |
+| stores (staff) | `POST /staff/invites`, `POST /staff/invites/preview`, `POST /staff/invites/accept`, `GET /staff`, `GET /staff/{id}`, `PATCH /staff/{id}/role`, `POST /staff/{id}/deactivate` |
 | products | `GET/POST /products`, `GET /products/catalog`, `POST /products/import`, `GET/PATCH /products/{id}`, `POST /products/{id}/archive`, `POST /products/{id}/unarchive` |
 | inventory | `POST /scans/upload-url`, `PUT /uploads/local/{key}` (dev only), `POST /scans` (stock_in or sale), `GET /scans/{id}`, `POST /scans/{id}/retry`, `GET/POST /transactions` (GET takes `start`/`end` Manila dates), `GET /transactions/{id}`, `POST /transactions/{id}/void` |
 | insights (reports) | `GET /reports/sales-summary`, `GET /reports/top-products`, `GET /reports/low-stock`, `GET /reports/stock-movements`, `GET /reports/products/{id}/history`, `GET /reports/stock-check`, `GET /reports/scans-to-review` |

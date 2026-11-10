@@ -13,8 +13,8 @@ Each step's output is saved on the scan (`scans.ai_result_json` → `steps`), so
 **What**
 - `app/ai/base.py`: a `ScanAI` interface with one method per AI step (`read_photo`, `match_items`). The rest of the pipeline is plain code and doesn't know which AI it talks to.
 - `app/ai/gemini_reader.py`: the Gemini version, on Google's official `google-genai` SDK. `app/ai/anthropic_reader.py`: the Claude version.
-- `AI_PROVIDER=gemini` or `AI_PROVIDER=anthropic` in `api/.env` picks one. Gemini uses `GEMINI_API_KEY` and `GEMINI_MODEL`.
-- Every AI request is logged to `ai_usage` (`scan_read`, `scan_match`), priced with **that provider's** prices (`GEMINI_PRICE_*` or `AI_PRICE_*`).
+- `AI_PROVIDER=gemini` or `AI_PROVIDER=anthropic` in `api/.env` picks one, and `AI_MODEL` names its model. If `AI_FALLBACK_PROVIDER` is set and the main provider cannot read the photo, the whole scan runs again on the backup (see `docs/ai-hardening.md`).
+- Every AI request is logged to `ai_usage` (`scan_read`, `scan_match`), priced with **that provider's** prices (`AI_PRICE_*` for the main provider, `AI_FALLBACK_PRICE_*` for the backup).
 
 **Why**
 - **Structured output (a JSON schema)** means the AI must answer in the exact shape we expect; Pydantic checks it again.
@@ -100,9 +100,7 @@ All with a mocked AI (no key, no cost):
 
 | Setting | Default | What |
 |---|---|---|
-| `AI_PROVIDER` | `anthropic` | `anthropic` or `gemini`, for scans (the AI chat always uses Claude) |
+| `AI_PROVIDER` | `gemini` | `gemini` or `anthropic`, for scans and chat |
 | `GEMINI_API_KEY` | (empty) | Google AI Studio key (hidden in logs, like the other keys) |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model for both AI steps |
-| `GEMINI_PRICE_*_PER_MTOK_USD` | 0.30 / 2.50 / 0.03 | for the cost log; check Google's current prices |
 | `SCAN_FUZZY_THRESHOLD` | `90` | lowest fuzzy score that counts as a match (0-100) |
 | `SCAN_TOTAL_TOLERANCE_CENTAVOS` | `100` | how far qty × price may be from a written total |

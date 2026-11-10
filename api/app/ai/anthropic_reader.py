@@ -27,13 +27,14 @@ from app.ai.schemas import (
 )
 from app.core.config import settings
 
-FALLBACK_BETA = "server-side-fallback-2026-07-01"  # refusal fallback (AI_REFUSAL_FALLBACK)
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
 def _usage(response: Any) -> AIUsageInfo:
     u = response.usage
     return AIUsageInfo(
         model=response.model,
+        provider="anthropic",
         input_tokens=u.input_tokens or 0,
         output_tokens=u.output_tokens or 0,
         cache_write_tokens=u.cache_creation_input_tokens or 0,
@@ -41,17 +42,19 @@ def _usage(response: Any) -> AIUsageInfo:
     )
 
 
-# ---------- multi-step scan (ScanAI) ----------
-
-
 class AnthropicScanAI:
-    """ScanAI on Claude: one Messages API call per AI step, structured output."""
-
-    def __init__(self, client: anthropic.Anthropic | None = None) -> None:
+    def __init__(
+        self,
+        client: anthropic.Anthropic | None = None,
+        *,
+        model: str | None = None,
+        max_retries: int | None = None,
+    ) -> None:
+        self.model = model or settings.AI_MODEL
         self.client = client or anthropic.Anthropic(
             api_key=settings.ANTHROPIC_API_KEY.get_secret_value() or None,
             timeout=settings.AI_TIMEOUT_SECONDS,
-            max_retries=settings.AI_MAX_RETRIES,
+            max_retries=settings.AI_MAX_RETRIES if max_retries is None else max_retries,
         )
 
     def _create(
@@ -62,7 +65,7 @@ class AnthropicScanAI:
             extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"}
         try:
             response = self.client.beta.messages.create(
-                model=settings.AI_MODEL,
+                model=self.model,
                 max_tokens=MAX_OUTPUT_TOKENS,
                 system=system,
                 messages=[{"role": "user", "content": content}],
@@ -72,10 +75,10 @@ class AnthropicScanAI:
                 },
                 **extra,
             )
-        except TypeError as e:  # the SDK found no API key or login
+        except TypeError as e:
             if "authentication" not in str(e):
                 raise
-            raise AIReadError("The reader is not set up yet.", retryable=False) from e
+            raise AIReadError("The reader is not set up correctly.", retryable=False) from e
         except (anthropic.APITimeoutError, anthropic.APIConnectionError) as e:
             raise AIReadError("Reading took too long. Please try again.", retryable=True) from e
         except anthropic.RateLimitError as e:

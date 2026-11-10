@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@sentry/core": "11.11.0",
+    "@sentry/nextjs": "11.11.0",
     "next": "16.4.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",

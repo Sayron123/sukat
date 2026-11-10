@@ -17,6 +17,7 @@ def log_usage(db: Session, store_id: UUID, feature: str, usage: AIUsageInfo) -> 
 
 def fill_usage(row: AIUsage, usage: AIUsageInfo) -> None:
     """Set the model, tokens and cost of a row (e.g. one reserved before the call)."""
+    row.provider = usage.provider
     row.model = usage.model
     row.tokens_in = usage.tokens_in
     row.tokens_out = usage.output_tokens

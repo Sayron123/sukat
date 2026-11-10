@@ -195,7 +195,12 @@ def test_member_can_save_but_cannot_create_products(api, db, manager, nails):
     member = auth_header(
         api.post(
             "/staff/invites/accept",
-            json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+            json={
+                "accept_terms": True,
+                "token": invite["token"],
+                "password": "Member-pass-1",
+                "full_name": "M",
+            },
         ).json()["access_token"]
     )
     ok = _save(api, member, [{"product_id": nails["id"], "qty": "1", "unit": "kg"}])
@@ -464,7 +469,12 @@ def _member(api, manager):
     return auth_header(
         api.post(
             "/staff/invites/accept",
-            json={"token": invite["token"], "password": "member-pass-1", "full_name": "M"},
+            json={
+                "accept_terms": True,
+                "token": invite["token"],
+                "password": "Member-pass-1",
+                "full_name": "M",
+            },
         ).json()["access_token"]
     )
 
@@ -486,7 +496,7 @@ def test_line_without_unit_cannot_be_saved_without_a_unit(
                 total_text=None,
                 confidence=0.97,
             )
-            return [row], AIUsageInfo(model="fake", input_tokens=10)
+            return [row], AIUsageInfo(model="fake", provider="gemini", input_tokens=10)
 
         def match_items(self, items, catalog_text):
             raise AssertionError("'sem' is an alias: matched by code")

@@ -10,7 +10,15 @@ from app.auth.rate_limit import client_ip
 from app.auth.schemas import TokenOut
 from app.stores import service
 from app.stores.models import Role, StoreMember
-from app.stores.schemas import AcceptInviteIn, InviteIn, InviteOut, StaffOut
+from app.stores.schemas import (
+    AcceptInviteIn,
+    InviteIn,
+    InviteOut,
+    InvitePreviewIn,
+    InvitePreviewOut,
+    RoleIn,
+    StaffOut,
+)
 
 router = APIRouter(tags=["staff"])
 
@@ -39,6 +47,11 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession) -> InviteOut:
     )
 
 
+@router.post("/staff/invites/preview", response_model=InvitePreviewOut)
+def preview_invite(body: InvitePreviewIn, request: Request, db: DbSession) -> InvitePreviewOut:
+    return service.preview_invite(db, body.token, client_ip(request))
+
+
 @router.post("/staff/invites/accept", response_model=TokenOut)
 def accept_invite(body: AcceptInviteIn, request: Request, db: DbSession) -> TokenOut:
     """Join a store with an invite token (no login needed)."""
@@ -53,6 +66,13 @@ def list_staff(current: ManagerOrSecretary, db: DbSession) -> list[StaffOut]:
 @router.get("/staff/{member_id}", response_model=StaffOut)
 def get_staff(member_id: UUID, current: ManagerOrSecretary, db: DbSession) -> StaffOut:
     return staff_out(service.get_member(db, current.store_id, member_id))
+
+
+@router.patch("/staff/{member_id}/role", response_model=StaffOut)
+def change_staff_role(member_id: UUID, body: RoleIn, current: Manager, db: DbSession) -> StaffOut:
+    return staff_out(
+        service.change_role(db, current.store_id, member_id, current.member_id, body.role)
+    )
 
 
 @router.post("/staff/{member_id}/deactivate", response_model=StaffOut)

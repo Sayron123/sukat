@@ -59,13 +59,15 @@ class FakeAI:
         self.match_calls: list[tuple[list, str]] = []
 
     def read_photo(self, image, media_type):
-        return self.rows, AIUsageInfo(model="fake", input_tokens=1000, output_tokens=100)
+        return self.rows, AIUsageInfo(
+            model="fake", provider="gemini", input_tokens=1000, output_tokens=100
+        )
 
     def match_items(self, items, catalog_text):
         self.match_calls.append((items, catalog_text))
         if self.match_error:
             raise self.match_error
-        usage = AIUsageInfo(model="fake", input_tokens=400, output_tokens=20)
+        usage = AIUsageInfo(model="fake", provider="gemini", input_tokens=400, output_tokens=20)
         return [MatchAnswer(line=i.line, product_id=self.answers.get(i.text)) for i in items], usage
 
 
@@ -176,7 +178,9 @@ def test_ai_answers_outside_the_list_are_ignored():
 
 
 def test_failed_ai_match_keeps_the_lines_unmatched():
-    error = AIReadError("busy", retryable=True, usage=AIUsageInfo(model="fake", input_tokens=50))
+    error = AIReadError(
+        "busy", retryable=True, usage=AIUsageInfo(model="fake", provider="gemini", input_tokens=50)
+    )
     _, result = read([row("1 mystery item", "1", "pc")], match_error=error)
     assert result.lines[0].product_id is None
     assert result.steps["match"]["error"] == "busy"
