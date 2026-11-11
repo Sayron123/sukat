@@ -46,6 +46,8 @@ export type Attendance = {
   note: string | null;
 };
 
+export type DayAttendance = Attendance & { member_id: string };
+
 export type Me = {
   user_id: string;
   email: string;

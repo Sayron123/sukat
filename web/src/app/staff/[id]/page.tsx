@@ -5,11 +5,11 @@ import { Suspense } from "react";
 import { AppPage } from "@/components/app-page";
 import { PageHeader } from "@/components/page-header";
 import { Avatar, Badge, Card, Loading, Notice } from "@/components/ui";
-import { STORE_TZ, dayLabel, storeDate } from "@/lib/dates";
+import { STORE_TZ } from "@/lib/dates";
 import { backendFetch, getToken } from "@/lib/server/backend";
-import { ATTENDANCE_LABELS, type Attendance, type Me, type Staff } from "@/lib/types";
+import type { Me, Staff } from "@/lib/types";
 
-import { AliasForm, AttendanceForm } from "./member-forms";
+import { AliasForm } from "./member-forms";
 
 export const metadata: Metadata = { title: "Staff member · Sukat" };
 
@@ -33,12 +33,10 @@ async function MemberContent({ params }: { params: PageProps<"/staff/[id]">["par
 
   let meRes: Response;
   let memberRes: Response;
-  let attendanceRes: Response;
   try {
-    [meRes, memberRes, attendanceRes] = await Promise.all([
+    [meRes, memberRes] = await Promise.all([
       backendFetch("/auth/me", { token }),
       backendFetch(`/staff/${id}`, { token }),
-      backendFetch(`/staff/${id}/attendance`, { token }),
     ]);
   } catch {
     return (
@@ -55,9 +53,8 @@ async function MemberContent({ params }: { params: PageProps<"/staff/[id]">["par
   const me = (await meRes.json()) as Me;
   if (me.role !== "manager") redirect("/staff");
   if (memberRes.status === 404) notFound();
-  if (!memberRes.ok || !attendanceRes.ok) throw new Error("Could not load this staff member");
+  if (!memberRes.ok) throw new Error("Could not load this staff member");
   const member = (await memberRes.json()) as Staff;
-  const attendance = (await attendanceRes.json()) as Attendance[];
 
   const name = member.alias ?? member.full_name;
   const canRename = !member.is_owner || member.user_id === me.user_id;
@@ -94,23 +91,6 @@ async function MemberContent({ params }: { params: PageProps<"/staff/[id]">["par
         </dl>
       </Card>
       {canRename && <AliasForm memberId={member.member_id} alias={member.alias} />}
-      {member.active && <AttendanceForm memberId={member.member_id} today={storeDate()} />}
-      <h2 className="mt-5 mb-2 text-base font-bold text-text">Attendance</h2>
-      {attendance.length === 0 ? (
-        <Card className="text-sm text-muted">No attendance saved yet.</Card>
-      ) : (
-        <ul className="rounded-card border border-border px-4 py-1">
-          {attendance.map((a) => (
-            <li key={a.id} className="flex min-h-14 items-center justify-between gap-3 py-2">
-              <div className="min-w-0">
-                <b className="block text-[15px] text-text">{dayLabel(a.work_date)}</b>
-                {a.note && <small className="mt-0.5 block text-[13px] break-words text-muted">{a.note}</small>}
-              </div>
-              <Badge tone={a.status === "absent" ? "red" : "neutral"}>{ATTENDANCE_LABELS[a.status]}</Badge>
-            </li>
-          ))}
-        </ul>
-      )}
     </>
   );
 }

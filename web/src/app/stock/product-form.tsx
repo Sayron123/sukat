@@ -6,7 +6,7 @@ import { useState, type FormEvent } from "react";
 import { ActionDock } from "@/components/action-dock";
 import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/page-header";
-import { Button, Field, GhostButton, Notice, Select } from "@/components/ui";
+import { Button, Field, Notice, Select } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { centavosToInput, formatQty, pesosToCentavos } from "@/lib/format";
 import { CATEGORIES, type Product } from "@/lib/types";
@@ -223,12 +223,6 @@ export function ProductForm({ product }: { product?: Product }) {
             Add unit
           </button>
         </section>
-
-        {product && (
-          <GhostButton type="button" onClick={toggleArchive} disabled={saving}>
-            {product.archived ? "Unarchive product" : "Archive product"}
-          </GhostButton>
-        )}
       </form>
 
       <ActionDock>
@@ -237,9 +231,22 @@ export function ProductForm({ product }: { product?: Product }) {
             {error}
           </p>
         )}
-        <Button type="submit" form="product-form" size="lg" disabled={saving}>
-          {saving ? "Saving…" : "Save Product"}
-        </Button>
+        <div className="flex gap-2">
+          {product && (
+            <button
+              type="button"
+              onClick={toggleArchive}
+              disabled={saving}
+              className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-button border border-line bg-background px-4 text-[15px] font-semibold text-text hover:bg-surface disabled:opacity-45"
+            >
+              <Icon name="box" size={20} />
+              {product.archived ? "Unarchive" : "Archive"}
+            </button>
+          )}
+          <Button type="submit" form="product-form" size="lg" className="flex-1" disabled={saving}>
+            {saving ? "Saving…" : "Save Product"}
+          </Button>
+        </div>
       </ActionDock>
     </>
   );

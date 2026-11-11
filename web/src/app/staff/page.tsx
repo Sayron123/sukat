@@ -3,8 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AppPage } from "@/components/app-page";
-import { PageHeader } from "@/components/page-header";
-import { Avatar, Badge, Notice, buttonClass } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { PageHeader, headerTextActionClass } from "@/components/page-header";
+import { Avatar, Badge, Notice } from "@/components/ui";
 import { backendFetch, getToken } from "@/lib/server/backend";
 import type { Me, Staff } from "@/lib/types";
 
@@ -47,12 +48,15 @@ async function StaffContent() {
         eyebrow={staff ? `${staff.length} ${staff.length === 1 ? "person" : "people"}` : " "}
         title="Staff"
         back="/more"
+        action={
+          me.role !== "member" && (
+            <Link href="/staff/invite" className={headerTextActionClass}>
+              <Icon name="plus" size={20} />
+              Invite
+            </Link>
+          )
+        }
       />
-      {me.role !== "member" && (
-        <Link href="/staff/invite" className={`${buttonClass()} mb-4`}>
-          Invite someone
-        </Link>
-      )}
       {!staff ? (
         <p className="text-sm text-red">Could not load staff.</p>
       ) : (

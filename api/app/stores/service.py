@@ -33,6 +33,7 @@ from app.stores.schemas import InvitePreviewOut
 
 _STORE_TZ = ZoneInfo(settings.STORE_TIMEZONE)
 ATTENDANCE_SHOWN = 31
+ATTENDANCE_RANGE_DAYS = 62
 
 
 def get_member(db: Session, store_id: UUID, member_id: UUID) -> StoreMember:
@@ -279,6 +280,24 @@ def list_attendance(db: Session, store_id: UUID, member_id: UUID) -> list[Attend
             .where(Attendance.store_id == store_id, Attendance.member_id == member.id)
             .order_by(Attendance.work_date.desc())
             .limit(ATTENDANCE_SHOWN)
+        )
+    )
+
+
+def attendance_between(db: Session, store_id: UUID, start: date, end: date) -> list[Attendance]:
+    if end < start:
+        raise Invalid("The end date is before the start date")
+    if (end - start).days >= ATTENDANCE_RANGE_DAYS:
+        raise Invalid(f"Ask for at most {ATTENDANCE_RANGE_DAYS} days at a time")
+    return list(
+        db.scalars(
+            select(Attendance)
+            .where(
+                Attendance.store_id == store_id,
+                Attendance.work_date >= start,
+                Attendance.work_date <= end,
+            )
+            .order_by(Attendance.work_date)
         )
     )
 

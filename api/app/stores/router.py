@@ -1,5 +1,6 @@
 """Staff HTTP endpoints. Thin: check the role, call stores.service, shape the response."""
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from app.stores.schemas import (
     AliasIn,
     AttendanceIn,
     AttendanceOut,
+    DayAttendanceOut,
     InviteIn,
     InviteOut,
     InvitePreviewIn,
@@ -100,14 +102,26 @@ def change_staff_alias(member_id: UUID, body: AliasIn, current: Manager, db: DbS
     )
 
 
+@router.get("/attendance", response_model=list[DayAttendanceOut])
+def list_store_attendance(
+    start: date, end: date, current: ManagerOrSecretary, db: DbSession
+) -> list[DayAttendanceOut]:
+    return [
+        DayAttendanceOut(member_id=r.member_id, **attendance_out(r).model_dump())
+        for r in service.attendance_between(db, current.store_id, start, end)
+    ]
+
+
 @router.get("/staff/{member_id}/attendance", response_model=list[AttendanceOut])
-def list_staff_attendance(member_id: UUID, current: Manager, db: DbSession) -> list[AttendanceOut]:
+def list_staff_attendance(
+    member_id: UUID, current: ManagerOrSecretary, db: DbSession
+) -> list[AttendanceOut]:
     return [attendance_out(r) for r in service.list_attendance(db, current.store_id, member_id)]
 
 
 @router.post("/staff/{member_id}/attendance", response_model=AttendanceOut)
 def record_staff_attendance(
-    member_id: UUID, body: AttendanceIn, current: Manager, db: DbSession
+    member_id: UUID, body: AttendanceIn, current: ManagerOrSecretary, db: DbSession
 ) -> AttendanceOut:
     return attendance_out(
         service.record_attendance(

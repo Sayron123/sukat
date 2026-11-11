@@ -47,6 +47,11 @@ def _history(api, headers, member_id):
     return api.get(f"/staff/{member_id}/attendance", headers=headers)
 
 
+def _days(api, headers, start=TODAY, end=TODAY):
+    params = {"start": start.isoformat(), "end": end.isoformat()}
+    return api.get("/attendance", params=params, headers=headers)
+
+
 def test_manager_gives_someone_an_alias(api, manager):
     _join(api, manager)
     res = _alias(api, manager, _id(api, manager), "  Kuya Ben  ")
@@ -146,12 +151,21 @@ def test_inactive_staff_cannot_get_attendance(api, manager):
     assert _mark(api, manager, target).status_code == 409
 
 
-@pytest.mark.parametrize("role", ["secretary", "member"])
-def test_only_managers_use_attendance(api, manager, role):
-    staff = _join(api, manager, role=role)
+def test_a_secretary_takes_attendance(api, manager):
+    secretary = _join(api, manager, "sec@example.com", "secretary")
+    _join(api, manager)
     target = _id(api, manager)
-    assert _mark(api, staff, target).status_code == 403
-    assert _history(api, staff, target).status_code == 403
+    assert _mark(api, secretary, target).status_code == 200
+    assert _history(api, secretary, target).json()[0]["status"] == "present"
+    assert _days(api, secretary).json()[0]["member_id"] == target
+
+
+def test_members_cannot_use_attendance(api, manager):
+    member = _join(api, manager)
+    target = _id(api, manager)
+    assert _mark(api, member, target).status_code == 403
+    assert _history(api, member, target).status_code == 403
+    assert _days(api, member).status_code == 403
 
 
 def test_attendance_cannot_reach_another_store(api, manager, signup):
@@ -160,6 +174,43 @@ def test_attendance_cannot_reach_another_store(api, manager, signup):
     other = auth_header(signup(email="other@example.com", store_name="B")["access_token"])
     assert _mark(api, other, target).status_code == 404
     assert _history(api, other, target).status_code == 404
+
+
+def test_a_range_lists_everyones_attendance_by_day(api, manager):
+    _join(api, manager)
+    _join(api, manager, "second@example.com")
+    first, second = _id(api, manager), _id(api, manager, "second@example.com")
+    yesterday = TODAY - timedelta(days=1)
+    _mark(api, manager, first, status="late", note="traffic")
+    _mark(api, manager, second)
+    _mark(api, manager, second, yesterday, "absent")
+    _mark(api, manager, second, TODAY - timedelta(days=5))
+    rows = _days(api, manager, yesterday, TODAY).json()
+    assert [(r["work_date"], r["status"]) for r in rows][0] == (yesterday.isoformat(), "absent")
+    today_rows = {r["member_id"]: r for r in rows if r["work_date"] == TODAY.isoformat()}
+    assert set(today_rows) == {first, second}
+    assert today_rows[first]["status"] == "late" and today_rows[first]["note"] == "traffic"
+    assert len(rows) == 3
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"start": "soon", "end": "2026-01-01"},
+        {"start": "2026-01-01"},
+        {"start": "2026-01-02", "end": "2026-01-01"},
+        {"start": "2026-01-01", "end": "2026-03-04"},
+    ],
+)
+def test_a_range_must_be_real_and_short(api, manager, params):
+    assert api.get("/attendance", params=params, headers=manager).status_code == 422
+
+
+def test_a_range_stays_inside_one_store(api, manager, signup):
+    _join(api, manager)
+    _mark(api, manager, _id(api, manager))
+    other = auth_header(signup(email="other@example.com", store_name="B")["access_token"])
+    assert _days(api, other).json() == []
 
 
 def test_a_secretary_can_invite_a_member(api, manager):

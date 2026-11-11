@@ -53,6 +53,10 @@ class AttendanceOut(BaseModel):
     updated_at: datetime
 
 
+class DayAttendanceOut(AttendanceOut):
+    member_id: UUID
+
+
 class InviteOut(BaseModel):
     id: UUID
     email: str
