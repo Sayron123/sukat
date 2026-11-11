@@ -23,6 +23,8 @@ from app.stores.schemas import (
     InvitePreviewOut,
     RoleIn,
     StaffOut,
+    StoreIn,
+    StoreOut,
 )
 
 router = APIRouter(tags=["staff"])
@@ -75,6 +77,12 @@ def preview_invite(body: InvitePreviewIn, request: Request, db: DbSession) -> In
 def accept_invite(body: AcceptInviteIn, request: Request, db: DbSession) -> TokenOut:
     """Join a store with an invite token (no login needed)."""
     return service.accept_invite(db, body.token, body.password, body.full_name, client_ip(request))
+
+
+@router.patch("/store", response_model=StoreOut)
+def update_store(body: StoreIn, current: Manager, db: DbSession) -> StoreOut:
+    store = service.update_store(db, current.store_id, body.name, body.address)
+    return StoreOut(name=store.name, address=store.address)
 
 
 @router.get("/staff", response_model=list[StaffOut])

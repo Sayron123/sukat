@@ -17,6 +17,13 @@ type Mark = { status: AttendanceStatus; note: string | null };
 type Month = Record<string, Record<string, Mark>>;
 type DayState = "all-present" | "issue" | "partial" | "none";
 
+const DAY_STATE_LABELS: Record<DayState, string> = {
+  "all-present": ", everyone present",
+  issue: ", someone late, on a half day or absent",
+  partial: ", not finished",
+  none: "",
+};
+
 const navClass =
   "grid h-11 w-11 place-items-center rounded-button text-text hover:bg-surface aria-disabled:pointer-events-none aria-disabled:opacity-30";
 
@@ -172,13 +179,11 @@ export function AttendanceCalendar({
                 disabled={future}
                 onClick={() => setSelected(d)}
                 aria-pressed={isSelected}
-                aria-label={`${dayLabel(d)}${state === "all-present" ? ", everyone present" : ""}${
-                  state === "issue" ? ", someone not present" : ""
-                }`}
-                className="relative grid h-11 place-items-center disabled:opacity-35"
+                aria-label={`${dayLabel(d)}${DAY_STATE_LABELS[state]}`}
+                className="flex h-12 flex-col items-center justify-center gap-1 disabled:opacity-35"
               >
                 <span
-                  className={`grid h-9 w-9 place-items-center rounded-full text-[15px] font-semibold ${
+                  className={`grid h-8 w-8 place-items-center rounded-full text-sm font-semibold ${
                     isSelected
                       ? "bg-text text-inverse"
                       : state === "all-present"
@@ -188,12 +193,12 @@ export function AttendanceCalendar({
                 >
                   {Number(d.slice(8))}
                 </span>
-                {(state === "issue" || state === "partial") && (
-                  <span
-                    aria-hidden
-                    className={`absolute bottom-0 h-1.5 w-1.5 rounded-full ${state === "issue" ? "bg-red" : "bg-muted"}`}
-                  />
-                )}
+                <span
+                  aria-hidden
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    state === "issue" ? "bg-red" : state === "partial" ? "bg-muted" : "bg-transparent"
+                  }`}
+                />
               </button>
             );
           })}
