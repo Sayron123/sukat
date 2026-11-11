@@ -16,7 +16,7 @@ import {
   priceDiffers,
 } from "./lines";
 import { guessCategory } from "./guess-category";
-import { type PickedProduct, ProductPicker, useProductSearch } from "./product-picker";
+import { type PickedProduct, ProductPicker, nameInputClass, useProductSearch } from "./product-picker";
 
 /**
  * One editable line on the review screen.
@@ -49,7 +49,6 @@ export function ReviewLineCard({
   const problem = showErrors ? lineProblem(line) : null;
   const total = lineTotal(line);
   const update = (patch: Partial<EditLine>) => onChange(editLine(line, patch));
-  const [editing, setEditing] = useState(false);
 
   function pickProduct(p: PickedProduct) {
     const patch: Partial<EditLine> = { product: p };
@@ -80,22 +79,13 @@ export function ReviewLineCard({
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
           <div className="min-w-[60%] flex-1">
             {line.newProduct ? (
-              editing ? (
-                <NameEditor
-                  id={id("new-name")}
-                  name={line.newProduct.name}
-                  onName={(name) => update({ newProduct: { ...line.newProduct!, name } })}
-                  onUse={(p) => {
-                    setEditing(false);
-                    update({ product: p, newProduct: null });
-                  }}
-                  onDone={() => setEditing(false)}
-                />
-              ) : (
-                <b className={`block py-1.5 text-base ${line.newProduct.name.trim() ? "text-text" : "text-red"}`}>
-                  {line.newProduct.name.trim() || "No name yet"}
-                </b>
-              )
+              <NewNameField
+                id={id("new-name")}
+                name={line.newProduct.name}
+                invalid={problem === "Enter the new product's name"}
+                onName={(name) => update({ newProduct: { ...line.newProduct!, name } })}
+                onUse={(p) => update({ product: p, newProduct: null })}
+              />
             ) : (
               <ProductPicker
                 value={line.product}
@@ -117,7 +107,7 @@ export function ReviewLineCard({
               />
             )}
           </div>
-          {line.newProduct && !editing && <Badge>New</Badge>}
+          {line.newProduct && <Badge>New</Badge>}
           {differs && <Badge tone="amber">Price differs</Badge>}
           {needsCheck && <Badge tone="amber">Check</Badge>}
         </div>
@@ -167,16 +157,6 @@ export function ReviewLineCard({
               })
             }
           />
-          {!editing && (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="col-span-2 flex min-h-10 items-center gap-1.5 self-start text-[13px] font-semibold text-text"
-            >
-              <Icon name="edit" size={16} />
-              Edit name
-            </button>
-          )}
         </div>
       )}
 
@@ -236,59 +216,53 @@ export function ReviewLineCard({
   );
 }
 
-function NameEditor({
+function NewNameField({
   id,
   name,
+  invalid,
   onName,
   onUse,
-  onDone,
 }: {
   id: string;
   name: string;
+  invalid: boolean;
   onName: (name: string) => void;
   onUse: (p: PickedProduct) => void;
-  onDone: () => void;
 }) {
-  const matches = useProductSearch(name, name.trim().length >= 2).slice(0, 3);
+  const [typing, setTyping] = useState(false);
+  const matches = useProductSearch(name, typing && name.trim().length >= 2).slice(0, 3);
   return (
-    <div>
-      <div className="flex gap-2">
-        <input
-          id={id}
-          aria-label="Product name"
-          value={name}
-          placeholder="Product name"
-          autoFocus
-          maxLength={160}
-          onChange={(e) => onName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              onDone();
-            }
-          }}
-          className="h-10 w-full min-w-0 flex-1 rounded-button border border-text bg-background px-3 text-base font-bold text-text outline-none"
-        />
-        <button
-          type="button"
-          onClick={onDone}
-          className="h-10 shrink-0 rounded-button bg-text px-3 text-sm font-bold text-inverse"
-        >
-          Done
-        </button>
-      </div>
-      {matches.length > 0 && (
-        <div className="mt-2">
-          <p className="text-[13px] text-subtle">Already in your products? Tap to use it.</p>
-          <ul className="mt-1.5 flex flex-col gap-1.5">
+    <div className="relative">
+      <input
+        id={id}
+        aria-label="Product name"
+        aria-invalid={invalid || undefined}
+        value={name}
+        placeholder="Product name"
+        maxLength={160}
+        onChange={(e) => {
+          onName(e.target.value);
+          setTyping(true);
+        }}
+        onBlur={() => setTimeout(() => setTyping(false), 150)}
+        className={nameInputClass(invalid)}
+      />
+      {typing && matches.length > 0 && (
+        <div className="absolute inset-x-0 top-11 z-20 rounded-button border border-border bg-background py-1 shadow-lg">
+          <p className="px-3 pt-1 pb-1.5 text-[13px] text-subtle">Already in your products? Tap to use it.</p>
+          <ul>
             {matches.map((p) => (
               <li key={p.id}>
                 <button
                   type="button"
-                  onClick={() => onUse(p)}
-                  className="flex min-h-11 w-full items-center justify-between gap-2 rounded-button border border-line px-3 text-left hover:bg-surface"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setTyping(false);
+                    onUse(p);
+                  }}
+                  className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-surface"
                 >
-                  <span className="min-w-0 text-sm font-semibold text-text">{p.name}</span>
+                  <span className="text-text">{p.name}</span>
                   <span className="shrink-0 text-xs text-muted">{p.base_unit}</span>
                 </button>
               </li>

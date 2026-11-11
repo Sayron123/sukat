@@ -17,6 +17,14 @@ export type PickedProduct = {
  * Search box that picks one of the store's products. Shows up to 6 matches by name or
  * alias. `onAddNew` (optional) offers "Add as new product" with the typed text.
  */
+export function nameInputClass(invalid?: boolean): string {
+  return `h-10 w-full min-w-0 rounded-button border bg-background px-3 text-base font-bold text-text outline-none placeholder:font-semibold focus:ring-1 ${
+    invalid
+      ? "border-red placeholder:text-red focus:ring-red"
+      : "border-line placeholder:text-subtle focus:border-text focus:ring-text"
+  }`;
+}
+
 export function useProductSearch(text: string, enabled: boolean): PickedProduct[] {
   const [results, setResults] = useState<PickedProduct[]>([]);
 
@@ -85,16 +93,13 @@ export function ProductPicker({
           setText(e.target.value);
           setOpen(true);
         }}
-        // Looks like the line's bold title; underlined while typing or when missing.
-        className={`h-9 w-full min-w-0 border-b bg-transparent text-base font-bold text-text outline-none placeholder:font-semibold focus:border-text ${
-          invalid ? "border-red placeholder:text-red" : "border-transparent placeholder:text-subtle"
-        }`}
+        className={nameInputClass(invalid)}
       />
       {open && (results.length > 0 || (onAddNew && text.trim())) && (
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 top-10 z-20 max-h-72 overflow-y-auto rounded-button border border-border bg-background shadow-lg"
+          className="absolute inset-x-0 top-11 z-20 max-h-72 overflow-y-auto rounded-button border border-border bg-background shadow-lg"
         >
           {results.map((p) => (
             <li key={p.id} role="option" aria-selected={value?.id === p.id}>

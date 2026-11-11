@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/page-header";
+import { ScanTypeSwitch } from "@/components/scan-type-switch";
 import { Badge, Card, Loading } from "@/components/ui";
-import { api } from "@/lib/api-client";
+import { ApiError, api } from "@/lib/api-client";
 import { formatCount, formatShortWhen } from "@/lib/format";
-import type { ScansToReview } from "@/lib/types";
+import { type Me, type Scan, type ScanMode, type ScansToReview, canEditProducts } from "@/lib/types";
 
 /**
  * Photos from the last 7 days that were read but not saved, or couldn't be read.
@@ -16,9 +17,31 @@ import type { ScansToReview } from "@/lib/types";
  */
 export function ReviewList() {
   const [list, setList] = useState<ScansToReview | null | "error">(null);
+  const [me, setMe] = useState<Me | null>(null);
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     api<ScansToReview>("reports/scans-to-review").then(setList, () => setList("error"));
+    api<Me>("auth/me").then(setMe, () => {});
   }, []);
+  const canSwitch = canEditProducts(me?.role);
+
+  async function switchType(scanId: string, type: ScanMode) {
+    setSwitching(scanId);
+    setError(null);
+    try {
+      const scan = await api<Scan>(`scans/${scanId}`, { method: "PATCH", body: JSON.stringify({ type }) });
+      setList((current) =>
+        current && current !== "error"
+          ? { ...current, items: current.items.map((s) => (s.scan_id === scanId ? { ...s, type: scan.type } : s)) }
+          : current,
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not change it. Please try again.");
+    } finally {
+      setSwitching(null);
+    }
+  }
   const items = list === null || list === "error" ? list : list.items;
   const hasMore = list !== null && list !== "error" && list.has_more;
 
@@ -29,6 +52,11 @@ export function ReviewList() {
         title="Needs review"
         back="/"
       />
+      {error && (
+        <p role="alert" className="mb-3 text-sm text-red">
+          {error}
+        </p>
+      )}
       {items === null ? (
         <Loading />
       ) : items === "error" ? (
@@ -38,11 +66,8 @@ export function ReviewList() {
       ) : (
         <ul className="border-t border-border">
           {items.map((s) => (
-            <li key={s.scan_id}>
-              <Link
-                href={`/scan/review/${s.scan_id}`}
-                className="flex min-h-[82px] items-center gap-3 border-b border-border py-[11px]"
-              >
+            <li key={s.scan_id} className="border-b border-border">
+              <Link href={`/scan/review/${s.scan_id}`} className="flex min-h-[82px] items-center gap-3 py-[11px]">
                 <span className="grid h-10 w-8 place-items-center text-text">
                   <Icon name={s.type === "sale" ? "receipt" : "box"} size={20} />
                 </span>
@@ -61,6 +86,15 @@ export function ReviewList() {
                 </span>
                 <Icon name="chevron" size={19} />
               </Link>
+              {canSwitch && s.status === "read" && (
+                <div className="-mt-1 pb-3 pl-11">
+                  <ScanTypeSwitch
+                    value={s.type}
+                    disabled={switching !== null}
+                    onChange={(type) => switchType(s.scan_id, type)}
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ul>

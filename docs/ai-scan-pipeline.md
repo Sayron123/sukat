@@ -68,9 +68,9 @@ Each step's output is saved on the scan (`scans.ai_result_json` → `steps`), so
 
 **On the review screen**
 - A photo where the AI finds no items is not kept: the scan is deleted and staff are asked for a clearer photo. Its AI cost is still logged.
-- Items not in the store's products get one panel: **Add all** (as new products, deliveries only), **Remove all**, or **Scan again** (`POST /scans/{id}/rescan`, once per photo). Scan again replaces the lines.
-- **Edit name** on a new item renames it, and shows existing products with a similar name to use instead.
-- Managers and secretaries can switch the photo between **Delivery** and **Sale** (`PATCH /scans/{id}`). The lines are shown again with the new type's rules (sale prices, no new products in a sale). The AI's new-product names are kept, so switching back restores them.
+- The trash button beside the title removes every item that isn't in the store's products (after a confirm). **Scan again** beside Save reads the photo once more (`POST /scans/{id}/rescan`, once per photo) and replaces the lines.
+- A new item's name is a normal input box. While typing, existing products with a similar name are offered to use instead.
+- On **Needs review**, managers and secretaries can switch each photo between **Delivery** and **Sale** (`PATCH /scans/{id}`). Its lines are then shown with the new type's rules (sale prices, no new products in a sale). The AI's new-product names are kept, so switching back restores them.
 
 ## Step 5 — Evals
 
