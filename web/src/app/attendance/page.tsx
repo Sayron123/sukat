@@ -32,15 +32,15 @@ function isRealDay(value: string) {
 }
 
 async function AttendanceContent({ searchParams }: { searchParams: SearchParams }) {
-  const today = storeDate();
+  const token = await getToken();
+  if (!token) redirect("/login");
+
   const { date } = await searchParams;
+  const today = storeDate();
   const asked = typeof date === "string" && isRealDay(date) ? date : today;
   const day = asked > today ? today : asked;
   const monthStart = `${day.slice(0, 8)}01`;
   const monthEnd = addDays(`${addDays(monthStart, 31).slice(0, 8)}01`, -1);
-
-  const token = await getToken();
-  if (!token) redirect("/login");
 
   let meRes: Response;
   let staffRes: Response;
