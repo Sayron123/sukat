@@ -48,3 +48,6 @@ export function PageHeader({
 
 /** Round 44px icon button for the header's right side. */
 export const headerIconClass = "grid h-11 w-11 shrink-0 place-items-center rounded-button text-text hover:bg-surface";
+
+export const headerTextActionClass =
+  "-mr-2 flex h-11 shrink-0 items-center gap-1.5 rounded-button px-2 text-[15px] font-semibold text-text hover:bg-surface";

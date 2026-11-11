@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Icon } from "@/components/icons";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader, headerTextActionClass } from "@/components/page-header";
 import { Avatar, Card, Chip, Field } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { dayLabel } from "@/lib/dates";
@@ -66,6 +66,12 @@ export function AttendanceDay({
         eyebrow={staff.length ? `${marked} of ${staff.length} marked` : " "}
         title="Attendance"
         back="/more"
+        action={
+          <Link href="/staff/invite" className={headerTextActionClass}>
+            <Icon name="plus" size={20} />
+            Invite
+          </Link>
+        }
       />
       <Field
         id="attendance-day"
