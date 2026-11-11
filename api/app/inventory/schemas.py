@@ -150,7 +150,7 @@ class ReviewLineOut(BaseModel):
     line_total_centavos: int | None
     confidence: float
     needs_check: bool
-    check_reasons: list[str]  # must be looked at (amber "Check")
+    check_reasons: list[str]  # must be looked at and approved (red)
     warnings: list[str]  # worth a look, e.g. "price_differs"
 
 
@@ -160,6 +160,17 @@ class ScanOut(BaseModel):
     status: str
     error_message: str | None
     retryable: bool
+    can_rescan: bool
     model: str | None
     lines: list[ReviewLineOut]
     created_at: datetime
+
+
+class TrashedScanOut(BaseModel):
+    scan_id: UUID
+    type: Literal["sale", "stock_in"]
+    line_count: int
+    created_at: datetime
+    deleted_at: datetime
+    deleted_by_name: str | None
+    delete_after: datetime

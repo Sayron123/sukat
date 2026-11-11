@@ -17,26 +17,19 @@ export type PickedProduct = {
  * Search box that picks one of the store's products. Shows up to 6 matches by name or
  * alias. `onAddNew` (optional) offers "Add as new product" with the typed text.
  */
-export function ProductPicker({
-  value,
-  onPick,
-  onAddNew,
-  invalid,
-  label = "Product",
-}: {
-  value: PickedProduct | null;
-  onPick: (p: PickedProduct) => void;
-  onAddNew?: (name: string) => void;
-  invalid?: boolean;
-  label?: string;
-}) {
-  const listId = useId();
-  const [text, setText] = useState(value?.name ?? "");
-  const [open, setOpen] = useState(false);
+export function nameInputClass(invalid?: boolean): string {
+  return `h-10 w-full min-w-0 rounded-button border bg-background px-3 text-base font-bold text-text outline-none placeholder:font-semibold focus:ring-1 ${
+    invalid
+      ? "border-red placeholder:text-red focus:ring-red"
+      : "border-line placeholder:text-subtle focus:border-text focus:ring-text"
+  }`;
+}
+
+export function useProductSearch(text: string, enabled: boolean): PickedProduct[] {
   const [results, setResults] = useState<PickedProduct[]>([]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!enabled) return;
     let stale = false;
     const t = setTimeout(() => {
       const q = text.trim();
@@ -60,7 +53,28 @@ export function ProductPicker({
       stale = true;
       clearTimeout(t);
     };
-  }, [text, open]);
+  }, [text, enabled]);
+
+  return results;
+}
+
+export function ProductPicker({
+  value,
+  onPick,
+  onAddNew,
+  invalid,
+  label = "Product",
+}: {
+  value: PickedProduct | null;
+  onPick: (p: PickedProduct) => void;
+  onAddNew?: (name: string) => void;
+  invalid?: boolean;
+  label?: string;
+}) {
+  const listId = useId();
+  const [text, setText] = useState(value?.name ?? "");
+  const [open, setOpen] = useState(false);
+  const results = useProductSearch(text, open);
 
   return (
     <div className="relative">
@@ -79,16 +93,13 @@ export function ProductPicker({
           setText(e.target.value);
           setOpen(true);
         }}
-        // Looks like the line's bold title; underlined while typing or when missing.
-        className={`h-9 w-full min-w-0 border-b bg-transparent text-base font-bold text-text outline-none placeholder:font-semibold focus:border-text ${
-          invalid ? "border-red placeholder:text-red" : "border-transparent placeholder:text-subtle"
-        }`}
+        className={nameInputClass(invalid)}
       />
       {open && (results.length > 0 || (onAddNew && text.trim())) && (
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 top-10 z-20 max-h-72 overflow-y-auto rounded-button border border-border bg-background shadow-lg"
+          className="absolute inset-x-0 top-11 z-20 max-h-72 overflow-y-auto rounded-button border border-border bg-background shadow-lg"
         >
           {results.map((p) => (
             <li key={p.id} role="option" aria-selected={value?.id === p.id}>

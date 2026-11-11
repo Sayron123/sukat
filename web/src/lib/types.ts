@@ -155,9 +155,10 @@ export type ReviewLine = {
 export type Scan = {
   id: string;
   type: "sale" | "stock_in";
-  status: "pending" | "read" | "failed" | "saved";
+  status: "pending" | "read" | "failed" | "saved" | "empty";
   error_message: string | null;
   retryable: boolean;
+  can_rescan: boolean;
   model: string | null;
   lines: ReviewLine[];
   created_at: string;
@@ -281,6 +282,16 @@ export type ScanToReview = {
   line_count: number; // 0 for a failed read
   created_at: string;
   created_by_name: string | null;
+};
+
+export type TrashedScan = {
+  scan_id: string;
+  type: ScanMode;
+  line_count: number;
+  created_at: string;
+  deleted_at: string;
+  deleted_by_name: string | null;
+  delete_after: string;
 };
 
 // ---------- Phase 6 AI chat (api/app/insights/chat_schemas.py) ----------

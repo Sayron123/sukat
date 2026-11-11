@@ -36,6 +36,8 @@ class Storage(Protocol):
         than max_bytes."""
         ...
 
+    def delete(self, key: str) -> None: ...
+
 
 # ---------------- local folder (development) ----------------
 
@@ -94,6 +96,9 @@ class LocalStorage:
             raise ValueError("file too large")
         return path.read_bytes()
 
+    def delete(self, key: str) -> None:
+        self._path(key).unlink(missing_ok=True)
+
 
 # ---------------- Cloudflare R2 (S3-compatible) ----------------
 
@@ -143,6 +148,9 @@ class R2Storage:
         if obj.get("ContentLength", 0) > max_bytes:
             raise ValueError("file too large")
         return obj["Body"].read()
+
+    def delete(self, key: str) -> None:
+        self._s3.delete_object(Bucket=self.bucket, Key=key)
 
 
 @cache

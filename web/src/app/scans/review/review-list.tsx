@@ -8,7 +8,12 @@ import { PageHeader } from "@/components/page-header";
 import { Badge, Card, Loading } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import { formatCount, formatShortWhen } from "@/lib/format";
-import type { ScansToReview } from "@/lib/types";
+import { type Me, type ScanMode, type ScansToReview, canEditProducts } from "@/lib/types";
+
+const TYPES: { value: ScanMode; label: string; icon: "box" | "receipt"; empty: string }[] = [
+  { value: "stock_in", label: "Delivery", icon: "box", empty: "No delivery lists waiting." },
+  { value: "sale", label: "Sale", icon: "receipt", empty: "No sale receipts waiting." },
+];
 
 /**
  * Photos from the last 7 days that were read but not saved, or couldn't be read.
@@ -16,11 +21,20 @@ import type { ScansToReview } from "@/lib/types";
  */
 export function ReviewList() {
   const [list, setList] = useState<ScansToReview | null | "error">(null);
+  const [picked, setPicked] = useState<ScanMode | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   useEffect(() => {
     api<ScansToReview>("reports/scans-to-review").then(setList, () => setList("error"));
+    api<Me>("auth/me").then(setMe, () => {});
   }, []);
   const items = list === null || list === "error" ? list : list.items;
   const hasMore = list !== null && list !== "error" && list.has_more;
+  const counts = {
+    stock_in: Array.isArray(items) ? items.filter((s) => s.type === "stock_in").length : 0,
+    sale: Array.isArray(items) ? items.filter((s) => s.type === "sale").length : 0,
+  };
+  const type = picked ?? (counts.stock_in === 0 && counts.sale > 0 ? "sale" : "stock_in");
+  const shown = Array.isArray(items) ? items.filter((s) => s.type === type) : items;
 
   return (
     <>
@@ -29,15 +43,35 @@ export function ReviewList() {
         title="Needs review"
         back="/"
       />
+      {Array.isArray(items) && items.length > 0 && (
+        <div role="group" aria-label="Show" className="mb-5 grid grid-cols-2 gap-1 rounded-button bg-surface p-1">
+          {TYPES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              aria-pressed={type === t.value}
+              onClick={() => setPicked(t.value)}
+              className={`flex h-10 items-center justify-center gap-2 rounded-[9px] text-sm font-bold ${
+                type === t.value ? "bg-background text-text shadow-sm" : "text-muted"
+              }`}
+            >
+              <Icon name={t.icon} size={18} />
+              {t.label} ({counts[t.value]})
+            </button>
+          ))}
+        </div>
+      )}
       {items === null ? (
         <Loading />
       ) : items === "error" ? (
         <p className="text-red">Could not load photos to review.</p>
       ) : items.length === 0 ? (
         <Card className="text-muted">Nothing waiting. Every scanned photo from the last 7 days is saved.</Card>
+      ) : shown !== null && shown !== "error" && shown.length === 0 ? (
+        <Card className="text-muted">{TYPES.find((t) => t.value === type)?.empty}</Card>
       ) : (
         <ul className="border-t border-border">
-          {items.map((s) => (
+          {(shown as ScansToReview["items"]).map((s) => (
             <li key={s.scan_id}>
               <Link
                 href={`/scan/review/${s.scan_id}`}
@@ -69,6 +103,19 @@ export function ReviewList() {
         <p className="mt-4 text-sm text-muted">
           Showing the newest {items.length}. Older ones appear here as these are saved or tried again.
         </p>
+      )}
+      {list !== null && canEditProducts(me?.role) && (
+        <Link
+          href="/scans/recycle-bin"
+          className="mt-6 flex min-h-[64px] items-center gap-3 rounded-card border border-border px-4 py-3 text-text hover:bg-surface"
+        >
+          <Icon name="trash" size={20} />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">Recycle bin</b>
+            <small className="mt-0.5 block text-[13px] text-muted">Deleted photos stay here for 30 days</small>
+          </span>
+          <Icon name="chevron" size={19} />
+        </Link>
       )}
     </>
   );

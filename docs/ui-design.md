@@ -30,7 +30,7 @@ The web app now follows the Figma design ("Hardware Store Inventory App").
 | More (new, `/more`) | Store and user with a Settings gear beside them, links to History, Staff, Add product, Import, and **Sign out**. Add product / Import are shown to managers and secretaries only. |
 | Staff | Avatar, name, email, role badge; "Roles control access" note. |
 | Scan (stock in and sale) | Dark camera screen: close, gallery, big round shutter. The header says "Scanning: Sale" or "Scanning: Stock in". See Scan flow below. |
-| Review | "N items found", "Check highlighted items" note, one card per line with **Qty / Unit / Price / Total**, amber left edge for lines to check, total row. The title and button follow the scan's mode: **Review Stock In** with **Save Stock In**, **Review Sale** with **Save Sale**. |
+| Review | "N items found", a red "N lines need a double check" note, one card per line with **Qty / Unit / Price / Total**, red left edge and an **Approve** button for lines to check, total row, trash in the header (moves the photo to the Recycle bin). The title and button follow the scan's mode: **Review Stock In** with **Save Stock In**, **Review Sale** with **Save Sale**. |
 | History, transaction detail | Rows with type badges, short dates ("Today, 10:32 AM"), void button on the detail. |
 
 **Why**

@@ -3,11 +3,12 @@
 import logging
 import re
 import uuid
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -22,17 +23,23 @@ from app.ai.scan_check import (  # noqa: F401  (quantize_qty, line_total: used b
 )
 from app.ai.schemas import CatalogConversion, CatalogEntry, ReadResult, ScanLine
 from app.ai.usage import log_usage
+from app.auth.models import User
 from app.core.config import settings
 from app.core.errors import Conflict, NotFound
 from app.core.storage import Storage
 from app.inventory.models import Scan
-from app.inventory.schemas import ReviewLineOut, ScanOut
+from app.inventory.schemas import ReviewLineOut, ScanOut, TrashedScanOut
 from app.products.models import Product
 from app.products.pricing import price_per_unit, priced_line
 
 logger = logging.getLogger(__name__)
 
 STALE_MESSAGE = "Reading stopped before it finished. Please try again."
+EMPTY_MESSAGE = "No items were found on this photo. Take a clear photo of the list or receipt."
+MAX_RESCANS = 1
+TRASH_DAYS = 30
+TRASH_LIST_MAX = 100
+IN_TRASH_MESSAGE = "This photo is in the Recycle bin"
 
 PHOTO_EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 # "<store uuid>/scans/<32 hex>.<ext>": nothing else is ever a valid photo key.
@@ -127,7 +134,7 @@ def run_read(
     storage: Storage,
     reader: VisionReader,
     backup: VisionReader | None = None,
-) -> None:
+) -> ScanOut | None:
     """Read scan's photo with the AI and save the outcome on the scan (status read/failed).
 
     Assumes the caller checked the scan may be (re)read. Commits. The AI call happens
@@ -146,7 +153,7 @@ def run_read(
     media_type = sniff_image_type(image) if image else None
     if image is None or media_type is None:
         _finish_failed(db, scan, "Photo not found or not an image. Please upload it again.", None)
-        return
+        return None
 
     catalog = store_catalog(db, scan.store_id)
     db.commit()  # end the read transaction before the slow AI call
@@ -155,12 +162,17 @@ def run_read(
         result = _read_with_backup(db, scan, image, media_type, catalog, reader, backup)
     except AIReadError as e:
         _finish_failed(db, scan, str(e), e)
-        return
+        return None
 
     # Tokens were spent either way: one ai_usage row per AI request (read, match).
     for feature, usage in result.calls or [("scan_read", result.usage)]:
         log_usage(db, scan.store_id, feature, usage)
     if _lock_if_writable(db, scan):
+        if not result.lines:
+            empty = _empty_view(scan)
+            db.delete(scan)
+            db.commit()
+            return empty
         scan.status = "read"
         scan.error_message = None
         scan.model = result.usage.model
@@ -180,6 +192,35 @@ def run_read(
             stored["ai_requests"] = result.ai_requests
         scan.ai_result_json = stored
     db.commit()
+    return None
+
+
+def _empty_view(scan: Scan) -> ScanOut:
+    return ScanOut(
+        id=scan.id,
+        type=scan.type,
+        status="empty",
+        error_message=EMPTY_MESSAGE,
+        retryable=False,
+        can_rescan=False,
+        model=scan.model,
+        lines=[],
+        created_at=scan.created_at,
+    )
+
+
+def _read_and_view(
+    db: Session,
+    scan: Scan,
+    storage: Storage,
+    reader: VisionReader,
+    backup: VisionReader | None,
+) -> ScanOut:
+    empty = run_read(db, scan, storage, reader, backup)
+    if empty is not None:
+        return empty
+    db.refresh(scan)
+    return scan_view(db, scan)
 
 
 def _lock_if_writable(db: Session, scan: Scan) -> bool:
@@ -288,11 +329,18 @@ def review_lines(db: Session, scan: Scan) -> list[dict]:
 # ---------- scan lifecycle (used by the router) ----------
 
 
-def get_scan(db: Session, store_id: UUID, scan_id: UUID) -> Scan:
+def get_scan(
+    db: Session, store_id: UUID, scan_id: UUID, *, lock: bool = False, in_trash: bool = False
+) -> Scan:
     """@raises NotFound also for another store's scan"""
-    scan = db.scalar(select(Scan).where(Scan.id == scan_id, Scan.store_id == store_id))
+    query = select(Scan).where(Scan.id == scan_id, Scan.store_id == store_id)
+    scan = db.scalar(query.with_for_update() if lock else query)
     if scan is None:
         raise NotFound("Scan not found")
+    if in_trash and scan.deleted_at is None:
+        raise NotFound("This photo is not in the Recycle bin")
+    if not in_trash and scan.deleted_at is not None:
+        raise NotFound(IN_TRASH_MESSAGE)
     return scan
 
 
@@ -305,7 +353,7 @@ def start_scan(
     storage: Storage,
     reader: VisionReader,
     backup: VisionReader | None = None,
-) -> tuple[Scan, bool]:
+) -> tuple[ScanOut, bool]:
     """Create a scan for an uploaded photo and read it. Returns (scan, created).
 
     Sending the same photo_key again returns the existing scan (created=False) instead
@@ -318,11 +366,16 @@ def start_scan(
         raise NotFound("Photo not found")
 
     def existing() -> Scan | None:
-        return db.scalar(select(Scan).where(Scan.store_id == store_id, Scan.photo_key == photo_key))
+        found = db.scalar(
+            select(Scan).where(Scan.store_id == store_id, Scan.photo_key == photo_key)
+        )
+        if found is not None and found.deleted_at is not None:
+            raise NotFound(IN_TRASH_MESSAGE)
+        return found
 
     found = existing()
     if found is not None:
-        return found, False
+        return scan_view(db, found), False
 
     ensure_within_budget(db, store_id)
     scan = Scan(
@@ -337,10 +390,8 @@ def start_scan(
         found = existing()
         if found is None:
             raise
-        return found, False
-    run_read(db, scan, storage, reader, backup)
-    db.refresh(scan)
-    return scan, True
+        return scan_view(db, found), False
+    return _read_and_view(db, scan, storage, reader, backup), True
 
 
 def retry_scan(
@@ -350,7 +401,7 @@ def retry_scan(
     storage: Storage,
     reader: VisionReader,
     backup: VisionReader | None = None,
-) -> Scan:
+) -> ScanOut:
     """Read the photo again after a failed (or stuck) read. A scan that was read
     successfully or saved is never re-read: its lines may be under review or be the
     record of a saved delivery.
@@ -365,9 +416,101 @@ def retry_scan(
     if scan.status == "pending" and not is_stale_pending(scan):
         raise Conflict("This scan is still being read")
     ensure_within_budget(db, store_id)
-    run_read(db, scan, storage, reader, backup)
+    return _read_and_view(db, scan, storage, reader, backup)
+
+
+def rescan_scan(
+    db: Session,
+    store_id: UUID,
+    scan_id: UUID,
+    storage: Storage,
+    reader: VisionReader,
+    backup: VisionReader | None = None,
+) -> ScanOut:
+    scan = get_scan(db, store_id, scan_id, lock=True)
+    if scan.status != "read":
+        raise Conflict("Only a photo waiting for review can be scanned again")
+    if scan.rescans >= MAX_RESCANS:
+        raise Conflict("This photo was already scanned again")
+    ensure_within_budget(db, store_id)
+    scan.rescans += 1
+    return _read_and_view(db, scan, storage, reader, backup)
+
+
+def trash_scan(db: Session, store_id: UUID, user_id: UUID, scan_id: UUID, storage: Storage) -> None:
+    scan = get_scan(db, store_id, scan_id, lock=True)
+    if scan.status == "saved":
+        raise Conflict("A saved photo can't be deleted")
+    scan.deleted_at = func.now()
+    scan.deleted_by = user_id
+    db.commit()
+    purge_trash(db, store_id, storage)
+
+
+def restore_scan(db: Session, store_id: UUID, scan_id: UUID) -> ScanOut:
+    scan = get_scan(db, store_id, scan_id, lock=True, in_trash=True)
+    if scan.deleted_at and scan.deleted_at < _trash_cutoff():
+        raise NotFound("This photo was already deleted for good")
+    scan.deleted_at = None
+    scan.deleted_by = None
+    db.commit()
     db.refresh(scan)
-    return scan
+    return scan_view(db, scan)
+
+
+def delete_scan_forever(db: Session, store_id: UUID, scan_id: UUID, storage: Storage) -> None:
+    scan = get_scan(db, store_id, scan_id, lock=True, in_trash=True)
+    key = scan.photo_key
+    db.delete(scan)
+    db.commit()
+    _delete_photos(storage, [key])
+
+
+def list_trash(db: Session, store_id: UUID, storage: Storage) -> list[TrashedScanOut]:
+    purge_trash(db, store_id, storage)
+    rows = db.execute(
+        select(Scan, User.full_name)
+        .outerjoin(User, User.id == Scan.deleted_by)
+        .where(Scan.store_id == store_id, Scan.deleted_at.is_not(None))
+        .order_by(Scan.deleted_at.desc(), Scan.id.desc())
+        .limit(TRASH_LIST_MAX)
+    ).all()
+    return [
+        TrashedScanOut(
+            scan_id=s.id,
+            type=s.type,
+            line_count=len((s.ai_result_json or {}).get("lines", [])),
+            created_at=s.created_at,
+            deleted_at=s.deleted_at,
+            deleted_by_name=who,
+            delete_after=s.deleted_at + timedelta(days=TRASH_DAYS),
+        )
+        for s, who in rows
+        if s.deleted_at is not None
+    ]
+
+
+def purge_trash(db: Session, store_id: UUID, storage: Storage) -> int:
+    keys = db.scalars(
+        delete(Scan)
+        .where(Scan.store_id == store_id, Scan.deleted_at < _trash_cutoff())
+        .returning(Scan.photo_key)
+    ).all()
+    db.commit()
+    _delete_photos(storage, keys)
+    return len(keys)
+
+
+def _trash_cutoff() -> datetime:
+    return datetime.now(UTC) - timedelta(days=TRASH_DAYS)
+
+
+def _delete_photos(storage: Storage, keys: Sequence[str]) -> None:
+    for key in keys:
+        try:
+            storage.delete(key)
+        except Exception:
+            logger.exception("Could not delete scan photo %s", key)
 
 
 def scan_view(db: Session, scan: Scan) -> ScanOut:
@@ -384,6 +527,7 @@ def scan_view(db: Session, scan: Scan) -> ScanOut:
         status=status,
         error_message=error,
         retryable=retryable,
+        can_rescan=status == "read" and scan.rescans < MAX_RESCANS,
         model=scan.model,
         lines=[ReviewLineOut(**line) for line in review_lines(db, scan)],
         created_at=scan.created_at,

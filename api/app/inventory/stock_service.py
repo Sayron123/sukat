@@ -25,7 +25,7 @@ from app.core.errors import AppError, Conflict, Forbidden, Invalid, NotFound
 from app.insights.reports import utc_bounds
 from app.insights.schemas import DateRange
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
-from app.inventory.scan_service import line_total, quantize_qty
+from app.inventory.scan_service import IN_TRASH_MESSAGE, line_total, quantize_qty
 from app.inventory.schemas import (
     NewProductIn,
     TransactionIn,
@@ -108,6 +108,8 @@ def _load_scan(
     )
     if scan is None:
         raise NotFound("Scan not found")
+    if scan.deleted_at is not None:
+        raise NotFound(IN_TRASH_MESSAGE)
     if scan.type != txn_type:
         kind = "sale receipt" if scan.type == "sale" else "stock-in list"
         raise Conflict(f"This scan is a {kind}")
