@@ -135,9 +135,6 @@ def run_read(
     Assumes the caller checked the scan may be (re)read. Commits. The AI call happens
     outside any open DB transaction, so a slow model never holds locks or a pooled
     connection. The result is written only if the scan is still pending/failed.
-
-    @returns the "empty" view when the AI found no items: the scan is then deleted,
-        so nothing is left to review. None otherwise.
     """
     scan.status = "pending"
     scan.error_message = None
@@ -410,12 +407,6 @@ def rescan_scan(
     reader: VisionReader,
     backup: VisionReader | None = None,
 ) -> ScanOut:
-    """Read a photo that was already read once more (MAX_RESCANS times), e.g. when the
-    AI missed items. The new lines replace the old ones.
-
-    @raises NotFound, Conflict (not waiting for review, or already scanned again),
-        AIBudgetReached
-    """
     scan = get_scan(db, store_id, scan_id, lock=True)
     if scan.status != "read":
         raise Conflict("Only a photo waiting for review can be scanned again")
@@ -427,11 +418,6 @@ def rescan_scan(
 
 
 def change_type(db: Session, store_id: UUID, scan_id: UUID, scan_type: ScanType) -> ScanOut:
-    """Switch a scan waiting for review between delivery (stock_in) and sale. Its lines
-    are shown again with the rules of the new type.
-
-    @raises NotFound, Conflict if the scan is not waiting for review
-    """
     scan = get_scan(db, store_id, scan_id, lock=True)
     if scan.status != "read":
         raise Conflict("Only a photo waiting for review can be switched")
