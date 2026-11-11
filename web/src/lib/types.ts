@@ -284,6 +284,16 @@ export type ScanToReview = {
   created_by_name: string | null;
 };
 
+export type TrashedScan = {
+  scan_id: string;
+  type: ScanMode;
+  line_count: number;
+  created_at: string;
+  deleted_at: string;
+  deleted_by_name: string | null;
+  delete_after: string;
+};
+
 // ---------- Phase 6 AI chat (api/app/insights/chat_schemas.py) ----------
 
 export type ChatRole = "user" | "assistant";

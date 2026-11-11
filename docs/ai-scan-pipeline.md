@@ -63,12 +63,16 @@ Each step's output is saved on the scan (`scans.ai_result_json` → `steps`), so
 
 **Why**
 - **Code can't make up numbers,** and its rules are tested.
-- **The math check catches misread digits:** if 10 × ₱250 doesn't equal the ₱2,600 written, one of those numbers was read wrong. Staff see "Check" on that line.
+- **The math check catches misread digits:** if 10 × ₱250 doesn't equal the ₱2,600 written, one of those numbers was read wrong. Staff see that line in red.
+- **A dot before exactly 3 digits separates thousands:** handwritten "4.410" means ₱4,410, not ₱4.41 ("4.41" stays ₱4.41). Photos read before this rule stored ₱4.41, so a total that is exactly 1000x too small also counts as matching.
 - **The review screen runs the same check** (with the products as they are now), so what staff see and what was stored never disagree.
 
 **On the review screen**
 - A photo where the AI finds no items is not kept: the scan is deleted and staff are asked for a clearer photo. Its AI cost is still logged.
-- The trash button beside the title removes every item that isn't in the store's products (after a confirm). **Scan again** beside Save reads the photo once more (`POST /scans/{id}/rescan`, once per photo) and replaces the lines.
+- A line the AI wasn't sure about has a red edge and a red box: **"Please double check this line"**, the reasons, and an **Approve** button. Save asks for every red line to be approved first. "Not in your products" alone isn't a reason: the **New** tag shows that.
+- The trash button beside the title (managers and secretaries) moves the photo to the **Recycle bin** (`POST /scans/{id}/trash`). It's listed on Needs review → Recycle bin (`GET /scans/trash`) for 30 days, then deleted for good with its photo. **Restore** (`POST /scans/{id}/restore`) opens its review again; **Delete forever** (`DELETE /scans/{id}`) works only on a photo already in the bin. Sukat has no background jobs yet, so the 30-day cleanup runs whenever the bin is opened or a photo is moved to it.
+- "Remove N items not in your products" under the list drops those lines (after a confirm). **Scan again** beside Save reads the photo once more (`POST /scans/{id}/rescan`, once per photo) and replaces the lines.
+- A sale whose prices differ from the products' prices asks before saving, listing each one with its usual price.
 - A new item's name is a normal input box. While typing, existing products with a similar name are offered to use instead.
 - **Needs review** has a **Delivery | Sale** filter at the top. It only chooses which photos are listed: a photo keeps the type picked before the camera opened.
 

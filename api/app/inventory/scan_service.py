@@ -3,11 +3,12 @@
 import logging
 import re
 import uuid
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -22,11 +23,12 @@ from app.ai.scan_check import (  # noqa: F401  (quantize_qty, line_total: used b
 )
 from app.ai.schemas import CatalogConversion, CatalogEntry, ReadResult, ScanLine
 from app.ai.usage import log_usage
+from app.auth.models import User
 from app.core.config import settings
 from app.core.errors import Conflict, NotFound
 from app.core.storage import Storage
 from app.inventory.models import Scan
-from app.inventory.schemas import ReviewLineOut, ScanOut
+from app.inventory.schemas import ReviewLineOut, ScanOut, TrashedScanOut
 from app.products.models import Product
 from app.products.pricing import price_per_unit, priced_line
 
@@ -35,6 +37,9 @@ logger = logging.getLogger(__name__)
 STALE_MESSAGE = "Reading stopped before it finished. Please try again."
 EMPTY_MESSAGE = "No items were found on this photo. Take a clear photo of the list or receipt."
 MAX_RESCANS = 1
+TRASH_DAYS = 30
+TRASH_LIST_MAX = 100
+IN_TRASH_MESSAGE = "This photo is in the Recycle bin"
 
 PHOTO_EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 # "<store uuid>/scans/<32 hex>.<ext>": nothing else is ever a valid photo key.
@@ -324,12 +329,18 @@ def review_lines(db: Session, scan: Scan) -> list[dict]:
 # ---------- scan lifecycle (used by the router) ----------
 
 
-def get_scan(db: Session, store_id: UUID, scan_id: UUID, *, lock: bool = False) -> Scan:
+def get_scan(
+    db: Session, store_id: UUID, scan_id: UUID, *, lock: bool = False, in_trash: bool = False
+) -> Scan:
     """@raises NotFound also for another store's scan"""
     query = select(Scan).where(Scan.id == scan_id, Scan.store_id == store_id)
     scan = db.scalar(query.with_for_update() if lock else query)
     if scan is None:
         raise NotFound("Scan not found")
+    if in_trash and scan.deleted_at is None:
+        raise NotFound("This photo is not in the Recycle bin")
+    if not in_trash and scan.deleted_at is not None:
+        raise NotFound(IN_TRASH_MESSAGE)
     return scan
 
 
@@ -355,7 +366,12 @@ def start_scan(
         raise NotFound("Photo not found")
 
     def existing() -> Scan | None:
-        return db.scalar(select(Scan).where(Scan.store_id == store_id, Scan.photo_key == photo_key))
+        found = db.scalar(
+            select(Scan).where(Scan.store_id == store_id, Scan.photo_key == photo_key)
+        )
+        if found is not None and found.deleted_at is not None:
+            raise NotFound(IN_TRASH_MESSAGE)
+        return found
 
     found = existing()
     if found is not None:
@@ -419,6 +435,82 @@ def rescan_scan(
     ensure_within_budget(db, store_id)
     scan.rescans += 1
     return _read_and_view(db, scan, storage, reader, backup)
+
+
+def trash_scan(db: Session, store_id: UUID, user_id: UUID, scan_id: UUID, storage: Storage) -> None:
+    scan = get_scan(db, store_id, scan_id, lock=True)
+    if scan.status == "saved":
+        raise Conflict("A saved photo can't be deleted")
+    scan.deleted_at = func.now()
+    scan.deleted_by = user_id
+    db.commit()
+    purge_trash(db, store_id, storage)
+
+
+def restore_scan(db: Session, store_id: UUID, scan_id: UUID) -> ScanOut:
+    scan = get_scan(db, store_id, scan_id, lock=True, in_trash=True)
+    if scan.deleted_at and scan.deleted_at < _trash_cutoff():
+        raise NotFound("This photo was already deleted for good")
+    scan.deleted_at = None
+    scan.deleted_by = None
+    db.commit()
+    db.refresh(scan)
+    return scan_view(db, scan)
+
+
+def delete_scan_forever(db: Session, store_id: UUID, scan_id: UUID, storage: Storage) -> None:
+    scan = get_scan(db, store_id, scan_id, lock=True, in_trash=True)
+    key = scan.photo_key
+    db.delete(scan)
+    db.commit()
+    _delete_photos(storage, [key])
+
+
+def list_trash(db: Session, store_id: UUID, storage: Storage) -> list[TrashedScanOut]:
+    purge_trash(db, store_id, storage)
+    rows = db.execute(
+        select(Scan, User.full_name)
+        .outerjoin(User, User.id == Scan.deleted_by)
+        .where(Scan.store_id == store_id, Scan.deleted_at.is_not(None))
+        .order_by(Scan.deleted_at.desc(), Scan.id.desc())
+        .limit(TRASH_LIST_MAX)
+    ).all()
+    return [
+        TrashedScanOut(
+            scan_id=s.id,
+            type=s.type,
+            line_count=len((s.ai_result_json or {}).get("lines", [])),
+            created_at=s.created_at,
+            deleted_at=s.deleted_at,
+            deleted_by_name=who,
+            delete_after=s.deleted_at + timedelta(days=TRASH_DAYS),
+        )
+        for s, who in rows
+        if s.deleted_at is not None
+    ]
+
+
+def purge_trash(db: Session, store_id: UUID, storage: Storage) -> int:
+    keys = db.scalars(
+        delete(Scan)
+        .where(Scan.store_id == store_id, Scan.deleted_at < _trash_cutoff())
+        .returning(Scan.photo_key)
+    ).all()
+    db.commit()
+    _delete_photos(storage, keys)
+    return len(keys)
+
+
+def _trash_cutoff() -> datetime:
+    return datetime.now(UTC) - timedelta(days=TRASH_DAYS)
+
+
+def _delete_photos(storage: Storage, keys: Sequence[str]) -> None:
+    for key in keys:
+        try:
+            storage.delete(key)
+        except Exception:
+            logger.exception("Could not delete scan photo %s", key)
 
 
 def scan_view(db: Session, scan: Scan) -> ScanOut:

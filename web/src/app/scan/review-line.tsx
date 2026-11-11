@@ -13,6 +13,7 @@ import {
   editLine,
   lineProblem,
   lineTotal,
+  needsApproval,
   priceDiffers,
 } from "./lines";
 import { guessCategory } from "./guess-category";
@@ -20,7 +21,7 @@ import { type PickedProduct, ProductPicker, nameInputClass, useProductSearch } f
 
 /**
  * One editable line on the review screen.
- * - Amber border + "Check" tag: the AI was unsure (until the user edits the line).
+ * - Red edge + "Please double check this line": the AI was unsure, until the user taps Approve.
  * - "New" tag: saving will create this product (stock in only).
  * - "Price differs" tag: a sale price that isn't the product's usual price.
  *
@@ -44,7 +45,7 @@ export function ReviewLineCard({
   onChange: (next: EditLine) => void;
   onRemove: () => void;
 }) {
-  const needsCheck = line.checkReasons.length > 0 && !line.touched;
+  const needsCheck = needsApproval(line);
   const differs = isSale && priceDiffers(line);
   const problem = showErrors ? lineProblem(line) : null;
   const total = lineTotal(line);
@@ -70,9 +71,10 @@ export function ReviewLineCard({
   return (
     <li
       aria-label={`Line ${index + 1}`}
-      className={`rounded-card border bg-background p-4 ${
-        problem ? "border-red" : "border-border"
-      } ${needsCheck ? "border-l-4 border-l-amber pl-[13px]" : ""}`}
+      data-needs-check={needsCheck || undefined}
+      className={`scroll-mt-28 rounded-card border bg-background p-4 ${
+        problem ? "border-red" : needsCheck ? "border-red-edge" : "border-border"
+      } ${needsCheck ? "border-l-4 border-l-red pl-[13px]" : ""}`}
     >
       <div className="flex items-start gap-2">
         {/* Badges move under the name when the name needs the room. */}
@@ -109,7 +111,7 @@ export function ReviewLineCard({
           </div>
           {line.newProduct && <Badge>New</Badge>}
           {differs && <Badge tone="amber">Price differs</Badge>}
-          {needsCheck && <Badge tone="amber">Check</Badge>}
+          {line.approved && <Badge tone="green">Approved</Badge>}
         </div>
         <button
           type="button"
@@ -121,15 +123,27 @@ export function ReviewLineCard({
         </button>
       </div>
 
-      <p className="mt-0.5 mb-3 text-[13px] text-subtle">
-        Written as “{line.rawText}”
-        {needsCheck && (
-          <span className="text-amber-text">
-            {" "}
-            · {line.checkReasons.map((r) => REASON_TEXT[r]).join(" · ")}
-          </span>
-        )}
-      </p>
+      <p className="mt-0.5 mb-3 text-[13px] text-subtle">Written as “{line.rawText}”</p>
+
+      {needsCheck && (
+        <div className="mb-3 flex gap-2.5 rounded-button border border-red-edge bg-red-soft p-3">
+          <Icon name="alert" size={20} className="mt-px text-red" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-red">Please double check this line</p>
+            <p className="mt-0.5 text-[13px] leading-snug text-text">
+              {line.checkReasons.map((r) => REASON_TEXT[r]).join(" · ")}
+            </p>
+            <button
+              type="button"
+              onClick={() => update({ approved: true })}
+              className="mt-2.5 flex h-10 items-center gap-1.5 rounded-button border border-red-edge bg-background px-4 text-sm font-bold text-text hover:bg-surface"
+            >
+              <Icon name="check" size={18} />
+              Approve
+            </button>
+          </div>
+        </div>
+      )}
 
       {line.newProduct && (
         <div className="mb-3 grid grid-cols-2 gap-2">

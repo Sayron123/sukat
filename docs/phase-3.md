@@ -115,7 +115,7 @@ Each key safety check was tested by removing it on purpose: the matching test fa
 1. **Take photo** (camera) or **Choose from gallery**.
 2. The phone shrinks the photo to 1600 px on the long side, JPEG 70% (a 4 MB photo becomes about 300 KB), then uploads it.
 3. **Reading list…** with **Retry** if the connection drops.
-4. **Review**: each line has Qty + Unit and Price + Total. Unsure lines have an **amber border and a "Check" tag** (with the reason). New products have a **"New" tag**. Everything is editable; the product box searches your products.
+4. **Review**: each line has Qty + Unit and Price + Total. Unsure lines have a **red edge and "Please double check this line"** (with the reason) and an **Approve** button. New products have a **"New" tag**. Everything is editable; the product box searches your products.
 5. **Save**, then a summary with the new stock for each item.
 
 **Ideas**

@@ -23,6 +23,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     false,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -52,6 +53,12 @@ class Scan(Base):
         CheckConstraint(f"type IN {_in(SCAN_TYPES)}", name="type"),
         CheckConstraint(f"status IN {_in(SCAN_STATUSES)}", name="status"),
         Index("ix_scans_store_id_created_at", "store_id", "created_at"),
+        Index(
+            "ix_scans_store_id_deleted_at",
+            "store_id",
+            "deleted_at",
+            postgresql_where=text("deleted_at IS NOT NULL"),
+        ),
     )
 
     id: Mapped[UUID] = uuid_pk()
@@ -67,6 +74,10 @@ class Scan(Base):
     # Why the last read failed, shown to staff with a Retry button.
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
     rescans: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
     created_by: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )

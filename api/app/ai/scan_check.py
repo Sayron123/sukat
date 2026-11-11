@@ -34,6 +34,7 @@ _FRACTION = re.compile(r"^(?:(\d+)\s+)?(\d+)\s*/\s*(\d+)$")
 _DECIMAL = re.compile(r"\d+(?:\.\d+)?")
 _UNICODE_FRACTIONS = {"½": " 1/2", "¼": " 1/4", "¾": " 3/4", "⅓": " 1/3", "⅔": " 2/3"}
 _MONEY = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_DOT_THOUSANDS = re.compile(r"[1-9]\d{0,2}(?:\.\d{3})+(?![\d.,])")
 
 
 def quantize_qty(value: Decimal) -> Decimal:
@@ -82,8 +83,10 @@ def parse_money(text: str | None) -> int | None:
     m = _MONEY.search(text)
     if m is None:
         return None
+    dotted = _DOT_THOUSANDS.match(text, m.start())
+    number = dotted.group().replace(".", "") if dotted else m.group().replace(",", "")
     try:
-        value = Decimal(m.group().replace(",", ""))
+        value = Decimal(number)
     except InvalidOperation:
         return None
     centavos = int((value * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
@@ -98,7 +101,11 @@ def total_mismatch(
     computed = line_total(qty, unit_price_centavos)
     if computed is None or written_total_centavos is None:
         return False
-    return abs(computed - written_total_centavos) > settings.SCAN_TOTAL_TOLERANCE_CENTAVOS
+    tolerance = settings.SCAN_TOTAL_TOLERANCE_CENTAVOS
+    return all(
+        abs(computed - written) > tolerance
+        for written in (written_total_centavos, written_total_centavos * 1000)
+    )
 
 
 def check_line(

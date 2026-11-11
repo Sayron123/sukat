@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge, Card, Loading } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import { formatCount, formatShortWhen } from "@/lib/format";
-import type { ScanMode, ScansToReview } from "@/lib/types";
+import { type Me, type ScanMode, type ScansToReview, canEditProducts } from "@/lib/types";
 
 const TYPES: { value: ScanMode; label: string; icon: "box" | "receipt"; empty: string }[] = [
   { value: "stock_in", label: "Delivery", icon: "box", empty: "No delivery lists waiting." },
@@ -22,8 +22,10 @@ const TYPES: { value: ScanMode; label: string; icon: "box" | "receipt"; empty: s
 export function ReviewList() {
   const [list, setList] = useState<ScansToReview | null | "error">(null);
   const [picked, setPicked] = useState<ScanMode | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   useEffect(() => {
     api<ScansToReview>("reports/scans-to-review").then(setList, () => setList("error"));
+    api<Me>("auth/me").then(setMe, () => {});
   }, []);
   const items = list === null || list === "error" ? list : list.items;
   const hasMore = list !== null && list !== "error" && list.has_more;
@@ -101,6 +103,19 @@ export function ReviewList() {
         <p className="mt-4 text-sm text-muted">
           Showing the newest {items.length}. Older ones appear here as these are saved or tried again.
         </p>
+      )}
+      {list !== null && canEditProducts(me?.role) && (
+        <Link
+          href="/scans/recycle-bin"
+          className="mt-6 flex min-h-[64px] items-center gap-3 rounded-card border border-border px-4 py-3 text-text hover:bg-surface"
+        >
+          <Icon name="trash" size={20} />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">Recycle bin</b>
+            <small className="mt-0.5 block text-[13px] text-muted">Deleted photos stay here for 30 days</small>
+          </span>
+          <Icon name="chevron" size={19} />
+        </Link>
       )}
     </>
   );

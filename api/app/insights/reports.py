@@ -422,6 +422,7 @@ def scans_to_review(db: Session, store_id: UUID, now: datetime | None = None) ->
         .outerjoin(User, User.id == Scan.created_by)
         .where(
             Scan.store_id == store_id,
+            Scan.deleted_at.is_(None),
             or_(
                 Scan.status == "read",
                 and_(Scan.status == "failed", retryable),

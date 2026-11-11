@@ -225,7 +225,18 @@ def test_unreadable_qty_is_none(text):
 
 @pytest.mark.parametrize(
     ("text", "centavos"),
-    [("@250", 25000), ("₱1,250.50", 125050), ("P85/kg", 8500), ("= 2,500", 250000), ("abc", None)],
+    [
+        ("@250", 25000),
+        ("₱1,250.50", 125050),
+        ("P85/kg", 8500),
+        ("= 2,500", 250000),
+        ("abc", None),
+        ("4.410", 441000),
+        ("@1.470", 147000),
+        ("12.500", 1250000),
+        ("4.41", 441),
+        ("0.500", 50),
+    ],
 )
 def test_parse_money(text, centavos):
     assert parse_money(text) == centavos
@@ -249,6 +260,14 @@ def test_total_tolerance_comes_from_settings(monkeypatch):
     assert not total_mismatch(Decimal(10), 25000, 250050)  # ₱0.50 off: within ₱1
     monkeypatch.setattr(settings, "SCAN_TOTAL_TOLERANCE_CENTAVOS", 0)
     assert total_mismatch(Decimal(10), 25000, 250050)
+
+
+def test_a_total_with_a_dot_for_thousands_is_not_a_mismatch():
+    _, result = read([row("Marine Plywood 3/4 3pcs. 1470 4.410", "3", "pcs", "1470", "4.410")])
+    check = result.steps["check"][0]
+    assert check["written_total_centavos"] == 441000
+    assert "total_mismatch" not in check["reasons"]
+    assert not total_mismatch(Decimal(3), 147000, 441)
 
 
 def test_price_comes_from_the_total_when_only_a_total_is_written():

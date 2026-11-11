@@ -32,6 +32,7 @@ from app.inventory.schemas import (
     TransactionIn,
     TransactionOut,
     TransactionPage,
+    TrashedScanOut,
     UploadUrlIn,
     UploadUrlOut,
 )
@@ -41,7 +42,8 @@ from app.stores.models import Role
 router = APIRouter()
 
 StorageDep = Annotated[Storage, Depends(get_storage)]
-# Voiding is limited to managers and secretaries; everyone can scan and save.
+# Voiding and deleting photos are limited to managers and secretaries; everyone can scan
+# and save.
 Writer = Annotated[CurrentMember, Depends(require_role(Role.MANAGER, Role.SECRETARY))]
 ReaderDep = Annotated[VisionReader, Depends(get_vision_reader)]
 BackupReaderDep = Annotated[VisionReader | None, Depends(get_backup_vision_reader)]
@@ -128,6 +130,11 @@ def create_scan(
     return scan
 
 
+@router.get("/scans/trash", response_model=list[TrashedScanOut], tags=["scans"])
+def list_trash(current: Writer, db: DbSession, storage: StorageDep) -> list[TrashedScanOut]:
+    return scan_service.list_trash(db, current.store_id, storage)
+
+
 @router.get("/scans/{scan_id}", response_model=ScanOut, tags=["scans"])
 def get_scan(scan_id: UUID, current: CurrentMemberDep, db: DbSession) -> ScanOut:
     return scan_service.scan_view(db, scan_service.get_scan(db, current.store_id, scan_id))
@@ -156,6 +163,21 @@ def rescan_scan(
     backup: BackupReaderDep,
 ) -> ScanOut:
     return scan_service.rescan_scan(db, current.store_id, scan_id, storage, reader, backup)
+
+
+@router.post("/scans/{scan_id}/trash", status_code=status.HTTP_204_NO_CONTENT, tags=["scans"])
+def trash_scan(scan_id: UUID, current: Writer, db: DbSession, storage: StorageDep) -> None:
+    scan_service.trash_scan(db, current.store_id, current.user.id, scan_id, storage)
+
+
+@router.post("/scans/{scan_id}/restore", response_model=ScanOut, tags=["scans"])
+def restore_scan(scan_id: UUID, current: Writer, db: DbSession) -> ScanOut:
+    return scan_service.restore_scan(db, current.store_id, scan_id)
+
+
+@router.delete("/scans/{scan_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["scans"])
+def delete_scan(scan_id: UUID, current: Writer, db: DbSession, storage: StorageDep) -> None:
+    scan_service.delete_scan_forever(db, current.store_id, scan_id, storage)
 
 
 # ---------- transactions ----------

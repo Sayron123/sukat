@@ -15,7 +15,7 @@ export type EditLine = {
   unit: string;
   price: string; // pesos, as typed
   checkReasons: CheckReason[];
-  touched: boolean; // edited by the user: the "Check" tag goes away
+  approved: boolean;
   // Sales: the product's usual price for this unit (centavos), for "Price differs".
   // Cleared when the product or unit changes (then it's no longer known here).
   expectedPrice: number | null;
@@ -51,8 +51,8 @@ export function toEditLine(line: ReviewLine, index: number): EditLine {
     qty: line.qty === null ? "" : formatQty(line.qty),
     unit: line.unit,
     price: line.unit_price_centavos === null ? "" : (line.unit_price_centavos / 100).toFixed(2),
-    checkReasons: line.check_reasons,
-    touched: false,
+    checkReasons: line.check_reasons.filter((r) => r !== "new_product"),
+    approved: false,
     expectedPrice: line.expected_unit_price_centavos,
     priceFromProduct: line.price_source === "product",
     serverTotal: line.line_total_centavos,
@@ -64,7 +64,7 @@ export function toEditLine(line: ReviewLine, index: number): EditLine {
  * what the total depends on forgets the server's total.
  */
 export function editLine(line: EditLine, patch: Partial<EditLine>): EditLine {
-  const next = { ...line, ...patch, touched: true };
+  const next = { ...line, ...patch };
   const productChanged = "product" in patch && patch.product?.id !== line.product?.id;
   const unitChanged = "unit" in patch && patch.unit !== line.unit;
   if (productChanged || unitChanged || "newProduct" in patch) next.expectedPrice = null;
@@ -89,6 +89,10 @@ export function priceToSend(line: EditLine): number | null {
 export function priceDiffers(line: EditLine): boolean {
   const price = pesosToCentavos(line.price);
   return line.expectedPrice !== null && typeof price === "number" && price !== line.expectedPrice;
+}
+
+export function needsApproval(line: EditLine): boolean {
+  return line.checkReasons.length > 0 && !line.approved;
 }
 
 /** Line total in centavos for display, or null if qty/price aren't valid numbers yet. */

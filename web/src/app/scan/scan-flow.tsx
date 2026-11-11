@@ -11,7 +11,7 @@ import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Button, Card, GhostButton, Notice, ghostButtonClass, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
-import { formatPeso, formatQty } from "@/lib/format";
+import { formatPeso, formatQty, pesosToCentavos } from "@/lib/format";
 import { newRequestId } from "@/lib/request-id";
 import {
   canEditProducts,
@@ -23,7 +23,15 @@ import {
   type UploadUrl,
 } from "@/lib/types";
 
-import { type EditLine, lineProblem, lineTotal, priceToSend, toEditLine } from "./lines";
+import {
+  type EditLine,
+  lineProblem,
+  lineTotal,
+  needsApproval,
+  priceDiffers,
+  priceToSend,
+  toEditLine,
+} from "./lines";
 import { ReviewLineCard } from "./review-line";
 
 /** Words that differ between a delivery (stock in) and a sale. */
@@ -216,6 +224,7 @@ export function ScanFlow({
           key={reviewKey}
           scan={step.scan}
           canCreate={step.scan.type === "stock_in" && canEditProducts(me?.role)}
+          canDelete={canEditProducts(me?.role)}
           onReplaced={(scan) => {
             setReviewKey((k) => k + 1);
             showScan(scan, "");
@@ -347,12 +356,14 @@ function Busy({
 function Review({
   scan,
   canCreate,
+  canDelete,
   onReplaced,
   onSaved,
   onCancel,
 }: {
   scan: Scan;
   canCreate: boolean;
+  canDelete: boolean;
   onReplaced: (scan: Scan) => void;
   onSaved: (txn: Transaction) => void;
   onCancel: () => void;
@@ -380,9 +391,14 @@ function Review({
   const [negative, setNegative] = useState<NegativeStockItem[] | null>(null);
   const [rescanning, setRescanning] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [confirmTrash, setConfirmTrash] = useState(false);
+  const [trashing, setTrashing] = useState(false);
+  const [confirmPrices, setConfirmPrices] = useState(false);
 
   const unknown = lines.filter((l) => !l.product).length;
-  const checks = lines.filter((l) => l.checkReasons.length > 0 && !l.touched).length;
+  const checks = lines.filter(needsApproval).length;
+  const differing = mode === "sale" ? lines.filter(priceDiffers) : [];
+  const paper = mode === "sale" ? "receipt" : "list";
   const total = lines.reduce((sum, l) => sum + (lineTotal(l) ?? 0), 0);
   const blockedNew = !canCreate && lines.some((l) => l.newProduct);
 
@@ -391,11 +407,17 @@ function Review({
    * warning; the same requestId is reused, which is safe because the refused attempt
    * saved nothing.
    */
-  async function save(confirm = false) {
+  async function save(confirm = false, pricesOk = false) {
     setShowErrors(true);
-    if (lines.length === 0) return setError("Add at least one line, or start over.");
+    if (lines.length === 0) return setError(`Add at least one line, or delete this ${paper}.`);
     if (lines.some((l) => lineProblem(l))) return setError("Fix the lines marked in red.");
+    if (checks > 0) {
+      document.querySelector("[data-needs-check]")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return setError(`Approve the ${checks} line${checks === 1 ? "" : "s"} marked red first.`);
+    }
     if (blockedNew) return setError("Only a manager or secretary can add new products. Pick existing products or remove those lines.");
+    if (differing.length > 0 && !pricesOk) return setConfirmPrices(true);
+    setConfirmPrices(false);
     setError(null);
     setSaving(true);
     try {
@@ -435,6 +457,18 @@ function Review({
     }
   }
 
+  async function moveToTrash() {
+    setTrashing(true);
+    try {
+      await api(`scans/${scan.id}/trash`, { method: "POST" });
+      onCancel();
+    } catch (e) {
+      setConfirmTrash(false);
+      setTrashing(false);
+      setError(e instanceof ApiError ? e.message : "Could not delete it. Please try again.");
+    }
+  }
+
   async function rescan() {
     setRescanning(true);
     setError(null);
@@ -453,12 +487,12 @@ function Review({
         title={text.review}
         onBack={onCancel}
         action={
-          unknown > 0 && (
+          canDelete && (
             <button
               type="button"
-              aria-label={`Remove ${unknown} item${unknown === 1 ? "" : "s"} not in your products`}
-              title="Remove items not in your products"
-              onClick={() => setConfirmRemove(true)}
+              aria-label={`Delete this ${paper}`}
+              title={`Delete this ${paper}`}
+              onClick={() => setConfirmTrash(true)}
               className={headerIconClass}
             >
               <Icon name="trash" size={22} />
@@ -467,9 +501,17 @@ function Review({
         }
       />
       {checks > 0 && (
-        <Notice icon="spark" title="Check highlighted items" className="mb-5">
-          {checks} line{checks === 1 ? "" : "s"} could not be read clearly.
-        </Notice>
+        <div className="mb-5 flex gap-3 rounded-card border border-red-edge bg-red-soft p-4 text-sm">
+          <Icon name="alert" size={20} className="mt-px text-red" />
+          <div className="min-w-0">
+            <p className="font-bold text-red">
+              {checks} line{checks === 1 ? " needs" : "s need"} a double check
+            </p>
+            <p className="mt-1 leading-snug text-text">
+              The AI wasn’t sure about {checks === 1 ? "it" : "them"}. Fix anything that’s wrong, then tap Approve.
+            </p>
+          </div>
+        </div>
       )}
       {lines.length === 0 && <Card className="text-muted">No items left on this list.</Card>}
       <ul className="flex flex-col gap-3">
@@ -486,13 +528,15 @@ function Review({
           />
         ))}
       </ul>
+      {unknown > 0 && (
+        <button type="button" onClick={() => setConfirmRemove(true)} className={`${textLinkClass} mt-2`}>
+          Remove {unknown} item{unknown === 1 ? "" : "s"} not in your products
+        </button>
+      )}
       <div className="mt-[22px] flex items-center justify-between border-t-2 border-text pt-[18px]">
         <span className="font-semibold text-text">{text.totalLabel}</span>
         <strong className="text-[25px] text-text">{formatPeso(total)}</strong>
       </div>
-      <button type="button" onClick={onCancel} className={`${textLinkClass} mt-2`}>
-        Start over
-      </button>
 
       <ActionDock>
         {error && (
@@ -523,7 +567,7 @@ function Review({
         title="Not enough stock recorded"
         confirmLabel="Save anyway"
         busy={saving}
-        onConfirm={() => save(true)}
+        onConfirm={() => save(true, true)}
         onCancel={() => setNegative(null)}
       >
         <p>This sale would take these below 0:</p>
@@ -538,6 +582,38 @@ function Review({
         <p className="mt-2">
           Save anyway if the delivery hasn’t been recorded yet. Otherwise go back and check the quantities.
         </p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmPrices}
+        title={`${differing.length} price${differing.length === 1 ? " differs" : "s differ"} from your products`}
+        confirmLabel="Save with these prices"
+        busy={saving}
+        onConfirm={() => save(false, true)}
+        onCancel={() => setConfirmPrices(false)}
+      >
+        <ul className="flex flex-col gap-1">
+          {differing.map((l) => (
+            <li key={l.key} className="text-text">
+              <span className="font-bold">{l.product?.name}</span>: {formatPeso(pesosToCentavos(l.price) ?? 0)}{" "}
+              <span className="text-muted">(usually {formatPeso(l.expectedPrice ?? 0)})</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2">The sale is saved with the prices on the receipt. Go back if one was read wrong.</p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmTrash}
+        title={`Delete this ${paper}?`}
+        confirmLabel="Move to Recycle bin"
+        danger
+        busy={trashing}
+        onConfirm={moveToTrash}
+        onCancel={() => setConfirmTrash(false)}
+      >
+        It goes to the Recycle bin on Needs review and is deleted for good after 30 days. You can restore it
+        until then.
       </ConfirmDialog>
 
       <ConfirmDialog
