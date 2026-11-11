@@ -132,6 +132,12 @@ class ScanIn(BaseModel):
     type: Literal["sale", "stock_in"] = "stock_in"
 
 
+class ScanTypeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["sale", "stock_in"]
+
+
 class ReviewLineOut(BaseModel):
     raw_text: str
     product_id: UUID | None
@@ -160,6 +166,7 @@ class ScanOut(BaseModel):
     status: str
     error_message: str | None
     retryable: bool
+    can_rescan: bool
     model: str | None
     lines: list[ReviewLineOut]
     created_at: datetime

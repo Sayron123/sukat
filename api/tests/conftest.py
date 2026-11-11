@@ -204,7 +204,7 @@ class FakeReader:
     def __init__(self, provider: str = "gemini", model: str = "fake-model") -> None:
         self.model = model
         self.provider = provider
-        self.lines: Any = []
+        self.lines: Any = [scan_line()]
         self.error: Exception | None = None
         self.calls: list[dict[str, Any]] = []
 

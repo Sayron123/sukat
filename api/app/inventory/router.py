@@ -29,6 +29,7 @@ from app.inventory.scan_service import PHOTO_KEY_RE
 from app.inventory.schemas import (
     ScanIn,
     ScanOut,
+    ScanTypeIn,
     TransactionIn,
     TransactionOut,
     TransactionPage,
@@ -125,7 +126,7 @@ def create_scan(
         db, current.store_id, current.user.id, body.photo_key, body.type, storage, reader, backup
     )
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-    return scan_service.scan_view(db, scan)
+    return scan
 
 
 @router.get("/scans/{scan_id}", response_model=ScanOut, tags=["scans"])
@@ -143,8 +144,26 @@ def retry_scan(
     backup: BackupReaderDep,
 ) -> ScanOut:
     """Read the photo again after a failed (or stuck) read."""
-    scan = scan_service.retry_scan(db, current.store_id, scan_id, storage, reader, backup)
-    return scan_service.scan_view(db, scan)
+    return scan_service.retry_scan(db, current.store_id, scan_id, storage, reader, backup)
+
+
+@router.post("/scans/{scan_id}/rescan", response_model=ScanOut, tags=["scans"])
+def rescan_scan(
+    scan_id: UUID,
+    current: VerifiedMemberDep,
+    db: DbSession,
+    storage: StorageDep,
+    reader: ReaderDep,
+    backup: BackupReaderDep,
+) -> ScanOut:
+    return scan_service.rescan_scan(db, current.store_id, scan_id, storage, reader, backup)
+
+
+@router.patch("/scans/{scan_id}", response_model=ScanOut, tags=["scans"])
+def change_scan_type(
+    scan_id: UUID, body: ScanTypeIn, current: VerifiedMemberDep, db: DbSession
+) -> ScanOut:
+    return scan_service.change_type(db, current.store_id, scan_id, body.type)
 
 
 # ---------- transactions ----------

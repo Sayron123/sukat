@@ -155,9 +155,10 @@ export type ReviewLine = {
 export type Scan = {
   id: string;
   type: "sale" | "stock_in";
-  status: "pending" | "read" | "failed" | "saved";
+  status: "pending" | "read" | "failed" | "saved" | "empty";
   error_message: string | null;
   retryable: boolean;
+  can_rescan: boolean;
   model: string | null;
   lines: ReviewLine[];
   created_at: string;

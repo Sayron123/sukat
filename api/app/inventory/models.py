@@ -19,6 +19,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     UniqueConstraint,
     false,
@@ -65,6 +66,7 @@ class Scan(Base):
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Why the last read failed, shown to staff with a Retry button.
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    rescans: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
     created_by: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )

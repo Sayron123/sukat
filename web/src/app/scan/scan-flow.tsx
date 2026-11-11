@@ -23,7 +23,8 @@ import {
   type UploadUrl,
 } from "@/lib/types";
 
-import { type EditLine, lineProblem, lineTotal, priceToSend, toEditLine } from "./lines";
+import { guessCategory } from "./guess-category";
+import { type EditLine, editLine, lineProblem, lineTotal, priceToSend, toEditLine } from "./lines";
 import { ReviewLineCard } from "./review-line";
 
 /** Words that differ between a delivery (stock in) and a sale. */
@@ -63,6 +64,7 @@ type Step =
   | { name: "done"; txn: Transaction };
 
 const POLL_MS = 3000;
+const EMPTY_PHOTO = "No items were found on this photo. Take a clear photo of the list or receipt.";
 
 /**
  * Scan flow for both modes: photo -> compress -> upload -> AI reads -> review -> save.
@@ -92,6 +94,7 @@ export function ScanFlow({
     return { name: "pick", error: initialScan.status === "saved" ? "This photo was already saved." : undefined };
   });
   const [me, setMe] = useState<Me | null>(null);
+  const [reviewKey, setReviewKey] = useState(0);
 
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
@@ -140,7 +143,8 @@ export function ScanFlow({
   }
 
   function showScan(scan: Scan, photoKey: string) {
-    if (scan.status === "read") setStep({ name: "review", scan });
+    if (scan.status === "empty") setStep({ name: "pick", error: scan.error_message ?? EMPTY_PHOTO });
+    else if (scan.status === "read") setStep({ name: "review", scan });
     else if (scan.status === "failed") setStep({ name: "failed", scan });
     else if (scan.status === "saved") setStep({ name: "pick", error: "This photo was already saved." });
     else setStep({ name: "reading", photoKey, scanId: scan.id }); // still reading: poll
@@ -154,8 +158,9 @@ export function ScanFlow({
     const t = setTimeout(async () => {
       try {
         showScan(await api<Scan>(`scans/${pollingId}`), pollingKey);
-      } catch {
-        setStep({ name: "reading", photoKey: pollingKey, scanId: pollingId, error: "Connection lost while reading." });
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) setStep({ name: "pick", error: EMPTY_PHOTO });
+        else setStep({ name: "reading", photoKey: pollingKey, scanId: pollingId, error: "Connection lost while reading." });
       }
     }, POLL_MS);
     return () => clearTimeout(t);
@@ -209,14 +214,20 @@ export function ScanFlow({
     case "review":
       return (
         <Review
+          key={reviewKey}
           scan={step.scan}
           canCreate={step.scan.type === "stock_in" && canEditProducts(me?.role)}
+          canSwitch={canEditProducts(me?.role)}
+          onReplaced={(scan) => {
+            setReviewKey((k) => k + 1);
+            showScan(scan, "");
+          }}
           onSaved={(txn) => setStep({ name: "done", txn })}
           onCancel={() => (exitHref ? router.push(exitHref) : setStep({ name: "pick" }))}
         />
       );
     case "done":
-      return <Done txn={step.txn} mode={mode} onAgain={() => setStep({ name: "pick" })} />;
+      return <Done txn={step.txn} mode={step.txn.type} onAgain={() => setStep({ name: "pick" })} />;
   }
 }
 
@@ -338,11 +349,15 @@ function Busy({
 function Review({
   scan,
   canCreate,
+  canSwitch,
+  onReplaced,
   onSaved,
   onCancel,
 }: {
   scan: Scan;
   canCreate: boolean;
+  canSwitch: boolean;
+  onReplaced: (scan: Scan) => void;
   onSaved: (txn: Transaction) => void;
   onCancel: () => void;
 }) {
@@ -367,8 +382,15 @@ function Review({
   const [error, setError] = useState<string | null>(null);
   // Set when the server says this sale would take stock below 0.
   const [negative, setNegative] = useState<NegativeStockItem[] | null>(null);
+  const [addedAll, setAddedAll] = useState(false);
+  const [busy, setBusy] = useState<"rescan" | "switch" | null>(null);
+  const [switchTo, setSwitchTo] = useState<ScanMode | null>(null);
 
-  const checks = lines.filter((l) => l.checkReasons.length > 0 && !l.touched).length;
+  const unknown = lines.filter((l) => !l.product).length;
+  const showUnknown = unknown > 0 && !addedAll;
+  const checks = lines.filter(
+    (l) => l.checkReasons.length > 0 && !l.touched && !(showUnknown && !l.product),
+  ).length;
   const total = lines.reduce((sum, l) => sum + (lineTotal(l) ?? 0), 0);
   const blockedNew = !canCreate && lines.some((l) => l.newProduct);
 
@@ -421,6 +443,47 @@ function Review({
     }
   }
 
+  function addAll() {
+    setLines(
+      lines.map((l) =>
+        l.product
+          ? l
+          : editLine(l, {
+              newProduct: l.newProduct ?? { name: l.rawText, category: guessCategory(l.rawText), base_unit: l.unit },
+            }),
+      ),
+    );
+    setAddedAll(true);
+  }
+
+  async function replaceWith(kind: "rescan" | "switch", request: () => Promise<Scan>) {
+    setBusy(kind);
+    setError(null);
+    try {
+      onReplaced(await request());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Something went wrong. Please try again.");
+      setBusy(null);
+    }
+  }
+
+  function rescan() {
+    void replaceWith("rescan", () => api<Scan>(`scans/${scan.id}/rescan`, { method: "POST" }));
+  }
+
+  function switchType(next: ScanMode) {
+    setSwitchTo(null);
+    void replaceWith("switch", () =>
+      api<Scan>(`scans/${scan.id}`, { method: "PATCH", body: JSON.stringify({ type: next }) }),
+    );
+  }
+
+  function askSwitch(next: ScanMode) {
+    if (next === mode || busy) return;
+    if (lines.some((l) => l.touched)) setSwitchTo(next);
+    else switchType(next);
+  }
+
   return (
     <>
       <PageHeader
@@ -428,12 +491,25 @@ function Review({
         title={text.review}
         onBack={onCancel}
       />
+      {canSwitch && <TypeSwitch value={mode} disabled={busy !== null} onChange={askSwitch} />}
+      {showUnknown && (
+        <UnknownItems
+          count={unknown}
+          canAdd={canCreate}
+          canRescan={scan.can_rescan}
+          rescanning={busy === "rescan"}
+          disabled={busy !== null}
+          onAdd={addAll}
+          onRemove={() => setLines(lines.filter((l) => l.product))}
+          onRescan={rescan}
+        />
+      )}
       {checks > 0 && (
         <Notice icon="spark" title="Check highlighted items" className="mb-5">
           {checks} line{checks === 1 ? "" : "s"} could not be read clearly.
         </Notice>
       )}
-      {lines.length === 0 && <Card className="text-muted">No items were found on this photo.</Card>}
+      {lines.length === 0 && <Card className="text-muted">No items left on this list.</Card>}
       <ul className="flex flex-col gap-3">
         {lines.map((line, i) => (
           <ReviewLineCard
@@ -462,7 +538,7 @@ function Review({
             {error}
           </p>
         )}
-        <Button size="lg" disabled={saving} onClick={() => save()}>
+        <Button size="lg" disabled={saving || busy !== null} onClick={() => save()}>
           {saving ? "Saving…" : text.save}
         </Button>
       </ActionDock>
@@ -488,7 +564,102 @@ function Review({
           Save anyway if the delivery hasn’t been recorded yet. Otherwise go back and check the quantities.
         </p>
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={switchTo !== null}
+        title={switchTo === "sale" ? "Switch to Sale?" : "Switch to Delivery?"}
+        confirmLabel="Switch"
+        onConfirm={() => switchTo && switchType(switchTo)}
+        onCancel={() => setSwitchTo(null)}
+      >
+        The changes you made on this page will be undone.
+      </ConfirmDialog>
     </>
+  );
+}
+
+const TYPES: { value: ScanMode; label: string; icon: "box" | "receipt" }[] = [
+  { value: "stock_in", label: "Delivery", icon: "box" },
+  { value: "sale", label: "Sale", icon: "receipt" },
+];
+
+function TypeSwitch({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: ScanMode;
+  disabled: boolean;
+  onChange: (next: ScanMode) => void;
+}) {
+  return (
+    <div role="group" aria-label="What is this photo?" className="mb-5 grid grid-cols-2 gap-1 rounded-button bg-surface p-1">
+      {TYPES.map((t) => (
+        <button
+          key={t.value}
+          type="button"
+          aria-pressed={value === t.value}
+          disabled={disabled}
+          onClick={() => onChange(t.value)}
+          className={`flex h-10 items-center justify-center gap-2 rounded-[9px] text-sm font-bold disabled:opacity-60 ${
+            value === t.value ? "bg-background text-text shadow-sm" : "text-muted"
+          }`}
+        >
+          <Icon name={t.icon} size={18} />
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function UnknownItems({
+  count,
+  canAdd,
+  canRescan,
+  rescanning,
+  disabled,
+  onAdd,
+  onRemove,
+  onRescan,
+}: {
+  count: number;
+  canAdd: boolean;
+  canRescan: boolean;
+  rescanning: boolean;
+  disabled: boolean;
+  onAdd: () => void;
+  onRemove: () => void;
+  onRescan: () => void;
+}) {
+  const actions = [
+    canAdd && { label: "Add all", onClick: onAdd },
+    { label: "Remove all", onClick: onRemove },
+    canRescan && { label: rescanning ? "Scanning…" : "Scan again", onClick: onRescan },
+  ].filter((a): a is { label: string; onClick: () => void } => Boolean(a));
+  return (
+    <Card className="mb-5">
+      <p className="font-bold text-text">
+        {count} item{count === 1 ? " isn’t" : "s aren’t"} in your products
+      </p>
+      <p className="mt-1 text-sm leading-snug text-muted">
+        {canAdd ? "Add them as new products, remove them" : "Pick a product for each, remove them"}
+        {canRescan ? ", or scan the photo again once." : "."}
+      </p>
+      <div className={`mt-3 grid gap-2 ${actions.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+        {actions.map((a) => (
+          <button
+            key={a.label}
+            type="button"
+            disabled={disabled}
+            onClick={a.onClick}
+            className="flex h-11 items-center justify-center rounded-button border border-line bg-background px-1 text-[13px] font-semibold whitespace-nowrap text-text hover:bg-surface disabled:opacity-45"
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 

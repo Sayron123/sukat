@@ -17,26 +17,11 @@ export type PickedProduct = {
  * Search box that picks one of the store's products. Shows up to 6 matches by name or
  * alias. `onAddNew` (optional) offers "Add as new product" with the typed text.
  */
-export function ProductPicker({
-  value,
-  onPick,
-  onAddNew,
-  invalid,
-  label = "Product",
-}: {
-  value: PickedProduct | null;
-  onPick: (p: PickedProduct) => void;
-  onAddNew?: (name: string) => void;
-  invalid?: boolean;
-  label?: string;
-}) {
-  const listId = useId();
-  const [text, setText] = useState(value?.name ?? "");
-  const [open, setOpen] = useState(false);
+export function useProductSearch(text: string, enabled: boolean): PickedProduct[] {
   const [results, setResults] = useState<PickedProduct[]>([]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!enabled) return;
     let stale = false;
     const t = setTimeout(() => {
       const q = text.trim();
@@ -60,7 +45,28 @@ export function ProductPicker({
       stale = true;
       clearTimeout(t);
     };
-  }, [text, open]);
+  }, [text, enabled]);
+
+  return results;
+}
+
+export function ProductPicker({
+  value,
+  onPick,
+  onAddNew,
+  invalid,
+  label = "Product",
+}: {
+  value: PickedProduct | null;
+  onPick: (p: PickedProduct) => void;
+  onAddNew?: (name: string) => void;
+  invalid?: boolean;
+  label?: string;
+}) {
+  const listId = useId();
+  const [text, setText] = useState(value?.name ?? "");
+  const [open, setOpen] = useState(false);
+  const results = useProductSearch(text, open);
 
   return (
     <div className="relative">

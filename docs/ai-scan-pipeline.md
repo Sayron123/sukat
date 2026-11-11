@@ -66,6 +66,12 @@ Each step's output is saved on the scan (`scans.ai_result_json` → `steps`), so
 - **The math check catches misread digits:** if 10 × ₱250 doesn't equal the ₱2,600 written, one of those numbers was read wrong. Staff see "Check" on that line.
 - **The review screen runs the same check** (with the products as they are now), so what staff see and what was stored never disagree.
 
+**On the review screen**
+- A photo where the AI finds no items is not kept: the scan is deleted and staff are asked for a clearer photo. Its AI cost is still logged.
+- Items not in the store's products get one panel: **Add all** (as new products, deliveries only), **Remove all**, or **Scan again** (`POST /scans/{id}/rescan`, once per photo). Scan again replaces the lines.
+- **Edit name** on a new item renames it, and shows existing products with a similar name to use instead.
+- Managers and secretaries can switch the photo between **Delivery** and **Sale** (`PATCH /scans/{id}`). The lines are shown again with the new type's rules (sale prices, no new products in a sale). The AI's new-product names are kept, so switching back restores them.
+
 ## Step 5 — Evals
 
 **What:** `uv run python -m evals.run_eval` now reports each step:

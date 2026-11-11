@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 import { Button, GhostButton } from "./ui";
 
@@ -28,6 +28,7 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
@@ -38,14 +39,14 @@ export function ConfirmDialog({
   return (
     <dialog
       ref={ref}
-      aria-labelledby="confirm-title"
+      aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault(); // Esc: let the parent decide (keeps state in one place)
         onCancel();
       }}
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-card border border-border bg-background p-6 text-text backdrop:bg-dark/40"
     >
-      <h2 id="confirm-title" className="text-lg font-bold">
+      <h2 id={titleId} className="text-lg font-bold">
         {title}
       </h2>
       <div className="mt-2 text-sm text-muted">{children}</div>
