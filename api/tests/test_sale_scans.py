@@ -86,7 +86,7 @@ def test_sale_never_suggests_new_products(api, db, manager, storage, reader):
     assert line["is_new"] is False and line["suggested_new_name"] is None
     assert line["check_reasons"] == ["no_product"] and line["needs_check"] is True
     stored = db.scalar(select(Scan.ai_result_json))
-    assert stored["lines"][0]["suggested_new_name"] == "Deformed Bar 16mm x 6m"
+    assert stored["lines"][0]["suggested_new_name"] is None  # removed before saving
 
 
 def test_unpriced_product_leaves_price_empty(api, manager, storage, reader):

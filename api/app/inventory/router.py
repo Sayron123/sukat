@@ -29,7 +29,6 @@ from app.inventory.scan_service import PHOTO_KEY_RE
 from app.inventory.schemas import (
     ScanIn,
     ScanOut,
-    ScanTypeIn,
     TransactionIn,
     TransactionOut,
     TransactionPage,
@@ -157,13 +156,6 @@ def rescan_scan(
     backup: BackupReaderDep,
 ) -> ScanOut:
     return scan_service.rescan_scan(db, current.store_id, scan_id, storage, reader, backup)
-
-
-@router.patch("/scans/{scan_id}", response_model=ScanOut, tags=["scans"])
-def change_scan_type(
-    scan_id: UUID, body: ScanTypeIn, current: VerifiedMemberDep, db: DbSession
-) -> ScanOut:
-    return scan_service.change_type(db, current.store_id, scan_id, body.type)
 
 
 # ---------- transactions ----------

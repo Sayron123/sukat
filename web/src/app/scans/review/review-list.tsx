@@ -5,11 +5,15 @@ import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/page-header";
-import { ScanTypeSwitch } from "@/components/scan-type-switch";
 import { Badge, Card, Loading } from "@/components/ui";
-import { ApiError, api } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 import { formatCount, formatShortWhen } from "@/lib/format";
-import { type Me, type Scan, type ScanMode, type ScansToReview, canEditProducts } from "@/lib/types";
+import type { ScanMode, ScansToReview } from "@/lib/types";
+
+const TYPES: { value: ScanMode; label: string; icon: "box" | "receipt"; empty: string }[] = [
+  { value: "stock_in", label: "Delivery", icon: "box", empty: "No delivery lists waiting." },
+  { value: "sale", label: "Sale", icon: "receipt", empty: "No sale receipts waiting." },
+];
 
 /**
  * Photos from the last 7 days that were read but not saved, or couldn't be read.
@@ -17,33 +21,18 @@ import { type Me, type Scan, type ScanMode, type ScansToReview, canEditProducts 
  */
 export function ReviewList() {
   const [list, setList] = useState<ScansToReview | null | "error">(null);
-  const [me, setMe] = useState<Me | null>(null);
-  const [switching, setSwitching] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [picked, setPicked] = useState<ScanMode | null>(null);
   useEffect(() => {
     api<ScansToReview>("reports/scans-to-review").then(setList, () => setList("error"));
-    api<Me>("auth/me").then(setMe, () => {});
   }, []);
-  const canSwitch = canEditProducts(me?.role);
-
-  async function switchType(scanId: string, type: ScanMode) {
-    setSwitching(scanId);
-    setError(null);
-    try {
-      const scan = await api<Scan>(`scans/${scanId}`, { method: "PATCH", body: JSON.stringify({ type }) });
-      setList((current) =>
-        current && current !== "error"
-          ? { ...current, items: current.items.map((s) => (s.scan_id === scanId ? { ...s, type: scan.type } : s)) }
-          : current,
-      );
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not change it. Please try again.");
-    } finally {
-      setSwitching(null);
-    }
-  }
   const items = list === null || list === "error" ? list : list.items;
   const hasMore = list !== null && list !== "error" && list.has_more;
+  const counts = {
+    stock_in: Array.isArray(items) ? items.filter((s) => s.type === "stock_in").length : 0,
+    sale: Array.isArray(items) ? items.filter((s) => s.type === "sale").length : 0,
+  };
+  const type = picked ?? (counts.stock_in === 0 && counts.sale > 0 ? "sale" : "stock_in");
+  const shown = Array.isArray(items) ? items.filter((s) => s.type === type) : items;
 
   return (
     <>
@@ -52,10 +41,23 @@ export function ReviewList() {
         title="Needs review"
         back="/"
       />
-      {error && (
-        <p role="alert" className="mb-3 text-sm text-red">
-          {error}
-        </p>
+      {Array.isArray(items) && items.length > 0 && (
+        <div role="group" aria-label="Show" className="mb-5 grid grid-cols-2 gap-1 rounded-button bg-surface p-1">
+          {TYPES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              aria-pressed={type === t.value}
+              onClick={() => setPicked(t.value)}
+              className={`flex h-10 items-center justify-center gap-2 rounded-[9px] text-sm font-bold ${
+                type === t.value ? "bg-background text-text shadow-sm" : "text-muted"
+              }`}
+            >
+              <Icon name={t.icon} size={18} />
+              {t.label} ({counts[t.value]})
+            </button>
+          ))}
+        </div>
       )}
       {items === null ? (
         <Loading />
@@ -63,11 +65,16 @@ export function ReviewList() {
         <p className="text-red">Could not load photos to review.</p>
       ) : items.length === 0 ? (
         <Card className="text-muted">Nothing waiting. Every scanned photo from the last 7 days is saved.</Card>
+      ) : shown !== null && shown !== "error" && shown.length === 0 ? (
+        <Card className="text-muted">{TYPES.find((t) => t.value === type)?.empty}</Card>
       ) : (
         <ul className="border-t border-border">
-          {items.map((s) => (
-            <li key={s.scan_id} className="border-b border-border">
-              <Link href={`/scan/review/${s.scan_id}`} className="flex min-h-[82px] items-center gap-3 py-[11px]">
+          {(shown as ScansToReview["items"]).map((s) => (
+            <li key={s.scan_id}>
+              <Link
+                href={`/scan/review/${s.scan_id}`}
+                className="flex min-h-[82px] items-center gap-3 border-b border-border py-[11px]"
+              >
                 <span className="grid h-10 w-8 place-items-center text-text">
                   <Icon name={s.type === "sale" ? "receipt" : "box"} size={20} />
                 </span>
@@ -86,15 +93,6 @@ export function ReviewList() {
                 </span>
                 <Icon name="chevron" size={19} />
               </Link>
-              {canSwitch && s.status === "read" && (
-                <div className="-mt-1 pb-3 pl-11">
-                  <ScanTypeSwitch
-                    value={s.type}
-                    disabled={switching !== null}
-                    onChange={(type) => switchType(s.scan_id, type)}
-                  />
-                </div>
-              )}
             </li>
           ))}
         </ul>

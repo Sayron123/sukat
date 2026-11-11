@@ -132,12 +132,6 @@ class ScanIn(BaseModel):
     type: Literal["sale", "stock_in"] = "stock_in"
 
 
-class ScanTypeIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    type: Literal["sale", "stock_in"]
-
-
 class ReviewLineOut(BaseModel):
     raw_text: str
     product_id: UUID | None

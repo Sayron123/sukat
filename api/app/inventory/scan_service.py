@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ai.base import ImageType, ScanType, VisionReader
+from app.ai.base import ImageType, VisionReader
 from app.ai.budget import ensure_within_budget
 from app.ai.errors import AIReadError
 from app.ai.scan_check import (  # noqa: F401  (quantize_qty, line_total: used by stock_service)
@@ -173,8 +173,12 @@ def run_read(
         scan.model = result.usage.model
         # Store lines already mapped to product ids: the AI's short refs (P1, P2...) only
         # mean something for the product list at the moment of reading.
+        lines = result.lines
+        if scan.type == "sale":
+            # A sale can only be of existing products, whatever the AI suggested.
+            lines = [line.model_copy(update={"suggested_new_name": None}) for line in lines]
         stored: dict = {
-            "lines": [line.model_dump(mode="json") for line in result.lines],
+            "lines": [line.model_dump(mode="json") for line in lines],
             "raw": result.raw,
         }
         if result.steps is not None:
@@ -415,15 +419,6 @@ def rescan_scan(
     ensure_within_budget(db, store_id)
     scan.rescans += 1
     return _read_and_view(db, scan, storage, reader, backup)
-
-
-def change_type(db: Session, store_id: UUID, scan_id: UUID, scan_type: ScanType) -> ScanOut:
-    scan = get_scan(db, store_id, scan_id, lock=True)
-    if scan.status != "read":
-        raise Conflict("Only a photo waiting for review can be switched")
-    scan.type = scan_type
-    db.commit()
-    return scan_view(db, scan)
 
 
 def scan_view(db: Session, scan: Scan) -> ScanOut:
