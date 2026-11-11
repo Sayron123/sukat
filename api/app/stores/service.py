@@ -283,6 +283,16 @@ def list_attendance(db: Session, store_id: UUID, member_id: UUID) -> list[Attend
     )
 
 
+def attendance_on(db: Session, store_id: UUID, work_date: date) -> list[Attendance]:
+    return list(
+        db.scalars(
+            select(Attendance).where(
+                Attendance.store_id == store_id, Attendance.work_date == work_date
+            )
+        )
+    )
+
+
 def record_attendance(
     db: Session,
     store_id: UUID,

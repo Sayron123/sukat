@@ -1,5 +1,6 @@
 """Staff HTTP endpoints. Thin: check the role, call stores.service, shape the response."""
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from app.stores.schemas import (
     AliasIn,
     AttendanceIn,
     AttendanceOut,
+    DayAttendanceOut,
     InviteIn,
     InviteOut,
     InvitePreviewIn,
@@ -98,6 +100,14 @@ def change_staff_alias(member_id: UUID, body: AliasIn, current: Manager, db: DbS
     return staff_out(
         service.set_alias(db, current.store_id, member_id, current.member_id, body.alias)
     )
+
+
+@router.get("/attendance", response_model=list[DayAttendanceOut])
+def list_day_attendance(work_date: date, current: Manager, db: DbSession) -> list[DayAttendanceOut]:
+    return [
+        DayAttendanceOut(member_id=r.member_id, **attendance_out(r).model_dump())
+        for r in service.attendance_on(db, current.store_id, work_date)
+    ]
 
 
 @router.get("/staff/{member_id}/attendance", response_model=list[AttendanceOut])

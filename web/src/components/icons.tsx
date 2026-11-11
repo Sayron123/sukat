@@ -125,6 +125,12 @@ const PATHS = {
     </>
   ),
   moon: <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" />,
+  calendar: (
+    <>
+      <rect x="4" y="5" width="16" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4" />
+    </>
+  ),
   monitor: (
     <>
       <rect x="3" y="4" width="18" height="12" rx="2" />
