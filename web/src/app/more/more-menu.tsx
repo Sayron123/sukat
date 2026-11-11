@@ -43,7 +43,7 @@ const GROUPS: Group[] = [
     title: "People",
     items: [
       { href: "/staff", icon: "users", title: "Staff", detail: "People and permissions" },
-      { href: "/attendance", icon: "calendar", title: "Attendance", detail: "Mark who came in each day", managersOnly: true },
+      { href: "/attendance", icon: "calendar", title: "Attendance", detail: "Mark who came in each day", writersOnly: true },
     ],
   },
   {

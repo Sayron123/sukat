@@ -5,11 +5,11 @@ import { Suspense } from "react";
 import { AppPage } from "@/components/app-page";
 import { PageHeader } from "@/components/page-header";
 import { Loading, Notice } from "@/components/ui";
-import { storeDate } from "@/lib/dates";
+import { addDays, storeDate } from "@/lib/dates";
 import { backendFetch, getToken } from "@/lib/server/backend";
-import type { DayAttendance, Me, Staff } from "@/lib/types";
+import { canEditProducts, type DayAttendance, type Me, type Staff } from "@/lib/types";
 
-import { AttendanceDay } from "./attendance-day";
+import { AttendanceCalendar } from "./attendance-calendar";
 
 export const metadata: Metadata = { title: "Attendance · Sukat" };
 
@@ -36,18 +36,20 @@ async function AttendanceContent({ searchParams }: { searchParams: SearchParams 
   const { date } = await searchParams;
   const asked = typeof date === "string" && isRealDay(date) ? date : today;
   const day = asked > today ? today : asked;
+  const monthStart = `${day.slice(0, 8)}01`;
+  const monthEnd = addDays(`${addDays(monthStart, 31).slice(0, 8)}01`, -1);
 
   const token = await getToken();
   if (!token) redirect("/login");
 
   let meRes: Response;
   let staffRes: Response;
-  let dayRes: Response;
+  let monthRes: Response;
   try {
-    [meRes, staffRes, dayRes] = await Promise.all([
+    [meRes, staffRes, monthRes] = await Promise.all([
       backendFetch("/auth/me", { token }),
       backendFetch("/staff", { token }),
-      backendFetch(`/attendance?work_date=${day}`, { token }),
+      backendFetch(`/attendance?start=${monthStart}&end=${monthEnd}`, { token }),
     ]);
   } catch {
     return (
@@ -62,10 +64,10 @@ async function AttendanceContent({ searchParams }: { searchParams: SearchParams 
   if (meRes.status === 401) redirect("/login");
   if (!meRes.ok) throw new Error("Could not load your account");
   const me = (await meRes.json()) as Me;
-  if (me.role !== "manager") redirect("/more");
-  if (!staffRes.ok || !dayRes.ok) throw new Error("Could not load attendance");
+  if (!canEditProducts(me.role)) redirect("/more");
+  if (!staffRes.ok || !monthRes.ok) throw new Error("Could not load attendance");
   const staff = ((await staffRes.json()) as Staff[]).filter((s) => s.active);
-  const marks = (await dayRes.json()) as DayAttendance[];
+  const marks = (await monthRes.json()) as DayAttendance[];
 
-  return <AttendanceDay key={day} day={day} today={today} staff={staff} marks={marks} />;
+  return <AttendanceCalendar key={monthStart} day={day} today={today} staff={staff} marks={marks} />;
 }
