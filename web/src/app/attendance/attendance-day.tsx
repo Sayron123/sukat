@@ -29,14 +29,14 @@ export function AttendanceDay({
     Object.fromEntries(marks.map((m) => [m.member_id, m.status])),
   );
   const notes = Object.fromEntries(marks.map((m) => [m.member_id, m.note]));
-  const [pending, setPending] = useState<string | null>(null);
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   async function mark(memberId: string, next: AttendanceStatus) {
     const before = status[memberId];
-    setStatus({ ...status, [memberId]: next });
-    setErrors({ ...errors, [memberId]: "" });
-    setPending(memberId);
+    setStatus((s) => ({ ...s, [memberId]: next }));
+    setErrors((e) => ({ ...e, [memberId]: "" }));
+    setPending((p) => new Set(p).add(memberId));
     try {
       await api(`staff/${memberId}/attendance`, {
         method: "POST",
@@ -54,7 +54,11 @@ export function AttendanceDay({
         [memberId]: err instanceof ApiError ? err.message : "Could not save attendance.",
       }));
     } finally {
-      setPending(null);
+      setPending((p) => {
+        const rest = new Set(p);
+        rest.delete(memberId);
+        return rest;
+      });
     }
   }
 
@@ -107,7 +111,7 @@ export function AttendanceDay({
                     <Chip
                       key={st}
                       selected={current === st}
-                      disabled={pending === s.member_id}
+                      disabled={pending.has(s.member_id)}
                       onClick={() => current !== st && mark(s.member_id, st)}
                     >
                       {ATTENDANCE_LABELS[st]}
