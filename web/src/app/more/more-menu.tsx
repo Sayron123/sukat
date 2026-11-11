@@ -8,7 +8,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Avatar, Notice, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
-import { canEditProducts, type Me, type Staff } from "@/lib/types";
+import { canEditProducts, type Me, type Role, type Staff } from "@/lib/types";
 
 import { ApiStatus } from "../api-status";
 
@@ -22,6 +22,8 @@ type Item = {
 };
 
 type Group = { title?: string; items: Item[] };
+
+const ROLE_SHORT: Record<Role, string> = { manager: "Mgr", secretary: "Sec", member: "Mem" };
 
 const GROUPS: Group[] = [
   {
@@ -103,7 +105,7 @@ export function MoreMenu() {
       <PageHeader eyebrow={me?.store_name ?? " "} title="More" />
       {me && (
         <div className="flex items-center gap-3.5 border-b border-border pt-2 pb-6">
-          <Avatar name={me.store_name} large />
+          <Avatar name={me.store_name} large text={ROLE_SHORT[me.role]} />
           <div className="min-w-0 flex-1">
             <b className="block truncate text-base text-text">{me.store_name}</b>
             {me.store_address && (

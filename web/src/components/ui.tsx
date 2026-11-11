@@ -232,7 +232,7 @@ export function Chip({
 }
 
 /** Round grey circle with initials. */
-export function Avatar({ name, large = false }: { name: string; large?: boolean }) {
+export function Avatar({ name, large = false, text }: { name: string; large?: boolean; text?: string }) {
   return (
     <span
       aria-hidden
@@ -240,7 +240,7 @@ export function Avatar({ name, large = false }: { name: string; large?: boolean 
         large ? "h-12 w-12" : "h-[42px] w-[42px]"
       }`}
     >
-      {initials(name)}
+      {text ?? initials(name)}
     </span>
   );
 }

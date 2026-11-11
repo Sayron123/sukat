@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { AppPage } from "@/components/app-page";
@@ -36,6 +37,7 @@ async function AttendanceContent({ searchParams }: { searchParams: SearchParams 
   if (!token) redirect("/login");
 
   const { date } = await searchParams;
+  await connection();
   const today = storeDate();
   const asked = typeof date === "string" && isRealDay(date) ? date : today;
   const day = asked > today ? today : asked;

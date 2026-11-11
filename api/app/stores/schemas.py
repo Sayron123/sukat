@@ -21,6 +21,28 @@ class InviteIn(BaseModel):
         return v.strip().lower()
 
 
+class StoreIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    address: str | None = Field(max_length=300)
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("must not be blank")
+        return v.strip()
+
+    @field_validator("address")
+    @classmethod
+    def _address(cls, v: str | None) -> str | None:
+        return _blank_to_none(v)
+
+
+class StoreOut(BaseModel):
+    name: str
+    address: str | None
+
+
 class RoleIn(BaseModel):
     role: Role
 

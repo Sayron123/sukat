@@ -49,6 +49,16 @@ def get_member(db: Session, store_id: UUID, member_id: UUID) -> StoreMember:
     return member
 
 
+def update_store(db: Session, store_id: UUID, name: str, address: str | None) -> Store:
+    store = db.get(Store, store_id)
+    if store is None:
+        raise NotFound("Store not found")
+    store.name = name
+    store.address = address
+    db.commit()
+    return store
+
+
 def list_members(db: Session, store_id: UUID) -> list[StoreMember]:
     return list(
         db.scalars(
