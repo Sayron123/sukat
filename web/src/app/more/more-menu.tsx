@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 import { LogoutButton } from "@/components/logout-button";
 import { PageHeader, headerIconClass } from "@/components/page-header";
-import { Avatar, Badge, Notice, textLinkClass } from "@/components/ui";
+import { Avatar, Notice, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { canEditProducts, type Me, type Staff } from "@/lib/types";
 
@@ -21,13 +21,34 @@ type Item = {
   managersOnly?: boolean;
 };
 
-const ITEMS: Item[] = [
-  { href: "/transactions", icon: "history", title: "History", detail: "Sales and stock movements" },
-  { href: "/more/ai-usage", icon: "spark", title: "AI usage", detail: "This month's spending and limit", managersOnly: true },
-  { href: "/stock/new", icon: "plus", title: "Add product", detail: "Create a stock item", writersOnly: true },
-  { href: "/stock/import", icon: "box", title: "Import starter items", detail: "Pick from a ready-made list", writersOnly: true },
-  { href: "/more/export", icon: "download", title: "Download store data", detail: "Products, history and stock as CSV", managersOnly: true },
-  { href: "/privacy", icon: "check", title: "Privacy and terms", detail: "What we store and why" },
+type Group = { title?: string; items: Item[] };
+
+const GROUPS: Group[] = [
+  {
+    title: "Store",
+    items: [
+      { href: "/transactions", icon: "history", title: "History", detail: "Sales and stock movements" },
+      { href: "/more/export", icon: "download", title: "Download store data", detail: "Products, history and stock as CSV", managersOnly: true },
+      { href: "/more/ai-usage", icon: "spark", title: "AI usage", detail: "This month's spending and limit", managersOnly: true },
+    ],
+  },
+  {
+    title: "Products",
+    items: [
+      { href: "/stock/new", icon: "plus", title: "Add product", detail: "Create a stock item", writersOnly: true },
+      { href: "/stock/import", icon: "box", title: "Import starter items", detail: "Pick from a ready-made list", writersOnly: true },
+    ],
+  },
+  {
+    title: "People",
+    items: [
+      { href: "/staff", icon: "users", title: "Staff", detail: "People and permissions" },
+      { href: "/attendance", icon: "calendar", title: "Attendance", detail: "Mark who came in each day", managersOnly: true },
+    ],
+  },
+  {
+    items: [{ href: "/privacy", icon: "check", title: "Privacy and terms", detail: "What we store and why" }],
+  },
 ];
 
 function VerifyEmailNotice({ email }: { email: string }) {
@@ -43,7 +64,7 @@ function VerifyEmailNotice({ email }: { email: string }) {
   }
 
   return (
-    <Notice title="Confirm your email" className="mb-4">
+    <Notice title="Confirm your email" className="mt-6">
       Photo reading and the AI assistant unlock after you confirm.
       {status ? (
         <p className="mt-1">{status}</p>
@@ -59,21 +80,29 @@ function VerifyEmailNotice({ email }: { email: string }) {
 /** More tab: who is signed in, links to the other screens, and Sign out. */
 export function MoreMenu() {
   const [me, setMe] = useState<Me | null>(null);
-  const [staff, setStaff] = useState<Staff[] | null>(null);
+  const [staffCount, setStaffCount] = useState<number | null>(null);
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
-    api<Staff[]>("staff").then(setStaff, () => {});
+    api<Staff[]>("staff").then((s) => setStaffCount(s.length), () => {});
   }, []);
 
-  const items = ITEMS.filter(
-    (i) => (!i.writersOnly || canEditProducts(me?.role)) && (!i.managersOnly || me?.role === "manager"),
-  );
+  const groups = GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter(
+      (i) => (!i.writersOnly || canEditProducts(me?.role)) && (!i.managersOnly || me?.role === "manager"),
+    ),
+  })).filter((g) => g.items.length > 0);
+
+  function detailFor(i: Item) {
+    if (i.href === "/staff" && staffCount !== null) return `${staffCount} ${staffCount === 1 ? "person" : "people"}`;
+    return i.detail;
+  }
 
   return (
     <>
       <PageHeader eyebrow={me?.store_name ?? " "} title="More" />
       {me && (
-        <div className="mb-3 flex items-center gap-3.5 border-b border-border pt-2 pb-6">
+        <div className="flex items-center gap-3.5 border-b border-border pt-2 pb-6">
           <Avatar name={me.store_name} large />
           <div className="min-w-0 flex-1">
             <b className="block truncate text-base text-text">{me.store_name}</b>
@@ -90,23 +119,27 @@ export function MoreMenu() {
         </div>
       )}
       {me && !me.email_verified && <VerifyEmailNotice email={me.email} />}
-      <ul className="border-t border-border">
-        {items.map((i) => (
-          <li key={i.href}>
-            <Link href={i.href} className="flex min-h-[72px] items-center gap-3 border-b border-border text-text">
-              <span className="grid h-10 w-8 place-items-center">
-                <Icon name={i.icon} size={21} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <b className="block text-base">{i.title}</b>
-                <small className="mt-1 block text-sm text-muted">{i.detail}</small>
-              </span>
-              <Icon name="chevron" size={19} />
-            </Link>
-          </li>
-        ))}
-      </ul>
-      {me && staff && <StaffSection staff={staff} me={me} />}
+      {groups.map((g) => (
+        <section key={g.title ?? g.items[0].href} className="mt-8">
+          {g.title && <h2 className="mb-2 text-[13px] font-bold text-muted uppercase">{g.title}</h2>}
+          <ul className="border-t border-border">
+            {g.items.map((i) => (
+              <li key={i.href}>
+                <Link href={i.href} className="flex min-h-[72px] items-center gap-3 border-b border-border text-text">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center">
+                    <Icon name={i.icon} size={21} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-base">{i.title}</b>
+                    <small className="mt-1 block text-sm text-muted">{detailFor(i)}</small>
+                  </span>
+                  <Icon name="chevron" size={19} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
       <div className="mt-6">
         <LogoutButton />
       </div>
@@ -117,66 +150,3 @@ export function MoreMenu() {
   );
 }
 
-const rowClass = "flex min-h-[72px] items-center gap-3 border-b border-border text-text";
-
-function StaffSection({ staff, me }: { staff: Staff[]; me: Me }) {
-  const manager = me.role === "manager";
-  return (
-    <section className="mt-8">
-      <div className="mb-2 flex items-end justify-between gap-3">
-        <h2 className="text-base font-bold text-text">
-          Staff <span className="font-semibold text-muted">· {staff.length}</span>
-        </h2>
-        {me.role !== "member" && (
-          <Link href="/staff" className={textLinkClass}>
-            Roles and invites
-          </Link>
-        )}
-      </div>
-      <ul className="border-t border-border">
-        {manager && (
-          <li>
-            <Link href="/attendance" className={rowClass}>
-              <span className="grid h-10 w-8 place-items-center">
-                <Icon name="calendar" size={21} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <b className="block text-base">Attendance</b>
-                <small className="mt-1 block text-sm text-muted">Mark who came in each day</small>
-              </span>
-              <Icon name="chevron" size={19} />
-            </Link>
-          </li>
-        )}
-        {staff.map((s) => {
-          const name = s.alias ?? s.full_name;
-          const person = (
-            <>
-              <Avatar name={name} />
-              <span className="min-w-0 flex-1">
-                <b className="block truncate text-base">{name}</b>
-                <small className="mt-1 block truncate text-sm text-muted">
-                  <span className="capitalize">{s.is_owner ? "owner" : s.role}</span>
-                  {s.user_id === me.user_id && " · You"}
-                </small>
-              </span>
-              {!s.active && <Badge tone="red">Inactive</Badge>}
-            </>
-          );
-          return (
-            <li key={s.member_id}>
-              {manager ? (
-                <Link href={`/staff/${s.member_id}`} className={rowClass}>
-                  {person}
-                  <Icon name="chevron" size={19} />
-                </Link>
-              ) : (
-                <div className={rowClass}>{person}</div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}

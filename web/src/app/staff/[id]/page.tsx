@@ -43,7 +43,7 @@ async function MemberContent({ params }: { params: PageProps<"/staff/[id]">["par
   } catch {
     return (
       <>
-        <PageHeader title="Staff member" back="/more" />
+        <PageHeader title="Staff member" back="/staff" />
         <Notice title="API not reachable">
           The Sukat server is not responding. Check that it is running, then reload this page.
         </Notice>
@@ -53,7 +53,7 @@ async function MemberContent({ params }: { params: PageProps<"/staff/[id]">["par
   if (meRes.status === 401) redirect("/login");
   if (!meRes.ok) throw new Error("Could not load your account");
   const me = (await meRes.json()) as Me;
-  if (me.role !== "manager") redirect("/more");
+  if (me.role !== "manager") redirect("/staff");
   if (memberRes.status === 404) notFound();
   if (!memberRes.ok || !attendanceRes.ok) throw new Error("Could not load this staff member");
   const member = (await memberRes.json()) as Staff;
@@ -75,7 +75,7 @@ async function MemberContent({ params }: { params: PageProps<"/staff/[id]">["par
 
   return (
     <>
-      <PageHeader eyebrow="Staff" title={name} back="/more" />
+      <PageHeader eyebrow="Staff" title={name} back="/staff" />
       <Card className="mb-4">
         <div className="mb-4 flex items-center gap-3">
           <Avatar name={name} large />
