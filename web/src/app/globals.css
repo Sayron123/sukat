@@ -35,6 +35,15 @@
 
   --radius-button: 12px; /* buttons, inputs, chips */
   --radius-card: 16px; /* cards */
+
+  --animate-pop-in: pop-in 180ms ease-out;
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px) scale(0.96);
+    }
+  }
 }
 
 :root[data-theme="dark"] {

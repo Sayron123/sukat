@@ -15,6 +15,7 @@ const ALLOWED_PREFIXES = [
   "auth/me",
   "auth/resend-verification",
   "staff",
+  "store",
   "scans",
   "transactions",
   "reports",

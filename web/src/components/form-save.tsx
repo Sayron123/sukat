@@ -1,14 +1,29 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { SavedStatus } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
+
+const SAVED_SHOWN_MS = 4000;
+
+export function useSavedFlag() {
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(false), SAVED_SHOWN_MS);
+    return () => clearTimeout(timer);
+  }, [saved]);
+
+  return [saved, setSaved] as const;
+}
 
 export function useSave(path: string, method: "PATCH" | "POST", failure: string) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useSavedFlag();
   const [error, setError] = useState<string | null>(null);
 
   async function save(body: Record<string, unknown>) {
@@ -37,9 +52,5 @@ export function SaveResult({ saved, error }: { saved: boolean; error: string | n
       </p>
     );
   }
-  return saved ? (
-    <p role="status" className="text-sm text-muted">
-      Saved.
-    </p>
-  ) : null;
+  return <SavedStatus show={saved} />;
 }

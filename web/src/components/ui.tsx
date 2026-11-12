@@ -55,6 +55,19 @@ export function Badge({
   );
 }
 
+export function SavedStatus({ show, children = "Saved" }: { show: boolean; children?: ReactNode }) {
+  if (!show) return null;
+  return (
+    <p
+      role="status"
+      className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-button border border-green-edge bg-green-soft px-3 py-1.5 text-[13px] leading-snug font-bold text-green-text motion-safe:animate-pop-in"
+    >
+      <Icon name="check" size={16} />
+      {children}
+    </p>
+  );
+}
+
 const BUTTON_COLORS = {
   primary: "bg-accent shadow-[0_2px_4px_rgba(124,45,18,0.15)] hover:bg-accent-pressed active:bg-accent-pressed",
   danger: "bg-red-fill hover:bg-red-fill/90 active:bg-red-fill/90",
@@ -179,21 +192,35 @@ export function Select({
   id,
   children,
   hideLabel = false,
+  icon,
   wrapperClassName = "",
   ...props
-}: ComponentProps<"select"> & { label: string; id: string; hideLabel?: boolean; wrapperClassName?: string }) {
+}: ComponentProps<"select"> & {
+  label: string;
+  id: string;
+  hideLabel?: boolean;
+  icon?: IconName;
+  wrapperClassName?: string;
+}) {
   return (
     <div className={`flex min-w-0 flex-col ${wrapperClassName}`}>
       <label htmlFor={id} className={hideLabel ? "sr-only" : "mb-[7px] text-[13px] font-bold text-text"}>
         {label}
       </label>
-      <select
-        id={id}
-        className="h-12 w-full min-w-0 rounded-button border border-line bg-background px-3 text-text outline-none focus:border-text focus:ring-1 focus:ring-text"
-        {...props}
-      >
-        {children}
-      </select>
+      <div className="relative">
+        {icon && (
+          <Icon name={icon} size={19} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
+        )}
+        <select
+          id={id}
+          className={`h-12 w-full min-w-0 rounded-button border border-line bg-background pr-3 text-text outline-none focus:border-text focus:ring-1 focus:ring-text ${
+            icon ? "pl-10.5" : "pl-3"
+          }`}
+          {...props}
+        >
+          {children}
+        </select>
+      </div>
     </div>
   );
 }
