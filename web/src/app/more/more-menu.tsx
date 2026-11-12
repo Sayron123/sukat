@@ -105,15 +105,10 @@ export function MoreMenu() {
       <PageHeader eyebrow={me?.store_name ?? " "} title="More" />
       {me && (
         <div className="flex items-center gap-3.5 border-b border-border pt-2 pb-6">
-          <Avatar name={me.store_name} large text={ROLE_SHORT[me.role]} />
+          <Avatar name={me.full_name} large text={ROLE_SHORT[me.role]} />
           <div className="min-w-0 flex-1">
-            <b className="block truncate text-base text-text">{me.store_name}</b>
-            {me.store_address && (
-              <span className="mt-1 block truncate text-sm text-muted">{me.store_address}</span>
-            )}
-            <span className="mt-1 block truncate text-sm text-muted">
-              {me.full_name} · <span className="capitalize">{me.role}</span>
-            </span>
+            <b className="block truncate text-base text-text">{me.full_name}</b>
+            <span className="mt-1 block truncate text-sm text-muted capitalize">{me.role}</span>
           </div>
           <Link href="/more/settings" aria-label="Settings" title="Settings" className={headerIconClass}>
             <Icon name="settings" />

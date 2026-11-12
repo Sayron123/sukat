@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 
 import { NewPasswordFields } from "@/components/new-password-fields";
 import { PasswordField } from "@/components/password-field";
-import { Button, Notice } from "@/components/ui";
+import { Button, SavedStatus } from "@/components/ui";
 import { WEAK_PASSWORD, passwordIsStrong } from "@/lib/password";
 
 export function PasswordForm() {
@@ -64,7 +64,7 @@ export function PasswordForm() {
           {error}
         </p>
       )}
-      {saved && <Notice title="Password changed">Your other devices were signed out.</Notice>}
+      <SavedStatus show={saved}>Password changed. Your other devices were signed out.</SavedStatus>
       <Button type="submit" disabled={pending}>
         {pending ? "Please wait…" : "Save Password"}
       </Button>

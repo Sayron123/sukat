@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { Badge, Card, Chip, Field, Pager } from "@/components/ui";
+import { Badge, Card, Chip, Field, Pager, Select } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { type RangeKey, dayLabel, rangeFor, storeDate } from "@/lib/dates";
 import { formatPeso, formatTime } from "@/lib/format";
@@ -16,7 +16,7 @@ const RANGES: { key: RangeKey; label: string }[] = [
   { key: "today", label: "Today" },
   { key: "week", label: "This week" },
   { key: "month", label: "This month" },
-  { key: "custom", label: "Custom" },
+  { key: "custom", label: "Custom dates" },
 ];
 const TYPES: { type: TransactionType | null; label: string }[] = [
   { type: null, label: "All" },
@@ -95,13 +95,21 @@ export function TransactionList() {
     <>
       <PageHeader eyebrow="Stock movements" title="History" back="/more" />
 
-      <div className="-mx-5 mb-3 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]" role="group" aria-label="Dates">
+      <Select
+        id="range"
+        label="Dates"
+        hideLabel
+        icon="calendar"
+        value={rangeKey}
+        onChange={(e) => apply({ range: parseRange(e.target.value) })}
+        wrapperClassName="mb-3"
+      >
         {RANGES.map((r) => (
-          <Chip key={r.key} selected={rangeKey === r.key} onClick={() => apply({ range: r.key })}>
+          <option key={r.key} value={r.key}>
             {r.label}
-          </Chip>
+          </option>
         ))}
-      </div>
+      </Select>
       {rangeKey === "custom" && (
         <div className="mb-3 grid grid-cols-2 gap-3">
           <Field

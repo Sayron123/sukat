@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type ChangeEvent, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
-import { PageHeader, headerTextActionClass } from "@/components/page-header";
+import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Avatar, Card, Chip } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
-import { addDays, dayLabel } from "@/lib/dates";
+import { addDays, dayLabel, storeDate } from "@/lib/dates";
 import { ATTENDANCE_LABELS, type AttendanceStatus, type DayAttendance, type Staff } from "@/lib/types";
 
 const STATUSES = Object.keys(ATTENDANCE_LABELS) as AttendanceStatus[];
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+const MONTHS = Array.from({ length: 12 }, (_, i) =>
+  new Date(Date.UTC(2000, i, 1)).toLocaleDateString("en-PH", { timeZone: "UTC", month: "long" }),
+);
 
 type Mark = { status: AttendanceStatus; note: string | null };
 type Month = Record<string, Record<string, Mark>>;
@@ -26,6 +30,12 @@ const DAY_STATE_LABELS: Record<DayState, string> = {
 
 const navClass =
   "grid h-11 w-11 place-items-center rounded-button text-text hover:bg-surface aria-disabled:pointer-events-none aria-disabled:opacity-30";
+
+const todayClass =
+  "flex h-11 shrink-0 items-center rounded-button px-2 text-[15px] font-semibold text-text hover:bg-surface";
+
+const pickerClass =
+  "h-11 cursor-pointer appearance-none rounded-button bg-transparent pr-7 pl-2 text-lg font-bold text-text field-sizing-content hover:bg-surface focus-visible:bg-surface";
 
 function monthDays(monthStart: string): string[] {
   const days: string[] = [];
@@ -47,6 +57,32 @@ function monthTitle(monthStart: string): string {
   });
 }
 
+function monthHref(year: number, month: number, today: string): string {
+  const target = `${year}-${String(month).padStart(2, "0")}`;
+  return target >= today.slice(0, 7) ? "/attendance" : `/attendance?date=${target}-01`;
+}
+
+function Picker({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: number;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  children: ReactNode;
+}) {
+  return (
+    <span className="relative flex">
+      <select aria-label={label} defaultValue={value} onChange={onChange} className={pickerClass}>
+        {children}
+      </select>
+      <Icon name="down" size={16} className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2" />
+    </span>
+  );
+}
+
 export function AttendanceCalendar({
   day,
   today,
@@ -58,7 +94,18 @@ export function AttendanceCalendar({
   staff: Staff[];
   marks: DayAttendance[];
 }) {
+  const router = useRouter();
+  const [navigating, startNavigation] = useTransition();
   const monthStart = `${day.slice(0, 8)}01`;
+  const shownYear = Number(monthStart.slice(0, 4));
+  const shownMonth = Number(monthStart.slice(5, 7));
+  const thisYear = Number(today.slice(0, 4));
+  const thisMonthNumber = Number(today.slice(5, 7));
+  const firstYear = Math.min(
+    shownYear,
+    ...staff.map((s) => Number(storeDate(new Date(s.created_at)).slice(0, 4))),
+  );
+  const years = Array.from({ length: thisYear - firstYear + 1 }, (_, i) => thisYear - i);
   const [selected, setSelected] = useState(day);
   const [month, setMonth] = useState<Month>(() => {
     const byDay: Month = {};
@@ -75,6 +122,10 @@ export function AttendanceCalendar({
   const thisMonth = today.slice(0, 7) === monthStart.slice(0, 7);
   const selectedMarks = month[selected] ?? {};
   const marked = staff.filter((s) => selectedMarks[s.member_id]).length;
+
+  function goTo(y: number, m: number) {
+    startNavigation(() => router.push(monthHref(y, m, today)));
+  }
 
   function dayState(d: string): DayState {
     const dayMarks = month[d];
@@ -128,22 +179,39 @@ export function AttendanceCalendar({
         title="Attendance"
         back="/more"
         action={
-          <Link href="/staff/invite" className={headerTextActionClass}>
-            <Icon name="plus" size={20} />
-            Invite
-          </Link>
-        }
-      />
-
-      <Card>
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-xl font-bold text-text">{monthTitle(monthStart)}</h2>
-          <div className="-mr-2 flex items-center">
+          <div className="flex shrink-0 items-center gap-1">
             {!thisMonth && (
-              <Link href="/attendance" className={headerTextActionClass}>
+              <Link href="/attendance" className={todayClass}>
                 Today
               </Link>
             )}
+            <Link href="/staff/invite" aria-label="Invite staff" title="Invite staff" className={`-mr-2 ${headerIconClass}`}>
+              <Icon name="plus" size={20} />
+            </Link>
+          </div>
+        }
+      />
+
+      <Card aria-busy={navigating || undefined} className={navigating ? "opacity-60 transition-opacity" : ""}>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="sr-only">{monthTitle(monthStart)}</h2>
+          <div className="-ml-2 flex min-w-0 items-center">
+            <Picker label="Month" value={shownMonth} onChange={(e) => goTo(shownYear, Number(e.target.value))}>
+              {MONTHS.map((name, i) => (
+                <option key={name} value={i + 1} disabled={shownYear === thisYear && i + 1 > thisMonthNumber}>
+                  {name}
+                </option>
+              ))}
+            </Picker>
+            <Picker label="Year" value={shownYear} onChange={(e) => goTo(Number(e.target.value), shownMonth)}>
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </Picker>
+          </div>
+          <div className="-mr-2 flex shrink-0 items-center">
             <Link href={`/attendance?date=${prevMonth}`} aria-label="Previous month" className={navClass}>
               <Icon name="arrow" size={20} />
             </Link>

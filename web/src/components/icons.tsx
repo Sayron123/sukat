@@ -38,6 +38,7 @@ const PATHS = {
     </>
   ),
   chevron: <path d="m9 18 6-6-6-6" />,
+  down: <path d="m6 9 6 6 6-6" />,
   arrow: <path d="m15 18-6-6 6-6" />,
   plus: <path d="M12 5v14M5 12h14" />,
   receipt: (
