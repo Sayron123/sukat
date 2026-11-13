@@ -114,6 +114,8 @@ def _check(
                 unit_price_centavos=price,
                 confidence=read.confidence,
                 line_total_centavos=written_total,
+                item_text=m.item[:NAME_MAX] or None,
+                matched_by=m.method,
             )
         )
         checks.append(

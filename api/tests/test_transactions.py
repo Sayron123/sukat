@@ -7,10 +7,11 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.ai.schemas import ScanLine
 from app.auth.deps import get_current_member
 from app.inventory.models import Scan, StockMovement, Transaction, TransactionItem
 from app.inventory.schemas import TransactionIn
-from app.inventory.stock_service import alias_from_raw, save_transaction
+from app.inventory.stock_service import alias_from_raw, save_transaction, scan_line_alias
 from app.products.models import Product, ProductAlias
 from tests.conftest import API_BASE_URL, auth_header, make_product, scan_line, upload_photo
 
@@ -392,6 +393,104 @@ def test_new_product_learns_raw_text_alias(api, db, manager, storage, reader):
     )
     assert res.status_code == 201
     assert db.scalar(select(ProductAlias.alias)) == "bakal 16"
+
+
+def test_confirmed_ai_match_teaches_an_alias_but_code_match_does_not(
+    api, db, manager, storage, reader, nails, cement
+):
+    scan = _scan(
+        api,
+        manager,
+        storage,
+        reader,
+        [
+            scan_line(
+                nails["id"],
+                raw_text="Common nail 4in 2bx 850 1,700",
+                item_text="Common nail 4in",
+                matched_by="ai",
+                qty=Decimal("2"),
+                unit="box",
+            ),
+            scan_line(
+                cement["id"],
+                raw_text="5 sem",
+                item_text="sem",
+                matched_by="exact",
+                qty=Decimal("5"),
+                unit="bag",
+            ),
+        ],
+    )
+    res = _save(
+        api,
+        manager,
+        [
+            {"product_id": nails["id"], "qty": "2", "unit": "box", "scan_line": 0},
+            {"product_id": cement["id"], "qty": "5", "unit": "bag", "scan_line": 1},
+        ],
+        scan_id=scan["id"],
+    )
+    assert res.status_code == 201, res.text
+    learned = dict(db.execute(select(ProductAlias.alias, ProductAlias.product_id)).all())
+    assert str(learned["common nail 4in"]) == nails["id"]
+    assert len(learned) == 3
+
+
+def test_corrected_column_row_learns_only_the_item_name(
+    api, db, manager, storage, reader, nails, cement
+):
+    scan = _scan(
+        api,
+        manager,
+        storage,
+        reader,
+        [
+            scan_line(
+                None,
+                raw_text='Pako 4" 2pcs. 850 1.700',
+                item_text='Pako 4"',
+                matched_by="none",
+                qty=Decimal("2"),
+                unit="box",
+            )
+        ],
+    )
+    res = _save(
+        api,
+        manager,
+        [{"product_id": nails["id"], "qty": "2", "unit": "box", "scan_line": 0}],
+        scan_id=scan["id"],
+    )
+    assert res.status_code == 201, res.text
+    learned = db.scalars(
+        select(ProductAlias.alias).where(ProductAlias.product_id == uuid.UUID(nails["id"]))
+    ).all()
+    assert 'pako 4"' in learned
+    assert not any("850" in a for a in learned)
+
+
+@pytest.mark.parametrize(
+    ("raw", "item", "alias"),
+    [
+        ("Marine Plywood 3/4 3pcs. 1470 4.410", "Marine Plywood 3/4", "marine plywood 3/4"),
+        ("3M Flsanding # 60 1yrd 300", "3M Flsanding # 60", "3m flsanding # 60"),
+        ("2 bx pako 4 @850", None, "pako 4"),
+        ("12", "12", None),
+    ],
+)
+def test_scan_line_alias(raw, item, alias):
+    line = ScanLine(
+        raw_text=raw,
+        product_id=None,
+        suggested_new_name=None,
+        qty=None,
+        unit="",
+        unit_price_centavos=None,
+        confidence=0.9,
+        item_text=item,
+    )
+    assert scan_line_alias(line) == alias
 
 
 def test_scan_can_only_be_saved_once(api, manager, storage, reader, nails):
