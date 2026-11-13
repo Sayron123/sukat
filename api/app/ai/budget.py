@@ -65,9 +65,7 @@ def usage_summary(db: Session, store_id: UUID, now: datetime | None = None) -> A
     budget = _budget(db, store_id)
     spent = _spent(db, store_id, start, end)
     total = sum(spent.values(), Decimal(0))
-    scans = sum(
-        (v for k, v in spent.items() if k.startswith(SCAN_FEATURE_PREFIX)), Decimal(0)
-    )
+    scans = sum((v for k, v in spent.items() if k.startswith(SCAN_FEATURE_PREFIX)), Decimal(0))
     used = math.ceil(total)
     return AIUsageOut(
         month=f"{start:%B %Y}",
