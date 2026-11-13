@@ -262,7 +262,7 @@ function NewNameField({
         className={nameInputClass(invalid)}
       />
       {typing && matches.length > 0 && (
-        <div className="absolute inset-x-0 top-11 z-20 rounded-button border border-border bg-background py-1 shadow-lg">
+        <div className="absolute inset-x-0 top-11 z-20 rounded-button border border-border bg-surface py-1 shadow-lg">
           <p className="px-3 pt-1 pb-1.5 text-[13px] text-subtle">Already in your products? Tap to use it.</p>
           <ul>
             {matches.map((p) => (

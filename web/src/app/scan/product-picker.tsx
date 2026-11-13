@@ -99,7 +99,7 @@ export function ProductPicker({
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 top-11 z-20 max-h-72 overflow-y-auto rounded-button border border-border bg-background shadow-lg"
+          className="absolute inset-x-0 top-11 z-20 max-h-72 overflow-y-auto rounded-button border border-border bg-surface shadow-lg"
         >
           {results.map((p) => (
             <li key={p.id} role="option" aria-selected={value?.id === p.id}>

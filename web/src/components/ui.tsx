@@ -10,13 +10,13 @@ export function Card({
 }: ComponentProps<"div"> & { padded?: boolean }) {
   return (
     <div
-      className={`rounded-card border border-border bg-background ${padded ? "p-4" : ""} ${className}`}
+      className={`rounded-card border border-border bg-surface ${padded ? "p-4" : ""} ${className}`}
       {...props}
     />
   );
 }
 
-/** Grey info box with an optional icon and bold title. */
+/** Info box with an optional icon or mascot and bold title. */
 export function Notice({
   icon,
   title,
@@ -107,7 +107,7 @@ export function Button({
 
 /** Class names for an outlined button, also used to style links as buttons. */
 export const ghostButtonClass =
-  "flex h-12 items-center justify-center gap-2 rounded-button border border-line bg-background px-4 text-[15px] font-semibold text-muted hover:bg-surface disabled:opacity-45";
+  "flex h-12 items-center justify-center gap-2 rounded-button border border-line bg-surface px-4 text-[15px] font-semibold text-muted hover:bg-surface disabled:opacity-45";
 
 /** Secondary (outlined) button. */
 export function GhostButton({ className = "", ...props }: ComponentProps<"button">) {
