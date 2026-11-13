@@ -8,7 +8,8 @@ export default function LoginPage() {
   return (
     <AuthForm
       title="Sign in"
-      subtitle="Enter your email and password to open your store."
+      subtitle="Sign in to open your store."
+      mascot={160}
       endpoint="/api/auth/login"
       submitLabel="Sign In"
       fields={[

@@ -152,7 +152,7 @@ export function Field({
         {label}
       </label>
       <div
-        className={`flex w-full min-w-0 items-center overflow-hidden rounded-button border bg-background has-[input:autofill]:bg-autofill focus-within:ring-1 ${
+        className={`flex w-full min-w-0 items-center overflow-hidden rounded-button border bg-surface has-[input:autofill]:bg-autofill focus-within:ring-1 ${
           compact ? "h-[42px]" : "h-12"
         } ${invalid ? "border-red focus-within:ring-red" : "border-line focus-within:border-text focus-within:ring-text"}`}
       >
@@ -213,7 +213,7 @@ export function Select({
         )}
         <select
           id={id}
-          className={`h-12 w-full min-w-0 rounded-button border border-line bg-background pr-3 text-text outline-none focus:border-text focus:ring-1 focus:ring-text ${
+          className={`h-12 w-full min-w-0 rounded-button border border-line bg-surface pr-3 text-text outline-none focus:border-text focus:ring-1 focus:ring-text ${
             icon ? "pl-10.5" : "pl-3"
           }`}
           {...props}
@@ -229,7 +229,7 @@ export function Select({
 export function SearchBox({ className = "", ...props }: ComponentProps<"input">) {
   return (
     <div
-      className={`flex h-12 items-center gap-2.5 rounded-button border border-line bg-background px-3.5 text-muted focus-within:border-text focus-within:ring-1 focus-within:ring-text ${className}`}
+      className={`flex h-12 items-center gap-2.5 rounded-button border border-line bg-surface px-3.5 text-muted focus-within:border-text focus-within:ring-1 focus-within:ring-text ${className}`}
     >
       <Icon name="search" size={19} />
       <input

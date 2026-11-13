@@ -31,7 +31,7 @@
   --color-green-text: #15803d;
   --color-bar: #44403c;
   --color-bar-muted: #a8a29e;
-  --color-autofill: var(--color-background);
+  --color-autofill: var(--color-surface);
   --color-glow: rgb(194 65 12 / 0.16);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -168,7 +168,7 @@
   --color-green-text: #86efac;
   --color-bar: #d6d3d1;
   --color-bar-muted: #78716c;
-  --color-autofill: var(--color-background);
+  --color-autofill: var(--color-surface);
   --color-glow: rgb(194 65 12 / 0.3);
 }
 

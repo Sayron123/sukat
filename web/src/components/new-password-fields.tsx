@@ -50,7 +50,11 @@ export function NewPasswordFields({
             return (
               <li key={rule.label} className={`flex items-center gap-1.5 text-[13px] ${met ? "text-text" : "text-muted"}`}>
                 <span className="grid h-4 w-4 shrink-0 place-items-center">
-                  {met ? <Icon name="check" size={14} className="text-green" /> : <span className="h-1 w-1 rounded-full bg-subtle" />}
+                  {met ? (
+                    <Icon name="check" size={14} className="text-green-text" />
+                  ) : (
+                    <span className="h-3 w-3 rounded-full border-[1.5px] border-muted" />
+                  )}
                 </span>
                 <span className="sr-only">{met ? "Done:" : "Needed:"}</span>
                 {rule.label}
