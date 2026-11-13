@@ -22,7 +22,7 @@ export class ApiError extends Error {
 
 /**
  * Call the API from a client component through the same-origin proxy.
- * On 401 (no session / expired) it sends the user to the login page.
+ * On 401 (no session / expired) it sends the user to the login page, which then says so.
  *
  * @throws ApiError with a readable message for any non-2xx response
  */
@@ -37,7 +37,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError("Network error. Check your connection.", 0);
   }
   if (res.status === 401) {
-    hardNavigate("/login");
+    hardNavigate("/login?expired=1");
     throw new ApiError("Please log in again.", 401);
   }
   const body: unknown = await res.json().catch(() => null);

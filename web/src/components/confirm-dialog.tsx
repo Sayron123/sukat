@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
+import { Mascot } from "./mascot";
 import { Button, GhostButton } from "./ui";
 
 /**
@@ -46,6 +47,7 @@ export function ConfirmDialog({
       }}
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-card border border-border bg-surface p-6 text-text backdrop:bg-dark/40"
     >
+      {danger && <Mascot emote="warning" size={72} alt="" className="mb-2" />}
       <h2 id={titleId} className="text-lg font-bold">
         {title}
       </h2>

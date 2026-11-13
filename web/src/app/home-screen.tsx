@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { Icon } from "@/components/icons";
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader } from "@/components/page-header";
 import { Avatar, Badge, Card } from "@/components/ui";
 import { TXN_TITLE } from "@/lib/labels";
@@ -97,7 +98,9 @@ export function HomeScreen() {
       ) : recent === "error" ? (
         <p className="text-red">Could not load recent activity.</p>
       ) : recent.items.length === 0 ? (
-        <Card className="text-muted">No sales or deliveries yet. Scan a receipt to get started.</Card>
+        <Card>
+          <MascotMessage emote="empty">No sales or deliveries yet. Scan a receipt to get started.</MascotMessage>
+        </Card>
       ) : (
         <Card className="py-1">
           <ul>

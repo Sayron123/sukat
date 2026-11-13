@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/icons";
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader } from "@/components/page-header";
 import { Badge, Card, Loading } from "@/components/ui";
 import { api } from "@/lib/api-client";
@@ -66,7 +67,11 @@ export function ReviewList() {
       ) : items === "error" ? (
         <p className="text-red">Could not load photos to review.</p>
       ) : items.length === 0 ? (
-        <Card className="text-muted">Nothing waiting. Every scanned photo from the last 7 days is saved.</Card>
+        <Card>
+          <MascotMessage emote="happy" title="Nothing waiting">
+            Every scanned photo from the last 7 days is saved.
+          </MascotMessage>
+        </Card>
       ) : shown !== null && shown !== "error" && shown.length === 0 ? (
         <Card className="text-muted">{TYPES.find((t) => t.value === type)?.empty}</Card>
       ) : (

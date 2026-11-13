@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ActionDock } from "@/components/action-dock";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { ScanButton } from "@/components/scan-button";
 import { Badge, Button, Card, Chip, Notice, Pager, SearchBox, buttonClass } from "@/components/ui";
@@ -182,12 +183,14 @@ export function StockList() {
       ) : data.items.length === 0 ? (
         <Card className="text-center">
           {filtering ? (
-            <p className="text-muted">No products match.</p>
+            <MascotMessage emote="searching" title="No products match">
+              Try another name or category.
+            </MascotMessage>
           ) : (
             <>
-              <p className="font-bold text-text">No products yet</p>
+              <MascotMessage emote="empty" title="No products yet" />
               {canEdit && (
-                <Link href="/stock/import" className={`${buttonClass()} mt-4`}>
+                <Link href="/stock/import" className={`${buttonClass()} mt-2`}>
                   Import starter items
                 </Link>
               )}

@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 
 import { Icon, type IconName } from "./icons";
+import { Mascot, type Emote } from "./mascot";
 
 /** White card with a light border (product rows, review lines, lists). */
 export function Card({
@@ -19,14 +20,19 @@ export function Card({
 /** Info box with an optional icon or mascot and bold title. */
 export function Notice({
   icon,
+  mascot,
   title,
   children,
   className = "",
   ...props
-}: Omit<ComponentProps<"div">, "title"> & { icon?: IconName; title?: ReactNode }) {
+}: Omit<ComponentProps<"div">, "title"> & { icon?: IconName; mascot?: Emote; title?: ReactNode }) {
   return (
-    <div className={`flex gap-3 rounded-card bg-surface p-4 text-sm ${className}`} {...props}>
-      {icon && <Icon name={icon} size={20} className="mt-px" />}
+    <div className={`flex gap-3 rounded-card bg-surface p-4 text-sm ${mascot ? "items-center" : ""} ${className}`} {...props}>
+      {mascot ? (
+        <Mascot emote={mascot} size={52} alt="" className="-my-1" />
+      ) : (
+        icon && <Icon name={icon} size={20} className="mt-px" />
+      )}
       <div className="min-w-0">
         {title && <p className="font-bold text-text">{title}</p>}
         {children && <div className={`leading-snug text-muted ${title ? "mt-1" : ""}`}>{children}</div>}
@@ -60,9 +66,9 @@ export function SavedStatus({ show, children = "Saved" }: { show: boolean; child
   return (
     <p
       role="status"
-      className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-button border border-green-edge bg-green-soft px-3 py-1.5 text-[13px] leading-snug font-bold text-green-text motion-safe:animate-pop-in"
+      className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-button border border-green-edge bg-green-soft py-1 pr-3 pl-1.5 text-[13px] leading-snug font-bold text-green-text motion-safe:animate-pop-in"
     >
-      <Icon name="check" size={16} />
+      <Mascot emote="success" size={28} alt="" />
       {children}
     </p>
   );

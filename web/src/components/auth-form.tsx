@@ -8,7 +8,7 @@ import { WEAK_PASSWORD, offerToSavePassword, passwordIsStrong } from "@/lib/pass
 import { clearSessionData } from "@/lib/session-data";
 
 import { Icon } from "./icons";
-import { Mascot } from "./mascot";
+import { Mascot, type Emote } from "./mascot";
 import { NewPasswordFields } from "./new-password-fields";
 import { PasswordField } from "./password-field";
 import { Button, Field, Notice, textLinkClass } from "./ui";
@@ -48,12 +48,14 @@ export function AuthShell({
   subtitle,
   back,
   mascot,
+  emote = "normal",
   children,
 }: {
   title: string;
   subtitle: string;
   back?: string;
   mascot?: number;
+  emote?: Emote;
   children: ReactNode;
 }) {
   const top = mascot ? (back ? "pt-14" : "pt-8") : back ? "pt-20" : "pt-16";
@@ -70,7 +72,7 @@ export function AuthShell({
       )}
       {mascot ? (
         <div className="mb-7 flex flex-col items-center text-center">
-          <Mascot emote="normal" size={mascot} glow alt="" />
+          <Mascot emote={emote} size={mascot} glow alt="" />
           <h1
             className={`mt-2 leading-tight font-extrabold tracking-tight text-text ${
               mascot >= 140 ? "text-[40px]" : "text-[32px]"
@@ -111,6 +113,7 @@ export function AuthForm({
   done,
   agreement = false,
   mascot,
+  signedOutText,
 }: {
   title: string;
   subtitle: string;
@@ -124,6 +127,7 @@ export function AuthForm({
   done?: string;
   agreement?: boolean;
   mascot?: number;
+  signedOutText?: string;
 }) {
   const sections = [...new Set(fields.flatMap((f) => (f.section ? [f.section] : [])))];
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +141,12 @@ export function AuthForm({
     () => true,
     () => false,
   );
+  const signedOut =
+    useSyncExternalStore(
+      noopSubscribe,
+      () => new URLSearchParams(window.location.search).has("expired"),
+      () => false,
+    ) && signedOutText !== undefined;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -188,7 +198,13 @@ export function AuthForm({
   }
 
   return (
-    <AuthShell title={title} subtitle={subtitle} back={back} mascot={mascot}>
+    <AuthShell
+      title={title}
+      subtitle={signedOut && signedOutText ? signedOutText : subtitle}
+      back={back}
+      mascot={mascot}
+      emote={signedOut ? "sleeping" : "normal"}
+    >
       {finished ? (
         <>
           <Notice title="Done">{done}</Notice>

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Badge, Button, Card, Loading, Pager } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
@@ -130,7 +131,11 @@ export function ProductDetail({ id }: { id: string }) {
       ) : history === "error" ? (
         <p className="text-red">Could not load the history.</p>
       ) : history.items.length === 0 ? (
-        <Card className="text-muted">No stock changes yet.</Card>
+        <Card>
+          <MascotMessage emote="empty" size={72}>
+            No stock changes yet.
+          </MascotMessage>
+        </Card>
       ) : (
         <>
           <ul className="mb-5 border-t border-border">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type ChangeEvent, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Avatar, Card, Chip } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
@@ -292,7 +293,11 @@ export function AttendanceCalendar({
         {dayLabel(selected)} · {marked} of {staff.length} marked
       </h2>
       {staff.length === 0 ? (
-        <Card className="text-sm text-muted">No active staff yet.</Card>
+        <Card>
+          <MascotMessage emote="empty" size={72}>
+            No active staff yet.
+          </MascotMessage>
+        </Card>
       ) : (
         <ul className="border-t border-border">
           {staff.map((s) => {

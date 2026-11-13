@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { Icon } from "@/components/icons";
+import { Mascot } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
-import { SukatMascot } from "@/components/sukat-mascot";
 import { GhostButton, Loading } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import type { ChatData, ChatOut, ChatRole } from "@/lib/types";
@@ -123,7 +123,7 @@ function Chat() {
 
       {empty ? (
         <div className="pt-4 text-center">
-          <SukatMascot pose="waving" size={128} className="mx-auto mb-4" />
+          <Mascot emote="normal" size={128} glow className="mx-auto mb-4" />
           <h2 className="text-xl font-bold text-text">What do you want to know?</h2>
           <p className="mx-auto mt-2 mb-6 max-w-xs text-sm text-muted">
             Ask about sales, products, or stock. I’ll use your store records.
@@ -158,7 +158,7 @@ function Chat() {
           )}
           {status.name === "loading" && (
             <div role="status" className="flex items-center gap-2 self-start motion-safe:animate-pop-in">
-              <SukatMascot pose="thinking" size={72} />
+              <Mascot emote="thinking" size={72} alt="" />
               <span className="rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5 text-sm text-muted">
                 Sukat is thinking…
               </span>

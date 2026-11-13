@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { ActionDock } from "@/components/action-dock";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
+import { Mascot, MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
-import { SukatMascot } from "@/components/sukat-mascot";
 import { Button, Card, GhostButton, Notice, ghostButtonClass, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
@@ -206,7 +206,7 @@ export function ScanFlow({
       return (
         <>
           <PageHeader eyebrow={text.title} title={text.readFailed} onBack={() => setStep({ name: "pick" })} />
-          <Notice icon="sukat" title="The photo could not be read">
+          <Notice mascot="error" title="The photo could not be read">
             {step.scan.error_message ?? "Something went wrong."}
           </Notice>
           <ActionDock>
@@ -340,9 +340,10 @@ function Busy({
               ))}
               <span className="absolute inset-x-2 top-2 h-0.75 rounded-full bg-accent shadow-[0_0_10px_2px_rgb(194_65_12/0.45)] motion-safe:animate-sukat-scan" />
             </div>
-            <SukatMascot pose="thinking" size={140} />
+            <Mascot emote="thinking" size={140} />
           </>
         )}
+        {error && <Mascot emote="error" size={120} />}
         {error ? <p className="text-sm text-red">{error}</p> : note && <p className="text-sm text-muted">{note}</p>}
       </div>
       {(onRetry || onCancel) && (
@@ -510,8 +511,8 @@ function Review({
         }
       />
       {checks > 0 && (
-        <div className="mb-5 flex gap-3 rounded-card border border-red-edge bg-red-soft p-4 text-sm">
-          <Icon name="alert" size={20} className="mt-px text-red" />
+        <div className="mb-5 flex items-center gap-3 rounded-card border border-red-edge bg-red-soft p-4 text-sm">
+          <Mascot emote="confused" size={52} alt="" className="-my-1" />
           <div className="min-w-0">
             <p className="font-bold text-red">
               {checks} line{checks === 1 ? " needs" : "s need"} a double check
@@ -522,7 +523,11 @@ function Review({
           </div>
         </div>
       )}
-      {lines.length === 0 && <Card className="text-muted">No items left on this list.</Card>}
+      {lines.length === 0 && (
+        <Card>
+          <MascotMessage emote="empty">No items left on this list.</MascotMessage>
+        </Card>
+      )}
       <ul className="flex flex-col gap-3">
         {lines.map((line, i) => (
           <ReviewLineCard
@@ -654,9 +659,7 @@ function Done({ txn, mode, onAgain }: { txn: Transaction; mode: ScanMode; onAgai
         back={text.exit}
       />
       <div role="status" className="mb-5 flex items-center gap-3 rounded-card bg-surface p-4">
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-green text-white">
-          <Icon name="check" />
-        </span>
+        <Mascot emote="happy" size={64} alt="" className="-my-2" />
         <div>
           <p className="font-bold text-text">{text.saved}</p>
           {txn.total_centavos > 0 && <p className="text-2xl font-bold text-text">{formatPeso(txn.total_centavos)}</p>}

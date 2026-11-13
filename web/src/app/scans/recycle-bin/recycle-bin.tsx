@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader } from "@/components/page-header";
-import { Badge, Card, Loading } from "@/components/ui";
+import { Badge, Card, Loading, Notice } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { formatShortWhen } from "@/lib/format";
 import type { TrashedScan } from "@/lib/types";
@@ -17,18 +18,16 @@ export function RecycleBin() {
   const router = useRouter();
   const [items, setItems] = useState<TrashedScan[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [forever, setForever] = useState<TrashedScan | null>(null);
   const [now] = useState(() => Date.now());
 
   useEffect(() => {
-    api<TrashedScan[]>("scans/trash").then(setItems, (e: unknown) =>
-      setError(
-        e instanceof ApiError && e.status === 403
-          ? "Only managers and secretaries can open the Recycle bin."
-          : "Could not load the Recycle bin.",
-      ),
-    );
+    api<TrashedScan[]>("scans/trash").then(setItems, (e: unknown) => {
+      if (e instanceof ApiError && e.status === 403) setLocked(true);
+      else setError("Could not load the Recycle bin.");
+    });
   }, []);
 
   async function restore(item: TrashedScan) {
@@ -69,10 +68,16 @@ export function RecycleBin() {
           {error}
         </p>
       )}
-      {items === null ? (
+      {locked ? (
+        <Notice mascot="locked" title="Managers and secretaries only">
+          Only managers and secretaries can open the Recycle bin.
+        </Notice>
+      ) : items === null ? (
         !error && <Loading />
       ) : items.length === 0 ? (
-        <Card className="text-muted">The Recycle bin is empty.</Card>
+        <Card>
+          <MascotMessage emote="empty">The Recycle bin is empty.</MascotMessage>
+        </Card>
       ) : (
         <ul className="border-t border-border">
           {items.map((item) => {

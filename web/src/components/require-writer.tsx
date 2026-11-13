@@ -19,12 +19,18 @@ export function RequireWriter({ children }: { children: ReactNode }) {
   }, []);
 
   if (me === null) return <Loading />;
-  if (me === "error") return <p className="pt-8 text-red">Could not load your account.</p>;
+  if (me === "error") {
+    return (
+      <Notice mascot="error" title="Could not load your account" className="mt-8">
+        Check your connection and open this page again.
+      </Notice>
+    );
+  }
   if (!canEditProducts(me.role)) {
     return (
       <>
         <PageHeader title="Products" back="/stock" />
-        <Notice icon="users" title="Managers and secretaries only">
+        <Notice mascot="locked" title="Managers and secretaries only">
           Only managers and secretaries can change products.
         </Notice>
       </>

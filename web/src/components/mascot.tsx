@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { ReactNode } from "react";
 
 export const EMOTES = [
   "normal",
@@ -66,5 +67,27 @@ export function Mascot({
       <Image src={src(emote, "light")} alt={label} width={size} height={size} className="relative dark:hidden" />
       <Image src={src(emote, "dark")} alt={label} width={size} height={size} className="relative hidden dark:block" />
     </span>
+  );
+}
+
+export function MascotMessage({
+  emote,
+  title,
+  children,
+  size = 88,
+  className = "",
+}: {
+  emote: Emote;
+  title?: ReactNode;
+  children?: ReactNode;
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <div className={`flex flex-col items-center px-2 py-3 text-center ${className}`}>
+      <Mascot emote={emote} size={size} alt="" />
+      {title && <p className="mt-2 font-bold text-text">{title}</p>}
+      {children && <div className={`text-sm text-muted ${title ? "mt-1" : "mt-2"}`}>{children}</div>}
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader } from "@/components/page-header";
 import { Badge, Card, Chip, Field, Pager, Select } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
@@ -150,7 +151,9 @@ export function TransactionList() {
       ) : !data ? (
         !error && <p className="text-muted">Loading…</p>
       ) : data.items.length === 0 ? (
-        <Card className="text-center text-muted">Nothing saved in these dates.</Card>
+        <Card>
+          <MascotMessage emote="empty">Nothing saved in these dates.</MascotMessage>
+        </Card>
       ) : (
         <>
           {groupByDay(data.items).map(([day, rows]) => (

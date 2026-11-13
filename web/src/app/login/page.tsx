@@ -10,6 +10,7 @@ export default function LoginPage() {
       title="Sign in"
       subtitle="Sign in to open your store."
       mascot={160}
+      signedOutText="You were signed out. Sign in again to open your store."
       endpoint="/api/auth/login"
       submitLabel="Sign In"
       fields={[
