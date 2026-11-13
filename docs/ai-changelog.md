@@ -19,3 +19,16 @@ Eval set: 1 real case (`dr-001`, a handwritten supplier invoice, 10 lines). One 
 - **Alias learning**: learned aliases now come from the clean item name, and a product the AI match step found is learned when staff keep it, so the same text matches by code next time. Not covered by the eval; covered by tests in `tests/test_transactions.py`.
 - AI req/scan stays 2.0 on this case because 7 of its 10 items are not in the starter catalog, and those always go to the AI match call.
 - Costs are from single runs and move a little between runs.
+
+## 2026-11-13: first baseline, 21 real sales receipts
+
+Eval set: 21 Sunrays / New Sunrays sales invoices (`sale-001` to `sale-021`, 156 lines, names covered), starter catalog, `gemini-3.1-flash-lite`, free tier. Two runs, same code:
+
+| Run | read | match | final | price | miss | extra | AI req/scan | Cost/scan if paid |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 94.5% | 71.9% | 68.5% | 100% | 0 | 4 | 2.0 | ₱0.20 (one failed read) |
+| 2 | 94.2% | 76.9% | 73.1% | 100% | 0 | 3 | 2.0 | ₱0.13 |
+
+- The two runs differ by about 5 points on match, so a change needs to beat that to count.
+- Run 1: `sale-017` failed with MAX_TOKENS on a 10-line receipt (the model repeated itself); it read fine in run 2.
+- Most wrong matches are Sunrays' own products (Omni Plug, Panasonic Outlet, Kopez Receptacle) against generic starter products (Male Plug, Convenience Outlet). Those labels can't be right or wrong without the store's real product list.

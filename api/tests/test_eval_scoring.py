@@ -36,6 +36,16 @@ def test_wrong_product_and_extra_line():
     assert s.product_ok == 0 and s.qty_ok == 1 and s.extra == 1
 
 
+def test_notes_name_the_picked_product_and_the_extra_line():
+    s = score_case(
+        [exp(None, "1", "pc")],
+        [scan_line(B, qty=Decimal("1"), matched_by="ai"), scan_line(None, raw_text="Del Fee")],
+        {A: "Male Plug", B: "Switch 1-Gang"},
+    )
+    assert any("got Switch 1-Gang (ai), expected none" in n for n in s.notes)
+    assert 'extra: "Del Fee"' in s.notes
+
+
 def test_new_product_counts_as_right_when_unmatched():
     s = score_case([exp(None, "5", "pc")], [scan_line(None, qty=Decimal("5"))])
     assert s.all_ok == 1
