@@ -15,14 +15,17 @@ const PATHS = {
       <path d="M12 11v10" />
     </>
   ),
-  spark: (
-    <>
-      <path d="M12 5V2M10 2h4" />
-      <rect x="4" y="6" width="16" height="14" rx="4" />
-      <circle cx="9" cy="12" r="1" />
-      <circle cx="15" cy="12" r="1" />
-      <path d="M9 16h6M4 11H2v4h2M20 11h2v4h-2" />
-    </>
+  sukat: (
+    <g transform="scale(0.2553) translate(-12 -14)" fill="currentColor" stroke="none">
+      <rect x="44" y="20" width="20" height="12" rx="4" />
+      <path d="M84 84H98" fill="none" stroke="currentColor" strokeWidth="15" strokeLinecap="butt" />
+      <rect x="90" y="80" width="16" height="8" rx="2" transform="rotate(90 98 84)" />
+      <rect x="20" y="28" width="68" height="66" rx="22" stroke="currentColor" strokeWidth="5" />
+      <circle cx="54" cy="62" r="23" className="fill-background" stroke="currentColor" strokeWidth="4" />
+      <circle cx="43" cy="60" r="4.5" />
+      <circle cx="65" cy="60" r="4.5" />
+      <path d="M46 70Q54 77 62 70" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    </g>
   ),
   menu: <path d="M5 7h14M5 12h14M5 17h14" />,
   camera: (

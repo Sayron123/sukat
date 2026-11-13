@@ -8,6 +8,7 @@ import { ActionDock } from "@/components/action-dock";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
 import { PageHeader, headerIconClass } from "@/components/page-header";
+import { SukatMascot } from "@/components/sukat-mascot";
 import { Button, Card, GhostButton, Notice, ghostButtonClass, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
@@ -205,7 +206,7 @@ export function ScanFlow({
       return (
         <>
           <PageHeader eyebrow={text.title} title={text.readFailed} onBack={() => setStep({ name: "pick" })} />
-          <Notice icon="spark" title="The photo could not be read">
+          <Notice icon="sukat" title="The photo could not be read">
             {step.scan.error_message ?? "Something went wrong."}
           </Notice>
           <ActionDock>
@@ -332,7 +333,15 @@ function Busy({
       <PageHeader eyebrow={eyebrow} title={error ? "Still not read" : title} onBack={onCancel} />
       <div className="flex flex-col items-center gap-4 py-10 text-center" aria-live="polite">
         {!error && (
-          <span aria-hidden className="h-10 w-10 animate-spin rounded-full border-4 border-border border-t-accent" />
+          <>
+            <div aria-hidden className="relative flex w-50 flex-col gap-3 overflow-hidden rounded-button bg-surface p-5">
+              {[70, 55, 82, 40, 64, 50].map((w) => (
+                <span key={w} className="h-2 rounded-full bg-line" style={{ width: `${w}%` }} />
+              ))}
+              <span className="absolute inset-x-2 top-2 h-0.75 rounded-full bg-accent shadow-[0_0_10px_2px_rgb(194_65_12/0.45)] motion-safe:animate-sukat-scan" />
+            </div>
+            <SukatMascot pose="thinking" size={140} />
+          </>
         )}
         {error ? <p className="text-sm text-red">{error}</p> : note && <p className="text-sm text-muted">{note}</p>}
       </div>

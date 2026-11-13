@@ -37,11 +37,108 @@
   --radius-card: 16px; /* cards */
 
   --animate-pop-in: pop-in 180ms ease-out;
+  --animate-sukat-float: sukat-float 3.2s ease-in-out infinite;
+  --animate-sukat-shadow: sukat-shadow 3.2s ease-in-out infinite;
+  --animate-sukat-wave: sukat-wave 1.6s ease-in-out infinite;
+  --animate-sukat-ping: sukat-ping 1.6s ease-in-out infinite;
+  --animate-sukat-blink: sukat-blink 4.5s ease-in-out infinite;
+  --animate-sukat-sway: sukat-sway 2.6s ease-in-out infinite;
+  --animate-sukat-tap: sukat-tap 1.3s ease-in-out infinite;
+  --animate-sukat-glance: sukat-glance 3.4s ease-in-out infinite;
+  --animate-sukat-dot: sukat-dot 1.2s ease-in-out infinite;
+  --animate-sukat-scan: sukat-scan 2s ease-in-out infinite alternate;
 
   @keyframes pop-in {
     from {
       opacity: 0;
       transform: translateY(2px) scale(0.96);
+    }
+  }
+  @keyframes sukat-float {
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+  @keyframes sukat-shadow {
+    50% {
+      transform: scale(0.8);
+      opacity: 0.55;
+    }
+  }
+  @keyframes sukat-wave {
+    0%,
+    100% {
+      transform: rotate(-4deg);
+    }
+    50% {
+      transform: rotate(10deg);
+    }
+  }
+  @keyframes sukat-ping {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  @keyframes sukat-blink {
+    0%,
+    90%,
+    100% {
+      transform: scaleY(1);
+    }
+    94% {
+      transform: scaleY(0.1);
+    }
+  }
+  @keyframes sukat-sway {
+    0%,
+    100% {
+      transform: rotate(-3deg);
+    }
+    50% {
+      transform: rotate(3deg);
+    }
+  }
+  @keyframes sukat-tap {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    50% {
+      transform: rotate(-12deg);
+    }
+  }
+  @keyframes sukat-glance {
+    0%,
+    35%,
+    100% {
+      transform: translate(0, 0);
+    }
+    45%,
+    85% {
+      transform: translate(-3px, 2px);
+    }
+  }
+  @keyframes sukat-dot {
+    0%,
+    100% {
+      opacity: 0.25;
+      transform: scale(0.6);
+    }
+    40% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes sukat-scan {
+    from {
+      top: 8px;
+    }
+    to {
+      top: calc(100% - 11px);
     }
   }
 }

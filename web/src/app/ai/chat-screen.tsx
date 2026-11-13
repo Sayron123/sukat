@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { Icon } from "@/components/icons";
 import { PageHeader, headerIconClass } from "@/components/page-header";
+import { SukatMascot } from "@/components/sukat-mascot";
 import { GhostButton, Loading } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import type { ChatData, ChatOut, ChatRole } from "@/lib/types";
@@ -121,10 +122,8 @@ function Chat() {
       />
 
       {empty ? (
-        <div className="pt-10 text-center">
-          <div className="mx-auto mb-[22px] grid h-[52px] w-[52px] place-items-center text-text">
-            <Icon name="spark" size={27} />
-          </div>
+        <div className="pt-4 text-center">
+          <SukatMascot pose="waving" size={128} className="mx-auto mb-4" />
           <h2 className="text-xl font-bold text-text">What do you want to know?</h2>
           <p className="mx-auto mt-2 mb-6 max-w-xs text-sm text-muted">
             Ask about sales, products, or stock. I’ll use your store records.
@@ -158,20 +157,12 @@ function Chat() {
             ),
           )}
           {status.name === "loading" && (
-            <AnswerCard>
-              <p className="flex items-center gap-1.5 text-muted" role="status">
-                Thinking
-                <span className="flex gap-1" aria-hidden>
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="h-1.5 w-1.5 animate-pulse rounded-full bg-subtle"
-                      style={{ animationDelay: `${i * 200}ms` }}
-                    />
-                  ))}
-                </span>
-              </p>
-            </AnswerCard>
+            <div role="status" className="flex items-center gap-2 self-start motion-safe:animate-pop-in">
+              <SukatMascot pose="thinking" size={72} />
+              <span className="rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5 text-sm text-muted">
+                Sukat is thinking…
+              </span>
+            </div>
           )}
           {status.name === "error" && (
             <AnswerCard>
@@ -223,7 +214,7 @@ function AnswerCard({ children }: { children: React.ReactNode }) {
   return (
     <div className="rounded-card border border-border bg-background p-4 text-sm">
       <p className="mb-2 flex items-center gap-1.5 text-text">
-        <Icon name="spark" size={17} />
+        <Icon name="sukat" size={18} />
         <b>Sukat AI</b>
       </p>
       {children}

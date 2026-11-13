@@ -33,7 +33,7 @@ function isRealDay(value: string) {
 }
 
 async function AttendanceContent({ searchParams }: { searchParams: SearchParams }) {
-  const token = await getToken();
+  const token = await getToken(); //cookie request date 
   if (!token) redirect("/login");
 
   const { date } = await searchParams;
