@@ -28,6 +28,7 @@ Eval set: 21 Sunrays / New Sunrays sales invoices (`sale-001` to `sale-021`, 156
 |---|---|---|---|---|---|---|---|---|
 | 1 | 94.5% | 71.9% | 68.5% | 100% | 0 | 4 | 2.0 | ₱0.20 (one failed read) |
 | 2 | 94.2% | 76.9% | 73.1% | 100% | 0 | 3 | 2.0 | ₱0.13 |
+| 3 (store header, address, TIN and footer also covered) | 94.9% | 79.5% | 75.0% | 100% | 0 | 3 | 2.0 | ₱0.13 |
 
 - The two runs differ by about 5 points on match, so a change needs to beat that to count.
 - Run 1: `sale-017` failed with MAX_TOKENS on a 10-line receipt (the model repeated itself); it read fine in run 2.
