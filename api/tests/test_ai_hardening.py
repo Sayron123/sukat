@@ -355,11 +355,12 @@ def test_manager_sees_this_months_usage(api, db, manager, monkeypatch):
     monkeypatch.setattr(settings, "AI_MONTHLY_BUDGET_CENTAVOS", 1000)
     store_id = _store_id(api, manager)
     _spend(db, store_id, "100.1")
+    _spend(db, store_id, "20", feature="scan_match")
     _spend(db, store_id, "50.5", feature="chat")
     out = api.get("/insights/ai-usage", headers=manager).json()
-    assert out["budget_centavos"] == 1000 and out["spent_centavos"] == 151
-    assert out["remaining_centavos"] == 849
-    assert (out["scans_centavos"], out["chat_centavos"]) == (101, 50)
+    assert out["budget_centavos"] == 1000 and out["spent_centavos"] == 171
+    assert out["remaining_centavos"] == 829
+    assert (out["scans_centavos"], out["chat_centavos"]) == (121, 50)
     assert out["scans_centavos"] + out["chat_centavos"] == out["spent_centavos"]
     assert out["reached"] is False
 
