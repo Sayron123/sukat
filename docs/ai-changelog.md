@@ -22,7 +22,7 @@ Eval set: 1 real case (`dr-001`, a handwritten supplier invoice, 10 lines). One 
 
 ## 2026-11-13: first baseline, 21 real sales receipts
 
-Eval set: 21 Sunrays / New Sunrays sales invoices (`sale-001` to `sale-021`, 156 lines, names covered), starter catalog, `gemini-3.1-flash-lite`, free tier. Two runs, same code:
+Eval set: 21 sales invoices from the pilot store (`sale-001` to `sale-021`, 156 lines, names covered), starter catalog, `gemini-3.1-flash-lite`, free tier. Two runs, same code:
 
 | Run | read | match | final | price | miss | extra | AI req/scan | Cost/scan if paid |
 |---|---|---|---|---|---|---|---|---|
@@ -32,4 +32,4 @@ Eval set: 21 Sunrays / New Sunrays sales invoices (`sale-001` to `sale-021`, 156
 
 - The two runs differ by about 5 points on match, so a change needs to beat that to count.
 - Run 1: `sale-017` failed with MAX_TOKENS on a 10-line receipt (the model repeated itself); it read fine in run 2.
-- Most wrong matches are Sunrays' own products (Omni Plug, Panasonic Outlet, Kopez Receptacle) against generic starter products (Male Plug, Convenience Outlet). Those labels can't be right or wrong without the store's real product list.
+- Most wrong matches are the pilot store's own products (Omni Plug, Panasonic Outlet, Kopez Receptacle) against generic starter products (Male Plug, Convenience Outlet). Those labels can't be right or wrong without the store's real product list.
