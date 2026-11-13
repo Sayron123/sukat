@@ -9,7 +9,8 @@ from tests.conftest import auth_header, make_product, scan_line, upload_photo
 
 def _join(api, headers, email, role):
     invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=headers)
-    res = api.post( "/staff/invites/accept",
+    res = api.post(
+        "/staff/invites/accept",
         json={"accept_terms": True, "token": invite.json()["token"], "password": "Staff-pass-1"},
     )
     return auth_header(res.json()["access_token"])
