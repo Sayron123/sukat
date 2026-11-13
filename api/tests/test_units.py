@@ -96,6 +96,7 @@ def test_bad_qty_is_rejected():
 def test_normalize_unit():
     assert normalize_unit(" Kilos ") == "kg"
     assert normalize_unit("pcs.") == "pc"
+    assert normalize_unit("yrd") == "yd"
     assert normalize_unit("cu.m") == "cu.m"
     assert normalize_unit("Litro") == "l"
     assert normalize_unit("BX") == "box"
