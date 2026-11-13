@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* Sukat design tokens (from the Figma design). Use as Tailwind classes, e.g. bg-surface,
    text-muted, border-border, border-line, bg-accent, rounded-button, rounded-card. */
 @theme {
@@ -30,6 +32,7 @@
   --color-bar: #44403c;
   --color-bar-muted: #a8a29e;
   --color-autofill: var(--color-background);
+  --color-glow: rgb(194 65 12 / 0.16);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
@@ -166,6 +169,7 @@
   --color-bar: #d6d3d1;
   --color-bar-muted: #78716c;
   --color-autofill: var(--color-background);
+  --color-glow: rgb(194 65 12 / 0.3);
 }
 
 input::-ms-reveal {
