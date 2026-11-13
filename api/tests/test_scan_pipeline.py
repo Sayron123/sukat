@@ -110,6 +110,21 @@ def test_item_text_drops_qty_unit_price_and_total():
     assert item_text(row("5 pcs bkl 10mm - 198", "5", "pcs", "198")) == "bkl 10mm"
 
 
+@pytest.mark.parametrize(
+    ("raw", "qty", "unit", "price", "total", "item"),
+    [
+        ("Marine Plywood 3/4 3pcs. 1470 4.410", "3", "pcs.", "1470", "4.410", "Marine Plywood 3/4"),
+        ("marine Plywood 1/4 2pcs. 550 1.100", "2", "pcs.", "550", "1.100", "marine Plywood 1/4"),
+        ('Orange pipe 2" S600 2pcs 350 700', "2", "pcs", "350", "700", 'Orange pipe 2" S600'),
+        ("3M SP # 240 10pcs 25 250", "10", "pcs", "25", "250", "3M SP # 240"),
+        ("Fin. nail 2 & 1 1kl 150", "1", "kl", None, "150", "Fin. nail 2 & 1"),
+        ('4 pako 4"', "4", None, None, None, 'pako 4"'),
+    ],
+)
+def test_item_text_keeps_sizes_in_column_rows(raw, qty, unit, price, total, item):
+    assert item_text(row(raw, qty, unit, price, total)) == item
+
+
 # ---------- matching by code ----------
 
 
