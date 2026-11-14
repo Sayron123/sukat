@@ -129,6 +129,7 @@ class CatalogItemOut(BaseModel):
     aliases: list[str]
     conversions: list[ConversionOut]
     already_in_store: bool
+    archived_in_store: bool
 
 
 class ImportIn(BaseModel):
@@ -162,5 +163,6 @@ class DroppedAlias(BaseModel):
 
 class ImportOut(BaseModel):
     created: int
+    restored: int
     skipped: list[SkippedItem]
     dropped_aliases: list[DroppedAlias]

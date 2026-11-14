@@ -80,6 +80,19 @@ def test_member_can_scan_and_lines_are_converted_and_flagged(api, manager, stora
     assert usage.feature == "scan_read" and usage.tokens_in == 1000 and usage.cost_centavos > 0
 
 
+def test_review_lines_carry_the_item_name_read_from_the_row(api, manager, storage, reader):
+    reader.lines = [
+        scan_line(None, raw_text='1 " lacq. thinner 485- 485.00', item_text="lacq. thinner"),
+        scan_line(None, raw_text="??"),
+    ]
+    key = upload_photo(api, manager, storage)
+    res = api.post("/scans", json={"photo_key": key, "type": "sale"}, headers=manager)
+    assert res.status_code == 201, res.text
+    named, unnamed = res.json()["lines"]
+    assert named["item_text"] == "lacq. thinner"
+    assert unnamed["item_text"] is None
+
+
 def test_same_photo_twice_returns_same_scan_without_second_ai_call(api, manager, storage, reader):
     key = upload_photo(api, manager, storage)
     first = api.post("/scans", json={"photo_key": key}, headers=manager)
