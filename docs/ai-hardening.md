@@ -13,7 +13,7 @@ The setting `AI_PROVIDER` picks who answers first. It can be `gemini` or `anthro
 
 The default is Gemini, with the model `gemini-3.1-flash-lite`.
 
-Both providers do both jobs, and the rest of the app does not care which one is used. Photo reading runs in three steps: read, match, check (see `docs/ai-scan-pipeline.md`). If the backup is needed, all the steps run again on it. Chat uses the same tools, the same role limits and the same tests on both.
+Both providers do both jobs, and the rest of the app does not care which one is used. Photo reading runs in three steps: read, match, check (see `docs/ai-scan-pipeline.md`). If the read step fails, all the steps run again on the backup. If only the match step fails, just that one request goes to the backup. Chat uses the same tools, the same role limits and the same tests on both.
 
 | Job | Gemini file | Claude file |
 | --- | --- | --- |
@@ -46,6 +46,8 @@ The backup is **not** used when the problem would not change on a retry:
 ### How a photo falls back
 
 The photo is sent to the backup. If the backup also fails, staff see the normal "failed" screen with a Retry button.
+
+The **match** step (the AI call for rows code couldn't match) has its own one-time backup: if it fails in a way a retry may fix, the same rows and product list go to the backup model. If that fails too, the scan still works and those rows are left for staff to pick. Each call that spent tokens gets its own `scan_match` row in `ai_usage`, and `steps.match.by_backup` on the scan says when the backup answered.
 
 ### How a chat question falls back
 

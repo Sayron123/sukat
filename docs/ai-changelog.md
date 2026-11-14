@@ -16,7 +16,7 @@ Same 21 sale receipts (names covered), starter catalog, same prompts, thinking l
 - Same final accuracy, so 3.1 stays the main model (about half the cost). 3.5 becomes the backup: it reads as well, is faster, and has its own free-tier limit, so a 429 on 3.1 no longer fails the scan.
 - Both models used **0 thinking tokens** on every call at `minimal`, so no money goes to reasoning.
 - A first run without spacing hit the per-minute limit: 3–4 match calls failed per model, and the totals looked like 71.6% vs 77.2%. That gap was the rate limit, not the models. Space calls (or use a paid key) before comparing models.
-- A failed match call doesn't fail the scan: its lines come back unmatched and staff pick the products. The backup only takes over when the read step fails.
+- A busy or slow **match** call now also goes to the backup once, instead of leaving its rows unmatched. Checked for real: with the 3.1 match call forced to answer busy, 3.5 matched 6 of 7 rows on `sale-001`, priced with the backup prices. If the backup also fails, the rows stay unmatched as before.
 
 ## 2026-11-14: crop the photo on the phone before upload
 
