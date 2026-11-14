@@ -22,6 +22,20 @@ How changes go into `main`. Follow this in every session, so each PR is easy to 
 - Tests pass at every commit.
 - No code comments or docstrings are added (existing ones are updated when they would become untrue).
 
+## Naming
+
+Names should be short and obvious, not a whole sentence. Say what the thing is in two or three words and let the code around it explain the rest.
+
+| Instead of | Use |
+|---|---|
+| `needs_email_confirmation` | `email_confirmation` |
+| `_email_is_theirs` | `_email_proven` |
+
+- Variables, fields, functions and API fields all follow this.
+- Booleans don't need `is_`, `has_` or `needs_` when the name already reads as yes/no in context (`email_confirmation`, `archived`, `active`).
+- Keep the words the app already uses (`store`, `scan`, `member`, `backup`), so the same thing has the same name everywhere.
+- Test function names are the exception: they may read as a sentence, because they describe the behavior being checked.
+
 ## Checks before opening the PR
 
 - Backend: `cd api && uv run pytest -q && uv run ruff check app tests && uv run ruff format --check app tests`
@@ -56,4 +70,4 @@ Copy this into the PR description and fill it in. Write it so someone who didn't
 
 ## Merging
 
-- The person who owns the repo reviews and merges. A session opens PRs but never merges them.
+- The person who owns the repo reviews and merges. A session opens PRs but doesn't merge them unless the owner asks it to in the chat.

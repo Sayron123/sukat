@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.deps import CurrentMember
+from app.auth.deps import CurrentMember, email_confirmation
 from app.auth.models import AuthToken, TokenPurpose, User
 from app.auth.rate_limit import (
     clear_failures,
@@ -227,10 +227,23 @@ def change_password(
     return issue_token(user, store_id)
 
 
+def _email_proven(db: Session, user: User) -> bool:
+    if user.email_verified_at is not None:
+        return True
+    return (
+        db.scalar(
+            select(StoreMember.id).where(
+                StoreMember.user_id == user.id, StoreMember.is_owner.is_(True)
+            )
+        )
+        is not None
+    )
+
+
 def request_password_reset(db: Session, email: str, ip: str | None) -> None:
     count_email_request(db, "reset", email, ip)
     user = db.scalar(select(User).where(User.email == email))
-    if user is None:
+    if user is None or not _email_proven(db, user):
         return
     token = _new_token(
         db,
@@ -297,6 +310,7 @@ def get_me(db: Session, current: CurrentMember) -> MeOut:
         email=current.user.email,
         full_name=current.user.full_name,
         email_verified=current.user.email_verified_at is not None,
+        email_confirmation=email_confirmation(current),
         store_id=store.id,
         store_name=store.name,
         store_address=store.address,

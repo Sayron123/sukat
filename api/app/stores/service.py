@@ -235,7 +235,6 @@ def accept_invite(
         member.role = row.role
 
     row.accepted_at = datetime.now(UTC)
-    user.email_verified_at = user.email_verified_at or row.accepted_at
     db.commit()
     return issue_token(user, row.store_id)
 

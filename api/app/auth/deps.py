@@ -29,6 +29,7 @@ class CurrentMember:
     member_id: UUID
     store_id: UUID
     role: str
+    is_owner: bool = False
 
 
 def _unauthorized() -> Unauthorized:
@@ -56,7 +57,11 @@ def get_current_member(
     if member is None or member.user.token_version != data.token_version:
         raise _unauthorized()
     return CurrentMember(
-        user=member.user, member_id=member.id, store_id=member.store_id, role=member.role
+        user=member.user,
+        member_id=member.id,
+        store_id=member.store_id,
+        role=member.role,
+        is_owner=member.is_owner,
     )
 
 
@@ -67,8 +72,12 @@ class EmailNotVerified(Forbidden):
     code = "email_not_verified"
 
 
+def email_confirmation(current: CurrentMember) -> bool:
+    return current.is_owner and current.user.email_verified_at is None
+
+
 def get_verified_member(current: CurrentMemberDep) -> CurrentMember:
-    if current.user.email_verified_at is None:
+    if email_confirmation(current):
         raise EmailNotVerified(
             "Confirm your email first. Check your inbox, or resend the link from the More tab."
         )
