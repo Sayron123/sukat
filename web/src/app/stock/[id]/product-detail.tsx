@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
 import { MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
-import { Badge, Button, Card, Loading, Pager } from "@/components/ui";
+import { Badge, Button, Card, Loading, Pager, StockBadge, isOutOfStock } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { formatPeso, formatQty, formatShortWhen } from "@/lib/format";
 import { KIND_TITLE } from "@/lib/labels";
@@ -90,19 +90,28 @@ export function ProductDetail({ id }: { id: string }) {
       <div className="mb-3 rounded-card bg-surface p-4">
         <span className="flex items-center justify-between text-sm text-muted">
           <span>In stock</span>
-          {product.is_low_stock && <Badge tone="red">Low</Badge>}
+          <StockBadge qty={product.stock_qty} low={product.is_low_stock} />
         </span>
-        <strong className="mt-3 block text-[32px] leading-tight text-text">
-          {formatQty(product.stock_qty)} <span className="text-base font-semibold text-muted">{product.base_unit}</span>
+        <strong
+          className={`mt-3 block text-[32px] leading-tight ${isOutOfStock(product.stock_qty) ? "text-red" : "text-text"}`}
+        >
+          {formatQty(product.stock_qty)}{" "}
+          <span className="text-base font-semibold text-muted">{product.base_unit} left</span>
         </strong>
       </div>
       <div className={`${canDelete ? "mb-3" : "mb-8"} grid grid-cols-2 gap-3`}>
         <Card>
           <p className="text-[13px] text-muted">Price</p>
-          <p className="mt-1 font-bold text-text">
-            {formatPeso(product.price_centavos)}
-            {product.price_centavos !== null && <span className="font-normal text-muted">/{product.base_unit}</span>}
-          </p>
+          {product.price_centavos === null && canEditProducts(me?.role) ? (
+            <Link href={`/stock/${product.id}/edit`} className="mt-1 inline-block font-bold text-accent-text underline">
+              Add price
+            </Link>
+          ) : (
+            <p className="mt-1 font-bold text-text">
+              {formatPeso(product.price_centavos)}
+              {product.price_centavos !== null && <span className="font-normal text-muted">/{product.base_unit}</span>}
+            </p>
+          )}
         </Card>
         <Card>
           <p className="text-[13px] text-muted">Low stock alert</p>

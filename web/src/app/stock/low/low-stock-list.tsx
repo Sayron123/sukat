@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader } from "@/components/page-header";
-import { Badge, Card, Loading } from "@/components/ui";
+import { Card, Loading, StockBadge, isOutOfStock } from "@/components/ui";
 import { api } from "@/lib/api-client";
 import { formatQty } from "@/lib/format";
 import type { LowStockItem } from "@/lib/types";
@@ -28,7 +29,11 @@ export function LowStockList() {
       ) : items === "error" ? (
         <p className="text-red">Could not load low stock.</p>
       ) : items.length === 0 ? (
-        <Card className="text-muted">Nothing is low. Products get a low-stock alert from their edit screen.</Card>
+        <Card>
+          <MascotMessage emote="happy" title="Nothing is low">
+            Products get a low-stock alert from their edit screen.
+          </MascotMessage>
+        </Card>
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((p) => (
@@ -38,15 +43,19 @@ export function LowStockList() {
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-[7px]">
                       <b className="min-w-0 text-base text-text">{p.name}</b>
-                      <Badge tone="red">Low</Badge>
+                      <StockBadge qty={p.stock_qty} low />
                     </p>
                     <small className="mt-[5px] block text-sm text-muted">
                       Alert at {formatQty(p.low_stock_level)} {p.base_unit}
                     </small>
                   </div>
                   <div className="min-w-[62px] shrink-0 text-right">
-                    <strong className="block text-2xl leading-none text-text">{formatQty(p.stock_qty)}</strong>
-                    <span className="text-[13px] text-muted">{p.base_unit}</span>
+                    <strong
+                      className={`block text-2xl leading-none ${isOutOfStock(p.stock_qty) ? "text-red" : "text-text"}`}
+                    >
+                      {formatQty(p.stock_qty)}
+                    </strong>
+                    <span className="text-[13px] text-muted">{p.base_unit} left</span>
                   </div>
                 </Card>
               </Link>

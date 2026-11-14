@@ -34,16 +34,22 @@ export function HomeScreen() {
   const today = useSyncExternalStore(noopSubscribe, todayText, () => "");
   const [recent, setRecent] = useState<TransactionPage | null | "error">(null);
   const [sales, setSales] = useState<SalesSummary | null | "error">(null);
-  const [low, setLow] = useState<number | null>(null);
-  const [toReview, setToReview] = useState<string | null>(null);
+  const [low, setLow] = useState<Count>(null);
+  const [toReview, setToReview] = useState<Count>(null);
 
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
     api<TransactionPage>("transactions?page=1").then(setRecent, () => setRecent("error"));
     // No dates = today in Manila (the server decides, so the phone's clock doesn't matter).
     api<SalesSummary>("reports/sales-summary").then(setSales, () => setSales("error"));
-    api<LowStockItem[]>("reports/low-stock").then((r) => setLow(r.length), () => {});
-    api<ScansToReview>("reports/scans-to-review").then((r) => setToReview(formatCount(r.items.length, r.has_more)), () => {});
+    api<LowStockItem[]>("reports/low-stock").then(
+      (r) => setLow({ n: r.length, more: false }),
+      () => setLow("error"),
+    );
+    api<ScansToReview>("reports/scans-to-review").then(
+      (r) => setToReview({ n: r.items.length, more: r.has_more }),
+      () => setToReview("error"),
+    );
   }, []);
 
   return (
@@ -81,10 +87,7 @@ export function HomeScreen() {
         </span>
       </Link>
 
-      <div className="mb-8 grid grid-cols-2 gap-3">
-        <StatusLink href="/stock/low" count={low} tone="red" label="Low stock" />
-        <StatusLink href="/scans/review" count={toReview} tone="amber" label="Needs review" />
-      </div>
+      <NeedsYouCard low={low} toReview={toReview} />
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-bold text-text">Recent activity</h2>
@@ -151,29 +154,62 @@ function ChangeBadge({ summary }: { summary: SalesSummary }) {
   );
 }
 
-function StatusLink({
-  href,
-  count,
-  tone,
-  label,
-}: {
-  href: string;
-  /** Already formatted ("3", "50+"); null while loading. */
-  count: number | string | null;
-  tone: "red" | "amber";
-  label: string;
-}) {
+type Count = { n: number; more: boolean } | "error" | null;
+
+function NeedsYouCard({ low, toReview }: { low: Count; toReview: Count }) {
+  if (low === null || toReview === null) {
+    return <Card className="mb-8 text-sm text-muted">Checking what needs you…</Card>;
+  }
+  if (low === "error" && toReview === "error") {
+    return <Card className="mb-8 text-sm text-red">Could not load what needs you.</Card>;
+  }
+  const rows: { href: string; tone: "red" | "amber"; text: string }[] = [];
+  if (low === "error") rows.push({ href: "/stock/low", tone: "red", text: "Could not load low stock" });
+  else if (low.n > 0)
+    rows.push({
+      href: "/stock/low",
+      tone: "red",
+      text: `${low.n} ${low.n === 1 ? "product is" : "products are"} low on stock`,
+    });
+  if (toReview === "error") rows.push({ href: "/scans/review", tone: "amber", text: "Could not load scans to check" });
+  else if (toReview.n > 0)
+    rows.push({
+      href: "/scans/review",
+      tone: "amber",
+      text: `${formatCount(toReview.n, toReview.more)} scanned ${toReview.n === 1 && !toReview.more ? "receipt" : "receipts"} to check`,
+    });
+
+  if (rows.length === 0) {
+    return (
+      <Card className="mb-8 flex items-center gap-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-green-soft text-green-text">
+          <Icon name="check" size={16} />
+        </span>
+        <span className="text-sm font-semibold text-text">Nothing needs you right now</span>
+      </Card>
+    );
+  }
+
+  const total = (low === "error" ? 0 : low.n) + (toReview === "error" ? 0 : toReview.n);
+  const more = toReview !== "error" && toReview.more;
   return (
-    <Link
-      href={href}
-      className="flex min-h-[76px] items-center gap-2 rounded-card border border-border bg-background px-3 py-4 text-text hover:bg-surface min-[380px]:px-4"
-    >
-      <Badge tone={count && count !== "0" ? tone : "neutral"} className="min-w-7">
-        {count === null ? "…" : count}
-      </Badge>
-      <span className="min-w-0 flex-1 text-[13px] font-semibold whitespace-nowrap">{label}</span>
-      {/* The arrow doesn't fit on the narrowest phones; the whole card is the link. */}
-      <Icon name="chevron" size={18} className="hidden min-[380px]:block" />
-    </Link>
+    <Card padded={false} className="mb-8 overflow-hidden">
+      {total > 0 && (
+        <h2 className="px-4 pt-4 pb-2 text-base font-bold text-text">
+          {formatCount(total, more)} {total === 1 && !more ? "thing needs" : "things need"} you
+        </h2>
+      )}
+      <ul>
+        {rows.map((r, i) => (
+          <li key={r.href} className={i > 0 ? "border-t border-border" : ""}>
+            <Link href={r.href} className="flex min-h-14 items-center gap-3 px-4 text-text hover:bg-border/40">
+              <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${r.tone === "red" ? "bg-red" : "bg-amber"}`} />
+              <span className="min-w-0 flex-1 text-sm font-semibold">{r.text}</span>
+              <Icon name="chevron" size={18} className="shrink-0 text-muted" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

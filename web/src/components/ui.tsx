@@ -61,6 +61,16 @@ export function Badge({
   );
 }
 
+export function isOutOfStock(qty: string): boolean {
+  return Number(qty) <= 0;
+}
+
+export function StockBadge({ qty, low }: { qty: string; low: boolean }) {
+  if (isOutOfStock(qty)) return <Badge tone="red">Out of stock</Badge>;
+  if (low) return <Badge tone="red">Low</Badge>;
+  return null;
+}
+
 export function SavedStatus({ show, children = "Saved" }: { show: boolean; children?: ReactNode }) {
   if (!show) return null;
   return (
