@@ -15,7 +15,7 @@ Code first, AI last:
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 from typing import Literal
@@ -172,12 +172,10 @@ def match_by_code(lines: list[ReadLine], catalog: list[CatalogEntry]) -> list[Li
 @dataclass
 class MatchStep:
     matches: list[LineMatch]
-    usage: AIUsageInfo | None = None  # set when the AI was called
+    usages: list[AIUsageInfo] = field(default_factory=list)
     error: str | None = None  # the AI call failed: those lines stay unmatched
-
-    @property
-    def ai_requests(self) -> int:
-        return 0 if self.usage is None and self.error is None else 1
+    ai_requests: int = 0
+    by_backup: bool = False
 
     def as_json(self) -> dict:
         return {
@@ -193,14 +191,21 @@ class MatchStep:
                 for m in self.matches
             ],
             "ai_requests": self.ai_requests,
+            "by_backup": self.by_backup,
             "error": self.error,
         }
 
 
-def match_lines(lines: list[ReadLine], catalog: list[CatalogEntry], ai: ScanAI) -> MatchStep:
+def match_lines(
+    lines: list[ReadLine],
+    catalog: list[CatalogEntry],
+    ai: ScanAI,
+    backup: ScanAI | None = None,
+) -> MatchStep:
     """Match every line: code first; then one AI call for the rest (if any, and if the
-    store has products). If that call fails, those lines just stay unmatched: staff
-    pick the product on the review screen."""
+    store has products). If that call fails in a way a retry may fix (busy, timeout) and
+    a backup is set, the backup gets the same request once. If it still fails, those
+    lines just stay unmatched: staff pick the product on the review screen."""
     matches = match_by_code(lines, catalog)
     todo = [m for m in matches if m.product_id is None and m.normalized]
     if not todo or not catalog:
@@ -209,18 +214,29 @@ def match_lines(lines: list[ReadLine], catalog: list[CatalogEntry], ai: ScanAI) 
     refs = catalog_refs(catalog)
     by_ref = {ref: str(entry.product_id) for ref, entry in refs}
     asked = {m.line for m in todo}
+    items = [MatchItem(line=m.line, text=lines[m.line].raw_text) for m in todo]
+    products = catalog_text(refs)
+    usages: list[AIUsageInfo] = []
+    by_backup = False
     try:
-        answers, usage = ai.match_items(
-            [MatchItem(line=m.line, text=lines[m.line].raw_text) for m in todo],
-            catalog_text(refs),
-        )
+        answers, usage = ai.match_items(items, products)
     except AIReadError as e:
-        step = MatchStep(matches, usage=e.usage, error=str(e))
-        return step
+        if e.usage is not None:
+            usages.append(e.usage)
+        if backup is None or not e.retryable:
+            return MatchStep(matches, usages, error=str(e), ai_requests=1)
+        try:
+            answers, usage = backup.match_items(items, products)
+        except AIReadError as backup_error:
+            if backup_error.usage is not None:
+                usages.append(backup_error.usage)
+            return MatchStep(matches, usages, error=str(backup_error), ai_requests=2)
+        by_backup = True
+    usages.append(usage)
     for answer in answers:
         pid = by_ref.get((answer.product_id or "").strip().upper())
         if answer.line in asked and pid is not None:  # ignore unknown ids and lines
             m = matches[answer.line]
             matches[answer.line] = LineMatch(m.line, m.item, m.normalized, "ai", pid)
             asked.discard(answer.line)  # one answer per line
-    return MatchStep(matches, usage=usage)
+    return MatchStep(matches, usages, ai_requests=2 if by_backup else 1, by_backup=by_backup)

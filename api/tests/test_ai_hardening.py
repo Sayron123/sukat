@@ -403,6 +403,7 @@ def test_provider_setting_picks_gemini_or_claude(monkeypatch):
 
 
 def test_no_backup_when_turned_off():
+    assert get_vision_reader.__wrapped__().backup is None
     assert get_backup_vision_reader.__wrapped__() is None
     assert get_backup_chat_model.__wrapped__() is None
 
@@ -442,6 +443,7 @@ def test_a_gemini_backup_reader_and_chat_use_the_backup_model_and_prices(monkeyp
     assert main.ai.model == "gemini-3.1-flash-lite" and main.ai.max_retries == 0
     assert isinstance(backup.ai, GeminiScanAI) and backup.ai.backup is True
     assert backup.ai.model == "gemini-3.5-flash-lite"
+    assert main.backup is backup.ai
     assert isinstance(backup_chat, GeminiChatModel) and backup_chat.backup is True
     assert backup_chat.model == "gemini-3.5-flash-lite"
 

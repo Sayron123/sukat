@@ -43,21 +43,27 @@ def get_scan_ai() -> ScanAI:
 
 
 @cache
+def get_backup_scan_ai() -> ScanAI | None:
+    if not settings.has_ai_fallback:
+        return None
+    return _scan_ai(settings.AI_FALLBACK_PROVIDER, settings.AI_FALLBACK_MODEL, 0, backup=True)
+
+
+@cache
 def get_vision_reader() -> VisionReader:
     from app.ai.scan_pipeline import MultiStepReader
 
-    return MultiStepReader(get_scan_ai())
+    return MultiStepReader(get_scan_ai(), get_backup_scan_ai())
 
 
 @cache
 def get_backup_vision_reader() -> VisionReader | None:
-    if not settings.has_ai_fallback:
+    backup = get_backup_scan_ai()
+    if backup is None:
         return None
     from app.ai.scan_pipeline import MultiStepReader
 
-    return MultiStepReader(
-        _scan_ai(settings.AI_FALLBACK_PROVIDER, settings.AI_FALLBACK_MODEL, 0, backup=True)
-    )
+    return MultiStepReader(backup)
 
 
 @cache

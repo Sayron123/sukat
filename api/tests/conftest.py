@@ -73,6 +73,18 @@ def _create_database_if_missing(url: str) -> None:
     admin.dispose()
 
 
+@pytest.fixture(autouse=True)
+def fresh_ai_providers() -> Generator[None]:
+    from app.ai import provider
+
+    cached = (provider.get_scan_ai, provider.get_backup_scan_ai)
+    for f in cached:
+        f.cache_clear()
+    yield
+    for f in cached:
+        f.cache_clear()
+
+
 @pytest.fixture(scope="session")
 def db_engine() -> Generator[Engine]:
     _create_database_if_missing(TEST_DATABASE_URL)

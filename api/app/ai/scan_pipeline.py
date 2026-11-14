@@ -42,8 +42,9 @@ def _sum(usages: list[AIUsageInfo]) -> AIUsageInfo:
 
 
 class MultiStepReader:
-    def __init__(self, ai: ScanAI) -> None:
+    def __init__(self, ai: ScanAI, backup: ScanAI | None = None) -> None:
         self.ai = ai
+        self.backup = backup
 
     def read_list(
         self,
@@ -53,14 +54,14 @@ class MultiStepReader:
         scan_type: ScanType,
     ) -> ReadResult:
         """@raises AIReadError when step 1 (reading the photo) fails. A failed step 2
-        AI call only leaves those lines unmatched."""
+        AI call goes to the backup once (if set); if that fails too, it only leaves those
+        lines unmatched."""
         read_lines, read_usage = self.ai.read_photo(image, media_type)
-        match = match_lines(read_lines, catalog, self.ai)
+        match = match_lines(read_lines, catalog, self.ai, self.backup)
         lines, checks = _check(read_lines, match, catalog, scan_type)
 
         calls: list[tuple[str, AIUsageInfo]] = [("scan_read", read_usage)]
-        if match.usage is not None:
-            calls.append(("scan_match", match.usage))
+        calls.extend(("scan_match", usage) for usage in match.usages)
         return ReadResult(
             lines=lines,
             usage=_sum([u for _, u in calls]),

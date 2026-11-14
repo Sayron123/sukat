@@ -202,6 +202,40 @@ def test_failed_ai_match_keeps_the_lines_unmatched():
     assert [f for f, _ in result.calls] == ["scan_read", "scan_match"]  # its cost still logged
 
 
+def test_a_busy_match_call_goes_to_the_backup_model():
+    busy = AIReadError("busy", retryable=True)
+    main = FakeAI([row("1 mystery item", "1", "pc")], match_error=busy)
+    backup = FakeAI([], answers={"1 mystery item": "P1"})
+    result = MultiStepReader(main, backup).read_list(b"img", "image/jpeg", CATALOG, "stock_in")
+    assert result.lines[0].product_id == NAIL_3.product_id
+    assert len(backup.match_calls) == 1 and backup.match_calls[0] == main.match_calls[0]
+    assert result.steps["match"]["by_backup"] is True and result.steps["match"]["error"] is None
+    assert result.ai_requests == 3
+    assert [f for f, _ in result.calls] == ["scan_read", "scan_match"]
+
+
+def test_a_permanent_match_failure_does_not_go_to_the_backup():
+    refused = AIReadError("not set up", retryable=False)
+    main = FakeAI([row("1 mystery item", "1", "pc")], match_error=refused)
+    backup = FakeAI([], answers={"1 mystery item": "P1"})
+    result = MultiStepReader(main, backup).read_list(b"img", "image/jpeg", CATALOG, "stock_in")
+    assert backup.match_calls == [] and result.lines[0].product_id is None
+    assert result.steps["match"]["error"] == "not set up"
+
+
+def test_when_the_backup_match_also_fails_the_lines_stay_unmatched_and_both_costs_are_logged():
+    spent = AIUsageInfo(model="fake", provider="gemini", input_tokens=50)
+    main = FakeAI(
+        [row("1 mystery item", "1", "pc")],
+        match_error=AIReadError("busy", retryable=True, usage=spent),
+    )
+    backup = FakeAI([], match_error=AIReadError("also busy", retryable=True, usage=spent))
+    result = MultiStepReader(main, backup).read_list(b"img", "image/jpeg", CATALOG, "stock_in")
+    assert result.lines[0].product_id is None
+    assert result.steps["match"]["error"] == "also busy" and result.ai_requests == 3
+    assert [f for f, _ in result.calls] == ["scan_read", "scan_match", "scan_match"]
+
+
 def test_scan_matched_fully_by_code_makes_one_ai_request():
     rows = [row("10 sem @250", "10", "bags", "@250"), row("2 bx pako 4", "2", "bx")]
     ai, result = read(rows)
