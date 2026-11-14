@@ -8,6 +8,26 @@ import { Badge, Button, Loading, Notice, SearchBox } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { CATEGORIES, type CatalogItem, type ImportResult } from "@/lib/types";
 
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+function importTitle(result: ImportResult): string {
+  if (result.created > 0) return `Added ${plural(result.created, "product")}`;
+  if (result.restored > 0) return `Brought back ${plural(result.restored, "product")}`;
+  return "Added 0 products";
+}
+
+function importNotes(result: ImportResult): string {
+  const notes = [
+    result.created > 0 && result.restored > 0 && `${plural(result.restored, "archived product")} brought back.`,
+    result.skipped.length > 0 && `${result.skipped.length} already in your store.`,
+    result.dropped_aliases.length > 0 &&
+      `${result.dropped_aliases.length} other name(s) were left off because another product uses them.`,
+  ].filter(Boolean);
+  return notes.length > 0 ? notes.join(" ") : "They are now in your stock list.";
+}
+
 /** Pick starter items by category and copy them into this store. */
 export function ImportCatalog() {
   const [items, setItems] = useState<CatalogItem[] | null>(null);
@@ -84,16 +104,8 @@ export function ImportCatalog() {
       </p>
 
       {result && (
-        <Notice role="status" icon="check" title={`Added ${result.created} product${result.created === 1 ? "" : "s"}`} className="mb-5">
-          {result.skipped.length === 0 && result.dropped_aliases.length === 0
-            ? "They are now in your stock list."
-            : [
-                result.skipped.length > 0 && `${result.skipped.length} already in your store.`,
-                result.dropped_aliases.length > 0 &&
-                  `${result.dropped_aliases.length} other name(s) were left off because another product uses them.`,
-              ]
-                .filter(Boolean)
-                .join(" ")}
+        <Notice role="status" icon="check" title={importTitle(result)} className="mb-5">
+          {importNotes(result)}
         </Notice>
       )}
 
@@ -141,6 +153,7 @@ export function ImportCatalog() {
                       </small>
                     </span>
                     {item.already_in_store && <Badge tone="green">Added</Badge>}
+                  {item.archived_in_store && <Badge>Archived</Badge>}
                   </label>
                 </li>
               ))}
