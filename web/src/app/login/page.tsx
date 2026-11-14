@@ -14,7 +14,7 @@ export default function LoginPage() {
       endpoint="/api/auth/login"
       submitLabel="Sign in"
       fields={[
-        { name: "email", label: "Email", type: "email", autoComplete: "email" },
+        { name: "login", label: "Email or username", autoComplete: "username" },
         {
           name: "password",
           label: "Password",

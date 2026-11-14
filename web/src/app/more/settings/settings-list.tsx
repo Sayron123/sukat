@@ -70,10 +70,17 @@ export function SettingsList() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Group title="Your account" note="Your email is how you sign in. It can’t be changed here.">
+      <Group
+        title="Your account"
+        note={`Your ${me.email ? "email" : "username"} is how you sign in. It can’t be changed here.`}
+      >
         <Rows>
           <Row label="Name" value={me.full_name} href="/more/settings/name" />
-          <Row label="Email" value={me.email} locked />
+          {me.email ? (
+            <Row label="Email" value={me.email} locked />
+          ) : (
+            <Row label="Username" value={me.username ?? ""} locked />
+          )}
           <Row label="Password" value="Change" href="/more/settings/password" />
         </Rows>
       </Group>

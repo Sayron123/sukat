@@ -196,8 +196,9 @@ export function AuthForm({
         setFinished(true);
         return;
       }
-      if (newPassword && typeof body.email === "string") {
-        await offerToSavePassword(body.email, String(body[newPassword]));
+      const account = body.username ?? body.email;
+      if (newPassword && typeof account === "string") {
+        await offerToSavePassword(account, String(body[newPassword]));
       }
       // Also covers a previous person who never signed out (e.g. their session expired).
       clearSessionData();
