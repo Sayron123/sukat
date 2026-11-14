@@ -37,6 +37,7 @@ export function UsageView() {
     usage.budget_centavos > 0
       ? Math.min(100, Math.round((usage.spent_centavos / usage.budget_centavos) * 100))
       : 100;
+  const filled = usage.spent_centavos > 0 ? Math.max(percent, 2) : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -57,9 +58,16 @@ export function UsageView() {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={percent}
-          className="mt-4 h-2 overflow-hidden rounded-full bg-surface"
+          className="mt-4 h-3 overflow-hidden rounded-full bg-border"
         >
-          <div className={`h-full ${usage.reached ? "bg-red" : "bg-accent"}`} style={{ width: `${percent}%` }} />
+          <div
+            className={`h-full rounded-full ${usage.reached ? "bg-red" : "bg-accent"}`}
+            style={{ width: `${filled}%` }}
+          />
+        </div>
+        <div className="mt-2 flex items-center justify-between text-[13px] text-muted tabular-nums">
+          <span>{percent}% used</span>
+          <span>Limit {formatPeso(usage.budget_centavos)}</span>
         </div>
       </Card>
       <Card padded={false} className="px-4">
