@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     AI_FALLBACK_MODEL: str = "claude-opus-5-5"
     AI_GEMINI_THINKING_LEVEL: Literal["minimal", "low", "medium", "high"] = "minimal"
     AI_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
-    AI_TIMEOUT_SECONDS: float = 90.0
+    AI_TIMEOUT_SECONDS: float = 45.0
     AI_MAX_RETRIES: int = 1
     # Server-side refusal fallback ("default" routing). Turn off for models without it (Haiku).
     AI_REFUSAL_FALLBACK: bool = True

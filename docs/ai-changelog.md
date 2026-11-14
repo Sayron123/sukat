@@ -4,6 +4,16 @@ One entry per change to the scan or chat AI: prompts, glossary, units, matching 
 
 Keep a change only if `final` goes up, or stays the same at a lower cost, and nothing else drops.
 
+## 2026-11-14: reliability fixes from the backend review
+
+No prompt, glossary, model or matching change, so read, match and final are not expected to move. The eval was **not** run for this entry (the key in `api/.env` is on the free tier and the cases are real receipts).
+
+- **`AI_TIMEOUT_SECONDS` 90 → 45.** One AI call now waits at most 45 s per try (2 tries), so the worst case for a scan with two AI calls drops from about 6 minutes to about 3. The 45 s is a judgment, not a measurement: the eval doesn't print how long each read takes yet. On the next eval run, watch for "Reading took too long" failures; if any appear on photos that read fine before, raise it.
+- **Scan again keeps the first reading** when the second read finds nothing or fails (`first_read_kept`). Before, an empty second read deleted the scan and its lines.
+- **An empty photo's file is deleted** together with its scan. Before, the file stayed in storage.
+- **Chat:** an unexpected error mid-question now answers 503 "Sorry, something went wrong. Please try again." and still logs the tokens already spent (audit Phase 6, M3).
+- Cost per scan: no change.
+
 ## 2026-11-13: first real case, units and matching fixes
 
 Eval set: 1 real case (`dr-001`, a handwritten supplier invoice, 10 lines). One case is not enough to tune prompts or thresholds; these are bug fixes found on it. Model: `gemini-3.1-flash-lite`, no backup.
