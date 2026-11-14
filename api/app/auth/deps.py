@@ -72,12 +72,12 @@ class EmailNotVerified(Forbidden):
     code = "email_not_verified"
 
 
-def needs_email_confirmation(current: CurrentMember) -> bool:
+def email_confirmation(current: CurrentMember) -> bool:
     return current.is_owner and current.user.email_verified_at is None
 
 
 def get_verified_member(current: CurrentMemberDep) -> CurrentMember:
-    if needs_email_confirmation(current):
+    if email_confirmation(current):
         raise EmailNotVerified(
             "Confirm your email first. Check your inbox, or resend the link from the More tab."
         )

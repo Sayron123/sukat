@@ -109,7 +109,7 @@ def test_resend_sends_nothing_when_already_verified(api, manager, mailer):
 def test_invited_staff_can_use_the_ai_without_their_email_being_marked_proven(api, manager):
     staff = _invite_member(api, manager)
     me = api.get("/auth/me", headers=staff).json()
-    assert me["email_verified"] is False and me["needs_email_confirmation"] is False
+    assert me["email_verified"] is False and me["email_confirmation"] is False
     res = api.post("/scans", json={"photo_key": "nope", "type": "sale"}, headers=staff)
     assert res.json().get("code") != "email_not_verified"
 
@@ -117,7 +117,7 @@ def test_invited_staff_can_use_the_ai_without_their_email_being_marked_proven(ap
 def test_an_unconfirmed_owner_must_confirm_before_using_the_ai(api, mailer):
     token = api.post("/auth/signup", json=SIGNUP).json()["access_token"]
     owner = auth_header(token)
-    assert api.get("/auth/me", headers=owner).json()["needs_email_confirmation"] is True
+    assert api.get("/auth/me", headers=owner).json()["email_confirmation"] is True
     res = api.post("/scans", json={"photo_key": "nope", "type": "sale"}, headers=owner)
     assert res.status_code == 403 and res.json()["code"] == "email_not_verified"
 
