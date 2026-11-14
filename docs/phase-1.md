@@ -69,6 +69,7 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession): ...
 | Endpoint | Who | What it does |
 |---|---|---|
 | `POST /staff/invites` | manager, secretary | Creates an invite and returns a one-time `token`. A manager can invite any role. A secretary can only invite a `member`. |
+| `GET /staff/invites` | manager, secretary | Invites not accepted yet and not expired, newest first: email, role, when it was made and when it expires. No tokens. To resend one, create it again with `POST /staff/invites`: that replaces the old link. |
 | `POST /staff/invites/preview` | anyone with the token | Shows the store, role and email before joining. Does not use up the link. |
 | `POST /staff/invites/accept` | anyone with the token | Creates the account (or uses the existing one) and joins the store. Returns an access token. |
 | `GET /staff` | any staff | Lists everyone in your store. Members do not get email addresses. |

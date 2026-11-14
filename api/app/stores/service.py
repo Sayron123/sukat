@@ -69,6 +69,20 @@ def list_members(db: Session, store_id: UUID) -> list[StoreMember]:
     )
 
 
+def pending_invites(db: Session, store_id: UUID) -> list[Invite]:
+    return list(
+        db.scalars(
+            select(Invite)
+            .where(
+                Invite.store_id == store_id,
+                Invite.accepted_at.is_(None),
+                Invite.expires_at > datetime.now(UTC),
+            )
+            .order_by(Invite.created_at.desc(), Invite.id)
+        )
+    )
+
+
 def _limit_secretary_invite(db: Session, store_id: UUID, email: str, role: Role) -> None:
     if role != Role.MEMBER:
         raise Forbidden("Secretaries can only invite members")
