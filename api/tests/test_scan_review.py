@@ -1,9 +1,12 @@
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import select
 
+from app.ai.errors import AIReadError
 from app.ai.models import AIUsage
 from app.inventory.models import Scan
+from app.inventory.scan_service import RESCAN_FAILED, RESCAN_FOUND_NOTHING
 from tests.conftest import make_product, scan_line, upload_photo
 
 
@@ -26,6 +29,7 @@ def test_a_photo_with_no_items_leaves_nothing_behind(api, db, manager, storage, 
     assert db.scalar(select(Scan)) is None
     assert api.get(f"/scans/{body['id']}", headers=manager).status_code == 404
     assert db.scalar(select(AIUsage)) is not None
+    assert list(storage.root.rglob("*.jpg")) == []
     review = api.get("/reports/scans-to-review", headers=manager).json()
     assert review["items"] == []
 
@@ -47,12 +51,43 @@ def test_a_photo_can_be_scanned_again_once(api, manager, storage, reader):
     assert third.status_code == 409 and len(reader.calls) == 2
 
 
-def test_a_rescan_that_finds_nothing_removes_the_scan(api, db, manager, storage, reader):
-    first = _scan(api, manager, storage, reader, [scan_line(None)]).json()
+def test_a_rescan_that_finds_nothing_keeps_the_first_read(api, db, manager, storage, reader):
+    cement = _cement(api, manager)
+    first = _scan(api, manager, storage, reader, [scan_line(cement["id"], unit="bag")]).json()
     reader.lines = []
-    body = api.post(f"/scans/{first['id']}/rescan", headers=manager).json()
-    assert body["status"] == "empty"
-    assert db.scalar(select(Scan)) is None
+    res = api.post(f"/scans/{first['id']}/rescan", headers=manager)
+    assert res.status_code == 409
+    assert res.json() == {"detail": RESCAN_FOUND_NOTHING, "code": "first_read_kept"}
+
+    kept = api.get(f"/scans/{first['id']}", headers=manager).json()
+    assert kept["status"] == "read" and kept["can_rescan"] is False
+    assert kept["lines"] == first["lines"]
+    assert len(db.scalars(select(AIUsage)).all()) == 2
+    assert len(list(storage.root.rglob("*.jpg"))) == 1
+
+
+@pytest.mark.parametrize(("retryable", "can_rescan"), [(True, True), (False, False)])
+def test_a_rescan_that_fails_keeps_the_first_read(
+    api, manager, storage, reader, retryable, can_rescan
+):
+    cement = _cement(api, manager)
+    first = _scan(api, manager, storage, reader, [scan_line(cement["id"], unit="bag")]).json()
+    reader.error = AIReadError("The reader is busy. Please try again.", retryable=retryable)
+    res = api.post(f"/scans/{first['id']}/rescan", headers=manager)
+    assert res.status_code == 409
+    assert res.json() == {"detail": RESCAN_FAILED, "code": "first_read_kept"}
+
+    kept = api.get(f"/scans/{first['id']}", headers=manager).json()
+    assert kept["status"] == "read" and kept["can_rescan"] is can_rescan
+    assert kept["lines"] == first["lines"]
+
+    body = {
+        "client_request_id": "rescan-kept-1",
+        "type": "stock_in",
+        "scan_id": first["id"],
+        "lines": [{"product_id": cement["id"], "qty": "1", "unit": "bag", "scan_line": 0}],
+    }
+    assert api.post("/transactions", json=body, headers=manager).status_code == 201
 
 
 def test_only_a_scan_waiting_for_review_can_be_rescanned(api, manager, storage, reader):

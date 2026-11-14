@@ -6,6 +6,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import NoReturn
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -36,6 +37,8 @@ logger = logging.getLogger(__name__)
 
 STALE_MESSAGE = "Reading stopped before it finished. Please try again."
 EMPTY_MESSAGE = "No items were found on this photo. Take a clear photo of the list or receipt."
+RESCAN_FOUND_NOTHING = "Scanning again found no items, so the first reading was kept."
+RESCAN_FAILED = "Scanning again didn't work, so the first reading was kept."
 MAX_RESCANS = 1
 TRASH_DAYS = 30
 TRASH_LIST_MAX = 100
@@ -58,6 +61,10 @@ def key_belongs_to_store(key: str, store_id: UUID) -> bool:
 
 
 QTY_STEP = Decimal("0.001")  # stock_qty has 3 decimals
+
+
+class FirstReadKept(Conflict):
+    code = "first_read_kept"
 
 
 def sniff_image_type(data: bytes) -> ImageType | None:
@@ -136,11 +143,16 @@ def run_read(
     backup: VisionReader | None = None,
 ) -> ScanOut | None:
     """Read scan's photo with the AI and save the outcome on the scan (status read/failed).
+    A scan with no items is deleted with its photo, and its "empty" view is returned.
 
     Assumes the caller checked the scan may be (re)read. Commits. The AI call happens
     outside any open DB transaction, so a slow model never holds locks or a pooled
     connection. The result is written only if the scan is still pending/failed.
+
+    @raises FirstReadKept when the scan already had lines and this read found none or
+        failed. The earlier lines stay; a temporary failure doesn't use up the rescan
     """
+    has_first_read = bool((scan.ai_result_json or {}).get("lines"))
     scan.status = "pending"
     scan.error_message = None
     scan.updated_at = func.now()
@@ -152,7 +164,13 @@ def run_read(
         image = None
     media_type = sniff_image_type(image) if image else None
     if image is None or media_type is None:
-        _finish_failed(db, scan, "Photo not found or not an image. Please upload it again.", None)
+        _finish_failed(
+            db,
+            scan,
+            "Photo not found or not an image. Please upload it again.",
+            None,
+            has_first_read,
+        )
         return None
 
     catalog = store_catalog(db, scan.store_id)
@@ -161,7 +179,7 @@ def run_read(
     try:
         result = _read_with_backup(db, scan, image, media_type, catalog, reader, backup)
     except AIReadError as e:
-        _finish_failed(db, scan, str(e), e)
+        _finish_failed(db, scan, str(e), e, has_first_read)
         return None
 
     # Tokens were spent either way: one ai_usage row per AI request (read, match).
@@ -169,9 +187,13 @@ def run_read(
         log_usage(db, scan.store_id, feature, usage)
     if _lock_if_writable(db, scan):
         if not result.lines:
+            if has_first_read:
+                _keep_first_read(db, scan, RESCAN_FOUND_NOTHING)
             empty = _empty_view(scan)
+            photo_key = scan.photo_key
             db.delete(scan)
             db.commit()
+            _delete_photos(storage, [photo_key])
             return empty
         scan.status = "read"
         scan.error_message = None
@@ -235,9 +257,27 @@ def _lock_if_writable(db: Session, scan: Scan) -> bool:
     return scan.status in WRITABLE_STATUSES
 
 
-def _finish_failed(db: Session, scan: Scan, message: str, error: AIReadError | None) -> None:
+def _keep_first_read(db: Session, scan: Scan, message: str, *, give_back: bool = False) -> NoReturn:
+    if _lock_if_writable(db, scan):
+        scan.status = "read"
+        scan.error_message = None
+        if give_back:
+            scan.rescans = max(0, scan.rescans - 1)
+    db.commit()
+    raise FirstReadKept(message)
+
+
+def _finish_failed(
+    db: Session,
+    scan: Scan,
+    message: str,
+    error: AIReadError | None,
+    has_first_read: bool = False,
+) -> None:
     if error and error.usage:
         log_usage(db, scan.store_id, "scan_read", error.usage)
+    if has_first_read:
+        _keep_first_read(db, scan, RESCAN_FAILED, give_back=bool(error and error.retryable))
     if _lock_if_writable(db, scan):
         scan.status = "failed"
         scan.error_message = message[:500]
