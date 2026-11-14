@@ -125,3 +125,36 @@ def test_manager_cannot_deactivate_self(api, signup):
     manager = signup()["access_token"]
     me = api.get("/staff", headers=auth_header(manager)).json()[0]["member_id"]
     assert api.post(f"/staff/{me}/deactivate", headers=auth_header(manager)).status_code == 400
+
+
+def test_pending_invites_list_only_open_ones_newest_first(api, db, signup):
+    manager = signup()["access_token"]
+    _invite(api, manager, email="first@example.com")
+    _invite(api, manager, email="second@example.com", role="secretary")
+    accepted = _invite(api, manager, email="joined@example.com").json()
+    _accept(api, accepted["token"])
+    _invite(api, manager, email="old@example.com")
+    old = db.scalar(select(Invite).where(Invite.email == "old@example.com"))
+    old.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    db.commit()
+
+    res = api.get("/staff/invites", headers=auth_header(manager))
+    assert res.status_code == 200
+    rows = res.json()
+    assert [r["email"] for r in rows] == ["second@example.com", "first@example.com"]
+    assert rows[0]["role"] == "secretary" and "token" not in rows[0]
+
+
+def test_resending_an_invite_replaces_the_open_one(api, signup):
+    manager = signup()["access_token"]
+    first = _invite(api, manager, email="juan@example.com").json()
+    second = _invite(api, manager, email="juan@example.com").json()
+    rows = api.get("/staff/invites", headers=auth_header(manager)).json()
+    assert [r["id"] for r in rows] == [second["id"]]
+    assert _accept(api, first["token"]).status_code == 400
+
+
+def test_members_cannot_see_pending_invites(api, signup):
+    manager = signup()["access_token"]
+    staff = _accept(api, _invite(api, manager).json()["token"]).json()["access_token"]
+    assert api.get("/staff/invites", headers=auth_header(staff)).status_code == 403

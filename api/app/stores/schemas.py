@@ -79,6 +79,14 @@ class DayAttendanceOut(AttendanceOut):
     member_id: UUID
 
 
+class PendingInviteOut(BaseModel):
+    id: UUID
+    email: str
+    role: Role
+    created_at: datetime
+    expires_at: datetime
+
+
 class InviteOut(BaseModel):
     id: UUID
     email: str

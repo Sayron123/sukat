@@ -21,6 +21,7 @@ from app.stores.schemas import (
     InviteOut,
     InvitePreviewIn,
     InvitePreviewOut,
+    PendingInviteOut,
     RoleIn,
     StaffOut,
     StoreIn,
@@ -66,6 +67,20 @@ def invite_staff(body: InviteIn, current: ManagerOrSecretary, db: DbSession) -> 
     return InviteOut(
         id=row.id, email=row.email, role=Role(row.role), expires_at=row.expires_at, token=token
     )
+
+
+@router.get("/staff/invites", response_model=list[PendingInviteOut])
+def list_pending_invites(current: ManagerOrSecretary, db: DbSession) -> list[PendingInviteOut]:
+    return [
+        PendingInviteOut(
+            id=row.id,
+            email=row.email,
+            role=Role(row.role),
+            created_at=row.created_at,
+            expires_at=row.expires_at,
+        )
+        for row in service.pending_invites(db, current.store_id)
+    ]
 
 
 @router.post("/staff/invites/preview", response_model=InvitePreviewOut)
