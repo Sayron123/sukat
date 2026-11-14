@@ -13,7 +13,7 @@ from app.core.errors import AppError
 from app.inventory.models import StockMovement, Transaction, TransactionItem
 from app.inventory.stock_service import void_transaction
 from app.products.models import Product
-from tests.conftest import auth_header, make_product
+from tests.conftest import auth_header, join_store, make_product
 
 
 def _stock(db, pid) -> Decimal:
@@ -29,19 +29,7 @@ def _txn(api, headers, txn_type, lines, **extra):
 
 
 def _join(api, manager, role):
-    invite = api.post(
-        "/staff/invites", json={"email": f"{role}@example.com", "role": role}, headers=manager
-    ).json()
-    token = api.post(
-        "/staff/invites/accept",
-        json={
-            "accept_terms": True,
-            "token": invite["token"],
-            "password": "Staff-pass-1",
-            "full_name": role.title(),
-        },
-    ).json()["access_token"]
-    return auth_header(token)
+    return join_store(api, manager, role, login=role)
 
 
 @pytest.fixture

@@ -13,7 +13,7 @@ from app.insights import reports
 from app.insights.schemas import DateRange
 from app.inventory.models import Scan, StockMovement, Transaction
 from app.products.models import Product
-from tests.conftest import auth_header, make_product, scan_line, upload_photo
+from tests.conftest import auth_header, join_store, make_product, scan_line, upload_photo
 
 DAY = date(2026, 3, 10)  # in the past, so "now" (fixture rows) never falls on it
 
@@ -44,17 +44,7 @@ def _manila(d: date, hour: int, minute: int = 0) -> datetime:
 
 
 def _invite(api, manager, role, email):
-    invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager)
-    token = api.post(
-        "/staff/invites/accept",
-        json={
-            "accept_terms": True,
-            "token": invite.json()["token"],
-            "password": "Staff-pass-1",
-            "full_name": role,
-        },
-    ).json()["access_token"]
-    return auth_header(token)
+    return join_store(api, manager, role, login=email, full_name=role)
 
 
 @pytest.fixture

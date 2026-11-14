@@ -9,16 +9,18 @@ STRONG = "Fresh_pass1"
 WEAK = ["Short_1", "alllower_1", "ALLUPPER_1", "NoNumbers_x", "NoSymbols12", "Has space1"]
 
 
-def _invite(api, manager, email="new@example.com", role="member"):
-    return api.post("/staff/invites", json={"email": email, "role": role}, headers=manager).json()[
-        "token"
-    ]
+def _invite(api, manager, role="member"):
+    return api.post("/staff/invites", json={"role": role}, headers=manager).json()["token"]
 
 
 def _accept(api, token, password):
-    return api.post(
-        "/staff/invites/accept", json={"accept_terms": True, "token": token, "password": password}
-    )
+    body = {"username": "newbie", "full_name": "New", "password": password}
+    return api.post("/staff/invites/accept", json={"accept_terms": True, "token": token, **body})
+
+
+def _accept_existing(api, token, login, password):
+    body = {"login": login, "password": password}
+    return api.post("/staff/invites/accept", json={"accept_terms": True, "token": token, **body})
 
 
 @pytest.mark.parametrize("password", ["Fresh_pass1", "Aa1!aaaa", "Ab3-xyz9", "Pässw0rd!"])
@@ -67,10 +69,15 @@ def test_a_refused_password_does_not_use_up_the_invite(api, manager):
     assert _accept(api, token, STRONG).status_code == 200
 
 
-def test_new_invitee_only_needs_a_password(api, manager):
+def test_new_invitee_needs_only_a_username_name_and_password(api, manager):
     joined = _accept(api, _invite(api, manager, role="secretary"), STRONG)
     me = api.get("/auth/me", headers=auth_header(joined.json()["access_token"])).json()
-    assert (me["email"], me["full_name"], me["role"]) == ("new@example.com", "new", "secretary")
+    assert (me["username"], me["email"], me["full_name"], me["role"]) == (
+        "newbie",
+        None,
+        "New",
+        "secretary",
+    )
 
 
 def test_older_passwords_still_sign_in_and_accept_invites(api, db, manager, signup):
@@ -83,6 +90,8 @@ def test_older_passwords_still_sign_in_and_accept_invites(api, db, manager, sign
     login = {"email": "old@example.com", "password": "oldstylepassword"}
     assert api.post("/auth/login", json=login).status_code == 200
     assert (
-        _accept(api, _invite(api, manager, "old@example.com"), "oldstylepassword").status_code
+        _accept_existing(
+            api, _invite(api, manager), "old@example.com", "oldstylepassword"
+        ).status_code
         == 200
     )

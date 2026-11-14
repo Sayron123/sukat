@@ -16,7 +16,7 @@ def two_stores(api, signup):
         manager = signup(email=f"manager-{name}@example.com", store_name=f"Store {name}")
         invite = api.post(
             "/staff/invites",
-            json={"email": f"member-{name}@example.com", "role": "member"},
+            json={"role": "member"},
             headers=auth_header(manager["access_token"]),
         ).json()
         member = api.post(
@@ -24,6 +24,7 @@ def two_stores(api, signup):
             json={
                 "accept_terms": True,
                 "token": invite["token"],
+                "username": f"member.{name}",
                 "password": "Member-pass-1",
                 "full_name": "M",
             },
@@ -59,19 +60,19 @@ def test_store_a_cannot_deactivate_store_b_staff(api, db, two_stores):
 
 def test_store_a_staff_list_only_shows_store_a(api, two_stores):
     a = two_stores["a"]
-    emails = {s["email"] for s in api.get("/staff", headers=auth_header(a["manager"])).json()}
-    assert emails == {"manager-a@example.com", "member-a@example.com"}
+    staff = api.get("/staff", headers=auth_header(a["manager"])).json()
+    assert {s["email"] or s["username"] for s in staff} == {"manager-a@example.com", "member.a"}
 
 
 def test_store_id_in_request_body_is_ignored(api, db, two_stores):
     a, b = two_stores["a"], two_stores["b"]
     res = api.post(
         "/staff/invites",
-        json={"email": "new@example.com", "role": "member", "store_id": b["store_id"]},
+        json={"name": "new", "role": "member", "store_id": b["store_id"]},
         headers=auth_header(a["manager"]),
     )
     assert res.status_code == 201
-    invite = db.scalar(select(Invite).where(Invite.email == "new@example.com"))
+    invite = db.scalar(select(Invite).where(Invite.name == "new"))
     assert str(invite.store_id) == a["store_id"]
 
 
@@ -89,7 +90,7 @@ def test_token_for_a_store_you_do_not_belong_to_is_rejected(api, db, two_stores)
 def test_member_cannot_invite(api, two_stores):
     res = api.post(
         "/staff/invites",
-        json={"email": "x@example.com", "role": "member"},
+        json={"role": "member"},
         headers=auth_header(two_stores["a"]["member"]),
     )
     assert res.status_code == 403
@@ -99,7 +100,7 @@ def test_secretary_cannot_invite_above_member_or_deactivate_but_can_list(api, si
     manager = signup()["access_token"]
     invite = api.post(
         "/staff/invites",
-        json={"email": "sec@example.com", "role": "secretary"},
+        json={"role": "secretary"},
         headers=auth_header(manager),
     ).json()
     secretary = api.post(
@@ -107,6 +108,7 @@ def test_secretary_cannot_invite_above_member_or_deactivate_but_can_list(api, si
         json={
             "accept_terms": True,
             "token": invite["token"],
+            "username": "sec",
             "password": "Sec-pass-123",
             "full_name": "S",
         },
@@ -115,10 +117,7 @@ def test_secretary_cannot_invite_above_member_or_deactivate_but_can_list(api, si
     headers = auth_header(secretary)
     assert api.get("/staff", headers=headers).status_code == 200
     assert (
-        api.post(
-            "/staff/invites", json={"email": "y@example.com", "role": "secretary"}, headers=headers
-        ).status_code
-        == 403
+        api.post("/staff/invites", json={"role": "secretary"}, headers=headers).status_code == 403
     )
     owner_id = api.get("/staff", headers=headers).json()[0]["member_id"]
     assert api.post(f"/staff/{owner_id}/deactivate", headers=headers).status_code == 403
@@ -135,5 +134,5 @@ def test_member_can_list_staff_but_not_manage_them(api, two_stores):
 def test_unauthenticated_requests_are_401(api, two_stores):
     a = two_stores["a"]
     assert api.get("/staff").status_code == 401
-    assert api.post("/staff/invites", json={"email": "z@example.com"}).status_code == 401
+    assert api.post("/staff/invites", json={"role": "member"}).status_code == 401
     assert api.post(f"/staff/{a['member_id']}/deactivate").status_code == 401

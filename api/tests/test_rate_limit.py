@@ -86,13 +86,14 @@ def test_invite_accept_wrong_password_is_limited(api, signup):
     signup(email="b@example.com", store_name="B", password="B-password-1")
     token = api.post(
         "/staff/invites",
-        json={"email": "b@example.com", "role": "member"},
+        json={"role": "member"},
         headers=auth_header(manager_a),
     ).json()["token"]
 
     def accept(pw):
         return api.post(
-            "/staff/invites/accept", json={"accept_terms": True, "token": token, "password": pw}
+            "/staff/invites/accept",
+            json={"accept_terms": True, "token": token, "login": "b@example.com", "password": pw},
         )
 
     for _ in range(3):
@@ -106,12 +107,12 @@ def test_bad_invite_tokens_are_limited_by_ip(api):
     for _ in range(5):
         r = api.post(
             "/staff/invites/accept",
-            json={"accept_terms": True, "token": "nope", "password": "whatever-1"},
+            json={"accept_terms": True, "token": "nope", "login": "x@example.com", "password": "x"},
         )
         assert r.status_code == 400
     r = api.post(
         "/staff/invites/accept",
-        json={"accept_terms": True, "token": "nope", "password": "whatever-1"},
+        json={"accept_terms": True, "token": "nope", "login": "x@example.com", "password": "x"},
     )
     assert r.status_code == 429
 

@@ -2,7 +2,7 @@ import re
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator
+from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator, model_validator
 
 PASSWORD_RULES_MESSAGE = (
     "Use at least 8 characters with a capital letter, a small letter, a number and a symbol."
@@ -21,6 +21,22 @@ def _strong_password(value: str) -> str:
 
 
 NewPassword = Annotated[str, Field(min_length=8, max_length=128), AfterValidator(_strong_password)]
+
+USERNAME_RULES = "Use 3 to 30 small letters, numbers, dots or underscores, starting with a letter."
+_USERNAME = re.compile(r"^[a-z][a-z0-9._]{2,29}$")
+
+
+def clean_username(value: str) -> str:
+    value = value.strip().lower()
+    if not _USERNAME.fullmatch(value):
+        raise ValueError(USERNAME_RULES)
+    return value
+
+
+def clean_login(value: str) -> str:
+    return value.strip().lower()
+
+
 LinkToken = Annotated[str, Field(max_length=200)]
 
 TERMS_VERSION = "2026-11-09"
@@ -68,10 +84,17 @@ class SignupIn(BaseModel):
 
 
 class LoginIn(BaseModel):
-    email: EmailStr
+    login: str | None = Field(default=None, max_length=320)
+    email: str | None = Field(default=None, max_length=320)
     password: str = Field(min_length=1, max_length=128)
 
-    _norm = field_validator("email")(_normalize_email)
+    @model_validator(mode="after")
+    def _one_login(self) -> "LoginIn":
+        value = clean_login(self.login or self.email or "")
+        if not value:
+            raise ValueError("Enter your email or username")
+        self.login = value
+        return self
 
 
 class ChangePasswordIn(BaseModel):
@@ -108,7 +131,8 @@ class TokenOut(BaseModel):
 
 class MeOut(BaseModel):
     user_id: UUID
-    email: str
+    email: str | None
+    username: str | None
     full_name: str
     email_verified: bool
     email_confirmation: bool

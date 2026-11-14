@@ -23,7 +23,7 @@ from app.insights.chat_service import SOMETHING_WRONG, TOO_SLOW
 from app.insights.chat_tools import NOT_ALLOWED
 from app.insights.schemas import DateRange, MovementFilters
 from tests.chat_helpers import ask, calls, last_results, say
-from tests.conftest import auth_header, make_product
+from tests.conftest import auth_header, join_store, make_product
 
 
 def _rid() -> str:
@@ -42,17 +42,7 @@ def _txn(api, headers, kind, product, qty, unit=None):
 
 
 def _invite(api, manager, role, email):
-    inv = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager).json()
-    token = api.post(
-        "/staff/invites/accept",
-        json={
-            "accept_terms": True,
-            "token": inv["token"],
-            "password": "Staff-pass-1",
-            "full_name": role.title(),
-        },
-    ).json()["access_token"]
-    return auth_header(token)
+    return join_store(api, manager, role, login=email)
 
 
 @pytest.fixture

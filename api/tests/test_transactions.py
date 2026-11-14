@@ -13,7 +13,14 @@ from app.inventory.models import Scan, StockMovement, Transaction, TransactionIt
 from app.inventory.schemas import TransactionIn
 from app.inventory.stock_service import alias_from_raw, save_transaction, scan_line_alias
 from app.products.models import Product, ProductAlias
-from tests.conftest import API_BASE_URL, auth_header, make_product, scan_line, upload_photo
+from tests.conftest import (
+    API_BASE_URL,
+    auth_header,
+    join_store,
+    make_product,
+    scan_line,
+    upload_photo,
+)
 
 
 def _rid() -> str:
@@ -190,20 +197,7 @@ def test_new_products_are_created_first(api, db, manager, nails):
 
 
 def test_member_can_save_but_cannot_create_products(api, db, manager, nails):
-    invite = api.post(
-        "/staff/invites", json={"email": "m@example.com", "role": "member"}, headers=manager
-    ).json()
-    member = auth_header(
-        api.post(
-            "/staff/invites/accept",
-            json={
-                "accept_terms": True,
-                "token": invite["token"],
-                "password": "Member-pass-1",
-                "full_name": "M",
-            },
-        ).json()["access_token"]
-    )
+    member = join_store(api, manager, "member", login="m@example.com")
     ok = _save(api, member, [{"product_id": nails["id"], "qty": "1", "unit": "kg"}])
     assert ok.status_code == 201
     new = _save(
@@ -562,20 +556,7 @@ def test_concurrent_repeats_of_a_scan_save_return_first_result(
 
 
 def _member(api, manager):
-    invite = api.post(
-        "/staff/invites", json={"email": "m@example.com", "role": "member"}, headers=manager
-    ).json()
-    return auth_header(
-        api.post(
-            "/staff/invites/accept",
-            json={
-                "accept_terms": True,
-                "token": invite["token"],
-                "password": "Member-pass-1",
-                "full_name": "M",
-            },
-        ).json()["access_token"]
-    )
+    return join_store(api, manager, "member", login="m@example.com")
 
 
 def test_line_without_unit_cannot_be_saved_without_a_unit(

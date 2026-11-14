@@ -4,23 +4,11 @@ import pytest
 from sqlalchemy import select
 
 from app.products.models import Product
-from tests.conftest import auth_header, make_product
+from tests.conftest import auth_header, join_store, make_product
 
 
 def _join(api, manager_headers, email, role):
-    invite = api.post(
-        "/staff/invites", json={"email": email, "role": role}, headers=manager_headers
-    ).json()
-    res = api.post(
-        "/staff/invites/accept",
-        json={
-            "accept_terms": True,
-            "token": invite["token"],
-            "password": "Staff-pass-1",
-            "full_name": role,
-        },
-    )
-    return auth_header(res.json()["access_token"])
+    return join_store(api, manager_headers, role, login=email, full_name=role)
 
 
 @pytest.fixture

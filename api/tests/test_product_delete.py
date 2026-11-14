@@ -4,16 +4,11 @@ import pytest
 from sqlalchemy import text
 
 from app.products.constants import MAX_BULK_DELETE
-from tests.conftest import auth_header, make_product
+from tests.conftest import auth_header, join_store, make_product
 
 
 def _join(api, headers, email, role):
-    invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=headers)
-    res = api.post(
-        "/staff/invites/accept",
-        json={"accept_terms": True, "token": invite.json()["token"], "password": "Staff-pass-1"},
-    )
-    return auth_header(res.json()["access_token"])
+    return join_store(api, headers, role, login=email)
 
 
 def _stock_in(api, headers, product):

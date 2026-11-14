@@ -3,11 +3,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.auth.models import AuthToken, User
 from app.core.config import Settings
-from tests.conftest import auth_header, upload_photo
+from tests.conftest import auth_header, join_store, upload_photo, username_for
 
 SIGNUP = {
     "store_name": "Store",
@@ -36,22 +36,22 @@ def _reset(api, token, new_password="Brand-new-pass-1"):
 
 
 def _invite_member(api, manager, email="staff@example.com", role="member"):
-    invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager).json()
-    res = api.post(
-        "/staff/invites/accept",
-        json={
-            "accept_terms": True,
-            "token": invite["token"],
-            "password": "Staff-pass-1",
-            "full_name": "Staff",
-        },
+    return join_store(api, manager, role, login=email, full_name="Staff")
+
+
+def _give_email(db, email, verified=False):
+    db.execute(
+        update(User)
+        .where(User.username == username_for(email))
+        .values(email=email, email_verified_at=func.now() if verified else None)
     )
-    return auth_header(res.json()["access_token"])
+    db.commit()
 
 
 def _member_id(api, manager, email="staff@example.com") -> str:
     staff = api.get("/staff", headers=manager).json()
-    return next(s["member_id"] for s in staff if s["email"] == email)
+    names = {email, username_for(email)}
+    return next(s["member_id"] for s in staff if (s["email"] or s["username"]) in names)
 
 
 def _set_role(api, headers, member_id, role):
@@ -122,16 +122,18 @@ def test_an_unconfirmed_owner_must_confirm_before_using_the_ai(api, mailer):
     assert res.status_code == 403 and res.json()["code"] == "email_not_verified"
 
 
-def test_no_reset_link_goes_to_an_invited_email_nobody_proved(api, manager, mailer):
+def test_no_reset_link_goes_to_an_invited_email_nobody_proved(api, db, manager, mailer):
     _invite_member(api, manager, email="made.up@example.com")
+    _give_email(db, "made.up@example.com")
     before = len(mailer.sent)
     res = api.post("/auth/forgot-password", json={"email": "made.up@example.com"})
     assert res.status_code == 204
     assert len(mailer.sent) == before
 
 
-def test_a_reset_link_goes_to_an_invited_email_once_it_is_proven(api, manager, mailer):
+def test_a_reset_link_goes_to_an_invited_email_once_it_is_proven(api, db, manager, mailer):
     staff = _invite_member(api, manager, email="real@example.com")
+    _give_email(db, "real@example.com")
     assert api.post("/auth/resend-verification", headers=staff).status_code == 204
     assert (
         api.post("/auth/verify-email", json={"token": _link_token(mailer.sent[-1])}).status_code
