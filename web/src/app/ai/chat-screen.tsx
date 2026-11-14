@@ -27,7 +27,7 @@ type Status = { name: "idle" } | { name: "loading" } | { name: "error"; message:
 const noopSubscribe = () => () => {};
 
 /**
- * AI tab. The conversation lives in this browser tab only (sessionStorage): it is sent
+ * Ask Sukat tab. The conversation lives in this browser tab only (sessionStorage): it is sent
  * with each question and never saved on the server.
  */
 export function ChatScreen() {
@@ -111,7 +111,7 @@ function Chat() {
     <>
       <PageHeader
         eyebrow="Your store assistant"
-        title="Ask Sukat AI"
+        title="Ask Sukat"
         action={
           messages.length > 0 && (
             <button type="button" onClick={newChat} aria-label="New chat" className={headerIconClass}>
@@ -122,19 +122,19 @@ function Chat() {
       />
 
       {empty ? (
-        <div className="pt-4 text-center">
-          <Mascot emote="normal" size={128} glow className="mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-text">What do you want to know?</h2>
-          <p className="mx-auto mt-2 mb-6 max-w-xs text-sm text-muted">
-            Ask about sales, products, or stock. I’ll use your store records.
+        <div className="pt-2 pb-4 text-center">
+          <Mascot emote="normal" size={150} glow className="mx-auto mb-5" />
+          <h2 className="text-[22px] leading-tight font-extrabold text-text">What do you want to know?</h2>
+          <p className="mx-auto mt-2 mb-6 max-w-72 text-[15px] leading-snug text-muted">
+            Ask about sales, products, or stock. I answer from your store records.
           </p>
-          <div className="flex flex-col gap-3 text-left" role="group" aria-label="Suggested questions">
+          <div className="flex flex-col gap-2.5 text-left" role="group" aria-label="Suggested questions">
             {SUGGESTIONS.map((q) => (
               <button
                 key={q}
                 type="button"
                 onClick={() => ask(q)}
-                className="flex min-h-[60px] items-center justify-between rounded-card border border-border bg-surface px-4 text-base font-semibold text-text hover:bg-border/40"
+                className="flex min-h-13 items-center justify-between rounded-card border border-border bg-surface px-4 text-[15px] font-bold text-text hover:bg-border/40"
               >
                 {q}
                 <Icon name="chevron" size={18} />
@@ -184,25 +184,25 @@ function Chat() {
           e.preventDefault();
           ask(text);
         }}
-        className="fixed inset-x-0 bottom-[var(--nav-h,0px)] z-10 border-t border-border bg-background"
+        className="fixed inset-x-0 bottom-[var(--nav-h,0px)] z-10 bg-background"
       >
-        <div className="mx-auto flex h-[66px] max-w-lg gap-2 px-4 py-2">
+        <div className="mx-auto flex h-[68px] max-w-lg gap-2.5 px-4 py-2">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
             maxLength={MAX_CHARS}
-            placeholder="Ask about your store…"
+            placeholder="Type your question…"
             aria-label="Your question"
             enterKeyHint="send"
-            className="min-w-0 flex-1 rounded-button border border-line bg-surface px-3 text-sm text-text outline-none placeholder:text-subtle focus:border-text focus:ring-1 focus:ring-text"
+            className="min-w-0 flex-1 rounded-card border border-line bg-surface px-4 text-[15px] text-text outline-none placeholder:text-subtle focus:border-text focus:ring-1 focus:ring-text"
           />
           <button
             type="submit"
             aria-label="Send"
             disabled={!text.trim() || status.name === "loading"}
-            className="grid w-12 shrink-0 place-items-center rounded-button bg-text text-inverse disabled:opacity-35"
+            className="grid w-[52px] shrink-0 place-items-center rounded-card bg-accent text-white hover:bg-accent-pressed disabled:opacity-45"
           >
-            <Icon name="send" size={20} />
+            <Icon name="forward" size={22} />
           </button>
         </div>
       </form>
