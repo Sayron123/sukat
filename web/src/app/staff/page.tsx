@@ -4,10 +4,10 @@ import { redirect } from "next/navigation";
 
 import { AppPage } from "@/components/app-page";
 import { Icon } from "@/components/icons";
-import { PageHeader, headerTextActionClass } from "@/components/page-header";
+import { PageHeader } from "@/components/page-header";
 import { Notice } from "@/components/ui";
 import { backendFetch, getToken } from "@/lib/server/backend";
-import type { Me, Staff } from "@/lib/types";
+import type { Me, PendingInvite, Staff } from "@/lib/types";
 
 import { StaffList } from "./staff-list";
 
@@ -41,6 +41,7 @@ async function StaffContent() {
   if (!meRes.ok) throw new Error("Could not load your account");
   const me = (await meRes.json()) as Me;
   const staff = staffRes.ok ? ((await staffRes.json()) as Staff[]) : null;
+  const invites = me.role === "member" ? [] : await pendingInvites(token);
 
   return (
     <>
@@ -50,8 +51,11 @@ async function StaffContent() {
         back="/more"
         action={
           me.role !== "member" && (
-            <Link href="/staff/invite" className={headerTextActionClass}>
-              <Icon name="plus" size={20} />
+            <Link
+              href="/staff/invite"
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-button bg-accent px-3.5 text-sm font-bold text-white hover:bg-accent-pressed"
+            >
+              <Icon name="plus" size={18} />
               Invite
             </Link>
           )
@@ -60,13 +64,19 @@ async function StaffContent() {
       {!staff ? (
         <p className="text-sm text-red">Could not load staff.</p>
       ) : (
-        <StaffList staff={staff} me={me} />
+        <StaffList staff={staff} me={me} invites={invites} />
       )}
-      <Notice icon="users" title="Roles control access" className="mt-5">
-        Managers and secretaries can edit products and void sales. Members can scan sales and stock.
-      </Notice>
     </>
   );
+}
+
+async function pendingInvites(token: string): Promise<PendingInvite[] | null> {
+  try {
+    const res = await backendFetch("/staff/invites", { token });
+    return res.ok ? ((await res.json()) as PendingInvite[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 function ApiDown() {

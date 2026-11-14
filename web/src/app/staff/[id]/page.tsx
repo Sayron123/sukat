@@ -4,12 +4,12 @@ import { Suspense } from "react";
 
 import { AppPage } from "@/components/app-page";
 import { PageHeader } from "@/components/page-header";
-import { Avatar, Badge, Card, Loading, Notice } from "@/components/ui";
+import { Avatar, Badge, Loading, Notice } from "@/components/ui";
 import { STORE_TZ } from "@/lib/dates";
 import { backendFetch, getToken } from "@/lib/server/backend";
 import type { Me, Staff } from "@/lib/types";
 
-import { AliasForm } from "./member-forms";
+import { MemberEditor } from "./member-editor";
 
 export const metadata: Metadata = { title: "Staff member · Sukat" };
 
@@ -57,40 +57,32 @@ async function MemberContent({ params }: { params: PageProps<"/staff/[id]">["par
   const member = (await memberRes.json()) as Staff;
 
   const name = member.alias ?? member.full_name;
-  const canRename = !member.is_owner || member.user_id === me.user_id;
+  const self = member.user_id === me.user_id;
+  const canRename = !member.is_owner || self;
+  const canChange = member.active && !member.is_owner && !self;
   const joined = new Date(member.created_at).toLocaleDateString("en-PH", {
     timeZone: STORE_TZ,
-    year: "numeric",
-    month: "long",
+    month: "short",
     day: "numeric",
+    year: "numeric",
   });
-  const details = [
-    { label: "Account name", value: member.full_name },
-    { label: "Email", value: member.email },
-    { label: "Joined", value: joined },
-  ];
+  const detail = [member.alias && member.full_name, member.email ?? (member.username && `@${member.username}`)]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <>
-      <PageHeader eyebrow="Staff" title={name} back="/staff" />
-      <Card className="mb-4">
-        <div className="mb-4 flex items-center gap-3">
-          <Avatar name={name} large />
-          <div className="flex flex-wrap gap-1.5">
-            <Badge className="capitalize">{member.is_owner ? "owner" : member.role}</Badge>
-            {!member.active && <Badge tone="red">Inactive</Badge>}
-          </div>
+      <PageHeader title={name} back="/staff" />
+      <div className="mb-6 flex items-center gap-3 rounded-card border border-border bg-surface px-4 py-3">
+        <Avatar name={name} large accent={member.is_owner} />
+        <div className="min-w-0 flex-1">
+          <b className="block truncate text-base text-text">{name}</b>
+          {detail && <small className="mt-0.5 block truncate text-[13px] text-muted">{detail}</small>}
+          <small className="mt-0.5 block text-[13px] text-muted">Joined {joined}</small>
         </div>
-        <dl className="flex flex-col gap-3">
-          {details.map((d) => (
-            <div key={d.label} className="min-w-0">
-              <dt className="text-[13px] text-muted">{d.label}</dt>
-              <dd className="truncate text-[15px] text-text">{d.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </Card>
-      {canRename && <AliasForm memberId={member.member_id} alias={member.alias} />}
+        {!member.active && <Badge tone="red">Inactive</Badge>}
+      </div>
+      <MemberEditor member={member} storeName={me.store_name} canChange={canChange} canRename={canRename} />
     </>
   );
 }
