@@ -14,6 +14,9 @@ export const EMOTES = [
   "sleeping",
   "searching",
   "locked",
+  "scanning",
+  "scan-blurry",
+  "scan-done",
 ] as const;
 
 export type Emote = (typeof EMOTES)[number];
@@ -31,6 +34,9 @@ const ALT: Record<Emote, string> = {
   sleeping: "Sukat mascot, sleeping",
   searching: "Sukat mascot, searching",
   locked: "Sukat mascot, locked",
+  scanning: "Sukat mascot, scanning a receipt",
+  "scan-blurry": "Sukat mascot, the photo is blurry",
+  "scan-done": "Sukat mascot, scan done",
 };
 
 function src(emote: Emote, theme: "dark" | "light") {

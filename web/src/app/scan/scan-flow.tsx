@@ -206,9 +206,11 @@ export function ScanFlow({
       return (
         <>
           <PageHeader eyebrow={text.title} title={text.readFailed} onBack={() => setStep({ name: "pick" })} />
-          <Notice mascot="error" title="The photo could not be read">
-            {step.scan.error_message ?? "Something went wrong."}
-          </Notice>
+          <div className="py-6">
+            <MascotMessage emote="scan-blurry" size={160} title="The photo could not be read">
+              {step.scan.error_message ?? "Something went wrong."}
+            </MascotMessage>
+          </div>
           <ActionDock>
             {step.scan.retryable && (
               <Button size="lg" onClick={() => retry(step.scan)}>
@@ -332,17 +334,7 @@ function Busy({
     <>
       <PageHeader eyebrow={eyebrow} title={error ? "Still not read" : title} onBack={onCancel} />
       <div className="flex flex-col items-center gap-4 py-10 text-center" aria-live="polite">
-        {!error && (
-          <>
-            <div aria-hidden className="relative flex w-50 flex-col gap-3 overflow-hidden rounded-button bg-surface p-5">
-              {[70, 55, 82, 40, 64, 50].map((w) => (
-                <span key={w} className="h-2 rounded-full bg-line" style={{ width: `${w}%` }} />
-              ))}
-              <span className="absolute inset-x-2 top-2 h-0.75 rounded-full bg-accent shadow-[0_0_10px_2px_rgb(194_65_12/0.45)] motion-safe:animate-sukat-scan" />
-            </div>
-            <Mascot emote="thinking" size={140} />
-          </>
-        )}
+        {!error && <Mascot emote="scanning" size={180} glow />}
         {error && <Mascot emote="error" size={120} />}
         {error ? <p className="text-sm text-red">{error}</p> : note && <p className="text-sm text-muted">{note}</p>}
       </div>
@@ -522,6 +514,11 @@ function Review({
             </p>
           </div>
         </div>
+      )}
+      {checks === 0 && lines.length > 0 && (
+        <Notice mascot="scan-done" title="All lines were read" className="mb-5">
+          Check them, then tap Approve.
+        </Notice>
       )}
       {lines.length === 0 && (
         <Card>

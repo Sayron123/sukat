@@ -40,20 +40,11 @@
   --radius-card: 16px; /* cards */
 
   --animate-pop-in: pop-in 180ms ease-out;
-  --animate-sukat-scan: sukat-scan 2s ease-in-out infinite alternate;
 
   @keyframes pop-in {
     from {
       opacity: 0;
       transform: translateY(2px) scale(0.96);
-    }
-  }
-  @keyframes sukat-scan {
-    from {
-      top: 8px;
-    }
-    to {
-      top: calc(100% - 11px);
     }
   }
 }
