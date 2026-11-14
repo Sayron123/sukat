@@ -22,8 +22,7 @@ export default function LoginPage() {
           autoComplete: "current-password",
         },
       ]}
-      createAccount={{ prompt: "New to Sukat?", text: "Create a store account", href: "/signup/manager" }}
-      note="Staff member? Ask your store manager for your sign-in details."
+      createAccount={{ prompt: "New to Sukat?", text: "Create account", href: "/signup" }}
       altLink={{ text: "Forgot your password?", href: "/forgot-password" }}
     />
   );

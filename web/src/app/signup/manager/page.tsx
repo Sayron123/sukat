@@ -9,9 +9,9 @@ export default function ManagerSignupPage() {
     <AuthForm
       title="Set up your store"
       subtitle="Set up your store and your manager account."
-      mascot={100}
+      mascot={104}
       endpoint="/api/auth/signup"
-      submitLabel="Create Store"
+      submitLabel="Create store"
       fields={[
         {
           name: "store_name",
