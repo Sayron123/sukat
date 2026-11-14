@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.auth.schemas import clean_login, clean_username, must_accept_terms
+from app.auth.schemas import GoogleIn, clean_login, clean_username, must_accept_terms
 from app.stores.models import AttendanceStatus, Role
 
 
@@ -128,6 +128,16 @@ class AcceptInviteIn(BaseModel):
         else:
             self.login = clean_login(self.login or "")
         return self
+
+
+class AcceptGoogleIn(GoogleIn):
+    token: str = Field(min_length=1, max_length=200)
+    accept_terms: bool = Field(default=False, validate_default=True)
+
+    @field_validator("accept_terms")
+    @classmethod
+    def _must_accept(cls, v: bool) -> bool:
+        return must_accept_terms(v)
 
 
 class StaffResetOut(BaseModel):

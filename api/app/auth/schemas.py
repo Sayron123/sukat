@@ -123,6 +123,35 @@ class VerifyEmailIn(BaseModel):
     token: LinkToken
 
 
+class GoogleIn(BaseModel):
+    code: str = Field(min_length=1, max_length=2000)
+    code_verifier: str = Field(min_length=43, max_length=128)
+    redirect_uri: str = Field(min_length=1, max_length=300)
+    nonce: str = Field(min_length=16, max_length=200)
+
+
+class GoogleSignupIn(GoogleIn):
+    store_name: str = Field(min_length=1, max_length=120)
+    store_address: str | None = Field(default=None, max_length=300)
+    accept_terms: bool = Field(default=False, validate_default=True)
+
+    _strip = field_validator("store_name")(_not_blank)
+
+    @field_validator("accept_terms")
+    @classmethod
+    def _must_accept(cls, v: bool) -> bool:
+        return must_accept_terms(v)
+
+    @field_validator("store_address")
+    @classmethod
+    def _strip_optional(cls, v: str | None) -> str | None:
+        return (v.strip() or None) if v is not None else None
+
+
+class GoogleClientOut(BaseModel):
+    client_id: str | None
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -136,6 +165,7 @@ class MeOut(BaseModel):
     full_name: str
     email_verified: bool
     email_confirmation: bool
+    google: bool
     store_id: UUID
     store_name: str
     store_address: str | None

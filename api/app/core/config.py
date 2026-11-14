@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     MAX_REQUEST_BYTES: int = 1024 * 1024
     UPLOAD_URL_EXPIRE_SECONDS: int = 300
 
+    # ----- Sign in with Google -----
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: SecretStr = SecretStr("")
+
     # ----- AI (reading list photos) -----
     GEMINI_API_KEY: SecretStr = SecretStr("")
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
