@@ -14,6 +14,10 @@ export const EMOTES = [
   "sleeping",
   "searching",
   "locked",
+  "scanning",
+  "scan-blurry",
+  "scan-empty",
+  "scan-done",
 ] as const;
 
 export type Emote = (typeof EMOTES)[number];
@@ -31,6 +35,10 @@ const ALT: Record<Emote, string> = {
   sleeping: "Sukat mascot, sleeping",
   searching: "Sukat mascot, searching",
   locked: "Sukat mascot, locked",
+  scanning: "Sukat mascot, scanning a receipt",
+  "scan-blurry": "Sukat mascot, the photo is blurry",
+  "scan-empty": "Sukat mascot, no items found",
+  "scan-done": "Sukat mascot, scan done",
 };
 
 function src(emote: Emote, theme: "dark" | "light") {
@@ -42,12 +50,14 @@ export function Mascot({
   size = 120,
   glow = false,
   alt,
+  theme,
   className = "",
 }: {
   emote: Emote;
   size?: number;
   glow?: boolean;
   alt?: string;
+  theme?: "light" | "dark";
   className?: string;
 }) {
   const label = alt ?? ALT[emote];
@@ -64,8 +74,14 @@ export function Mascot({
           style={{ backgroundImage: "radial-gradient(closest-side, var(--color-glow), transparent)" }}
         />
       )}
-      <Image src={src(emote, "light")} alt={label} width={size} height={size} className="relative dark:hidden" />
-      <Image src={src(emote, "dark")} alt={label} width={size} height={size} className="relative hidden dark:block" />
+      {theme ? (
+        <Image src={src(emote, theme)} alt={label} width={size} height={size} className="relative" />
+      ) : (
+        <>
+          <Image src={src(emote, "light")} alt={label} width={size} height={size} className="relative dark:hidden" />
+          <Image src={src(emote, "dark")} alt={label} width={size} height={size} className="relative hidden dark:block" />
+        </>
+      )}
     </span>
   );
 }
