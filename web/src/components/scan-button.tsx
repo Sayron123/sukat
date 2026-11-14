@@ -37,7 +37,7 @@ export function ScanButton() {
     <>
       <button type="button" onClick={start} className={buttonClass("primary", "lg")}>
         <Icon name="camera" />
-        Scan
+        Scan receipt or list
       </button>
       <ScanModeSheet open={open} onClose={() => setOpen(false)} />
     </>

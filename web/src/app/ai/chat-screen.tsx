@@ -123,8 +123,8 @@ function Chat() {
 
       {empty ? (
         <div className="pt-2 pb-4 text-center">
-          <Mascot emote="normal" size={150} glow className="mx-auto mb-5" />
-          <h2 className="text-[22px] leading-tight font-extrabold text-text">What do you want to know?</h2>
+          <Mascot emote="normal" size={140} glow className="mx-auto mb-6" />
+          <h2 className="text-2xl leading-tight font-extrabold text-text">What do you want to know?</h2>
           <p className="mx-auto mt-2 mb-6 max-w-72 text-[15px] leading-snug text-muted">
             Ask about sales, products, or stock. I answer from your store records.
           </p>
@@ -134,10 +134,10 @@ function Chat() {
                 key={q}
                 type="button"
                 onClick={() => ask(q)}
-                className="flex min-h-13 items-center justify-between rounded-card border border-border bg-surface px-4 text-[15px] font-bold text-text hover:bg-border/40"
+                className="flex min-h-14 items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 text-base font-bold text-text hover:bg-border/40"
               >
                 {q}
-                <Icon name="chevron" size={18} />
+                <Icon name="chevron" size={20} className="text-muted" />
               </button>
             ))}
           </div>
@@ -194,7 +194,7 @@ function Chat() {
             placeholder="Type your question…"
             aria-label="Your question"
             enterKeyHint="send"
-            className="min-w-0 flex-1 rounded-card border border-line bg-surface px-4 text-[15px] text-text outline-none placeholder:text-subtle focus:border-text focus:ring-1 focus:ring-text"
+            className="min-w-0 flex-1 rounded-card border-[1.5px] border-line bg-surface px-4 text-[15px] text-text outline-none placeholder:text-subtle focus:border-text focus:ring-1 focus:ring-text"
           />
           <button
             type="submit"

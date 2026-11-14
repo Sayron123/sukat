@@ -37,8 +37,10 @@ export function PageHeader({
           </button>
         )}
         <div className="min-w-0">
-          {eyebrow && <p className="truncate text-[13px] font-bold text-muted uppercase">{eyebrow}</p>}
-          <h1 className="mt-0.5 truncate text-[22px] leading-tight font-bold text-text">{title}</h1>
+          {eyebrow && (
+            <p className="truncate text-xs font-bold tracking-[0.06em] text-muted uppercase">{eyebrow}</p>
+          )}
+          <h1 className="mt-0.5 truncate text-2xl leading-tight font-extrabold text-text">{title}</h1>
         </div>
       </div>
       {action}

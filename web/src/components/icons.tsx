@@ -154,6 +154,7 @@ const PATHS = {
       <path d="M10 8l-4 4 4 4M6 12h10" />
     </>
   ),
+  checklist: <path d="m4 7 2 2 3-4M12 7h8M4 16l2 2 3-4M12 16h8" />,
   mail: (
     <>
       <rect x="3" y="5" width="18" height="14" rx="2" />

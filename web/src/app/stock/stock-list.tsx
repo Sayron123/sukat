@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ActionDock } from "@/components/action-dock";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
-import { MascotMessage } from "@/components/mascot";
+import { Mascot, MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { ScanButton } from "@/components/scan-button";
 import { Button, Card, Chip, Notice, Pager, SearchBox, StockBadge, buttonClass, isOutOfStock } from "@/components/ui";
@@ -134,7 +134,11 @@ export function StockList() {
           title="Stock"
           action={
             canEdit && (
-              <Link href="/stock/new" aria-label="Add product" className={headerIconClass}>
+              <Link
+                href="/stock/new"
+                aria-label="Add product"
+                className={`${headerIconClass} border-[1.5px] border-border bg-surface`}
+              >
                 <Icon name="plus" size={24} />
               </Link>
             )
@@ -171,6 +175,16 @@ export function StockList() {
       </div>
 
       {result && <DeleteResult result={result} />}
+
+      {canEdit && !selected && data?.items.some((p) => p.price_centavos === null) && (
+        <div className="mb-3 flex items-center gap-2.5 rounded-card border border-amber-edge bg-amber-soft px-3 py-2.5">
+          <Mascot emote="thinking" size={48} alt="" />
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-text">Some products have no price yet</p>
+            <p className="text-[13px] text-amber-text">Add prices so your sales totals are right.</p>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="mb-3 text-sm text-red">
@@ -288,7 +302,7 @@ function StockRow({
         </small>
       </div>
       <div className="min-w-[62px] shrink-0 text-right">
-        <strong className={`block text-2xl leading-none ${isOutOfStock(p.stock_qty) ? "text-red" : "text-text"}`}>
+        <strong className={`block text-[26px] leading-none font-bold ${isOutOfStock(p.stock_qty) ? "text-red" : "text-text"}`}>
           {formatQty(p.stock_qty)}
         </strong>
         <span className="text-[13px] text-muted">{p.base_unit} left</span>
