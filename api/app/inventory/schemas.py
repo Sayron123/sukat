@@ -134,6 +134,7 @@ class ScanIn(BaseModel):
 
 class ReviewLineOut(BaseModel):
     raw_text: str
+    item_text: str | None
     product_id: UUID | None
     product_name: str | None
     base_unit: str | None

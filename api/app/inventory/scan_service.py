@@ -323,6 +323,7 @@ def review_line(line: ScanLine, products: dict[UUID, Product], scan_type: str) -
 
     return {
         "raw_text": line.raw_text,
+        "item_text": line.item_text,
         "product_id": product.id if product else None,
         "product_name": product.name if product else None,
         "base_unit": product.base_unit if product else None,
