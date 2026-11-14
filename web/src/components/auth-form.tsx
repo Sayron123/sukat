@@ -49,6 +49,7 @@ export function AuthShell({
   back,
   mascot,
   emote = "normal",
+  inlineSubmit = false,
   children,
 }: {
   title: string;
@@ -56,11 +57,12 @@ export function AuthShell({
   back?: string;
   mascot?: number;
   emote?: Emote;
+  inlineSubmit?: boolean;
   children: ReactNode;
 }) {
   const top = mascot ? (back ? "pt-14" : "pt-8") : back ? "pt-20" : "pt-16";
   return (
-    <main className={`relative mx-auto w-full max-w-lg flex-1 px-6 pb-36 ${top}`}>
+    <main className={`relative mx-auto w-full max-w-lg flex-1 px-6 ${inlineSubmit ? "pb-10" : "pb-36"} ${top}`}>
       {back && (
         <Link
           href={back}
@@ -114,13 +116,15 @@ export function AuthForm({
   agreement = false,
   mascot,
   signedOutText,
+  createAccount,
+  note,
 }: {
   title: string;
   subtitle: string;
   endpoint: string;
   fields: FieldDef[];
   submitLabel: string;
-  footer: { text: string; href: string };
+  footer?: { text: string; href: string };
   back?: string;
   altLink?: { text: string; href: string };
   extra?: Record<string, string>;
@@ -128,6 +132,8 @@ export function AuthForm({
   agreement?: boolean;
   mascot?: number;
   signedOutText?: string;
+  createAccount?: { prompt: string; text: string; href: string };
+  note?: string;
 }) {
   const sections = [...new Set(fields.flatMap((f) => (f.section ? [f.section] : [])))];
   const [error, setError] = useState<string | null>(null);
@@ -204,13 +210,16 @@ export function AuthForm({
       back={back}
       mascot={mascot}
       emote={signedOut ? "sleeping" : "normal"}
+      inlineSubmit={createAccount !== undefined}
     >
       {finished ? (
         <>
           <Notice title="Done">{done}</Notice>
-          <Link href={footer.href} className={`${textLinkClass} mt-3`}>
-            {footer.text}
-          </Link>
+          {footer && (
+            <Link href={footer.href} className={`${textLinkClass} mt-3`}>
+              {footer.text}
+            </Link>
+          )}
         </>
       ) : (
         <form method="post" onSubmit={onSubmit} onChange={() => setError(null)} className="flex flex-col gap-[22px]">
@@ -248,7 +257,14 @@ export function AuthForm({
             );
           })}
           {altLink && (
-            <Link href={altLink.href} className={`${textLinkClass} -mt-4 self-start`}>
+            <Link
+              href={altLink.href}
+              className={
+                createAccount
+                  ? "-mt-4 inline-flex min-h-11 items-center self-start text-[13px] font-semibold text-accent-text underline"
+                  : `${textLinkClass} -mt-4 self-start`
+              }
+            >
               {altLink.text}
             </Link>
           )}
@@ -279,20 +295,37 @@ export function AuthForm({
               {error}
             </p>
           )}
-          {footer.href !== back && (
+          {footer && footer.href !== back && (
             <Link href={footer.href} className={`${textLinkClass} self-start`}>
               {footer.text}
             </Link>
           )}
-          <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background">
-            <div className="mx-auto max-w-lg px-6 pt-3 pb-6">
-              <Button type="submit" size="lg" disabled={!ready || pending}>
+          {createAccount ? (
+            <>
+              <Button type="submit" size="lg" disabled={!ready || pending} className="-mt-2">
                 {pending ? "Please wait…" : submitLabel}
               </Button>
+              <div className="-my-1 flex items-center gap-3 text-[13px] text-muted">
+                <span aria-hidden className="h-px flex-1 bg-border" />
+                {createAccount.prompt}
+                <span aria-hidden className="h-px flex-1 bg-border" />
+              </div>
+              <Link href={createAccount.href} className="flex h-12 items-center justify-center rounded-button border border-line bg-surface px-4 text-[15px] font-bold text-text hover:bg-background">
+                {createAccount.text}
+              </Link>
+            </>
+          ) : (
+            <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background">
+              <div className="mx-auto max-w-lg px-6 pt-3 pb-6">
+                <Button type="submit" size="lg" disabled={!ready || pending}>
+                  {pending ? "Please wait…" : submitLabel}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </form>
       )}
+      {note && !finished && <p className="mt-16 text-center text-[13px] leading-relaxed text-muted">{note}</p>}
     </AuthShell>
   );
 }
