@@ -3,7 +3,7 @@
 Sukat is a multi-tenant SaaS for Philippine hardware stores: products, inventory, sales, and insights in one app that works on phones (PWA).
 
 Built so far (Phases 0-6): accounts and staff, products, stock-ins, sales, photo scans read by AI, reports, and the AI chat.
-See `docs/` for what each part does and why, one file per phase.
+See `docs/` for what each part does and why, one file per phase. Before opening a pull request, read `docs/pull-requests.md` (backend and UI go in separate PRs).
 
 ## Folder structure
 
