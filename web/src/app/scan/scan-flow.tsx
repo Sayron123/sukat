@@ -13,6 +13,7 @@ import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Button, Card, GhostButton, Notice, ghostButtonClass, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
+import type { CropBox } from "@/lib/crop-box";
 import { formatPeso, formatQty, pesosToCentavos } from "@/lib/format";
 import { newRequestId } from "@/lib/request-id";
 import {
@@ -34,6 +35,7 @@ import {
   priceToSend,
   toEditLine,
 } from "./lines";
+import { CropPhoto } from "./crop-photo";
 import { ReviewLineCard } from "./review-line";
 
 /** Words that differ between a delivery (stock in) and a sale. */
@@ -66,6 +68,7 @@ const TEXT = {
 
 type Step =
   | { name: "pick"; error?: string; empty?: boolean }
+  | { name: "crop"; file: File; url: string }
   | { name: "uploading" }
   | { name: "reading"; photoKey: string; scanId?: string; error?: string }
   | { name: "failed"; scan: Scan }
@@ -76,7 +79,8 @@ const POLL_MS = 3000;
 const EMPTY_PHOTO = "No items were found on this photo. Take a clear photo of the list or receipt.";
 
 /**
- * Scan flow for both modes: photo -> compress -> upload -> AI reads -> review -> save.
+ * Scan flow for both modes: photo -> crop -> compress -> upload -> AI reads -> review -> save.
+ * Only the cropped part leaves the phone.
  * "stock_in" adds stock (new products allowed for managers/secretaries); "sale" removes
  * stock (existing products only, prices default to the product's price).
  *
@@ -111,6 +115,12 @@ export function ScanFlow({
     return () => URL.revokeObjectURL(preview);
   }, [preview]);
 
+  const cropUrl = step.name === "crop" ? step.url : null;
+  useEffect(() => {
+    if (!cropUrl) return;
+    return () => URL.revokeObjectURL(cropUrl);
+  }, [cropUrl]);
+
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
   }, []);
@@ -120,11 +130,11 @@ export function ScanFlow({
     if (salesOnly) router.replace("/scan/sale");
   }, [salesOnly, router]);
 
-  async function startWithFile(file: File) {
+  async function startWithFile(file: File, crop: CropBox) {
     setStep({ name: "uploading" });
     let photoKey: string;
     try {
-      const photo = await compressImage(file);
+      const photo = await compressImage(file, crop);
       setPreview(URL.createObjectURL(photo));
       const up = await api<UploadUrl>("scans/upload-url", {
         method: "POST",
@@ -196,7 +206,23 @@ export function ScanFlow({
 
   switch (step.name) {
     case "pick":
-      return <PickPhoto mode={mode} error={step.error} empty={step.empty} onFile={startWithFile} />;
+      return (
+        <PickPhoto
+          mode={mode}
+          error={step.error}
+          empty={step.empty}
+          onFile={(file) => setStep({ name: "crop", file, url: URL.createObjectURL(file) })}
+        />
+      );
+    case "crop":
+      return (
+        <CropPhoto
+          title={text.title}
+          photoUrl={step.url}
+          onConfirm={(box) => startWithFile(step.file, box)}
+          onRetake={() => setStep({ name: "pick" })}
+        />
+      );
     case "uploading":
       return <Busy eyebrow={text.title} title="Uploading photo…" note="Sending the photo to Sukat." photo={preview} />;
     case "reading":

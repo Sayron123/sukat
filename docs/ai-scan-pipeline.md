@@ -8,6 +8,8 @@ photo ──► 1. read (AI) ──► 2. match (code, then AI for leftovers) �
 
 Each step's output is saved on the scan (`scans.ai_result_json` → `steps`), so when a line comes out wrong you can see which step made the mistake.
 
+**Before step 1, on the phone:** after taking the photo, staff drag a box around the item rows (`web/src/app/scan/crop-photo.tsx`). The box starts on the whole photo. `compressImage` cuts out the box first and then shrinks it, so only that part is uploaded, stored and sent to the AI, and the customer's name in the header never leaves the phone. Cutting before shrinking also keeps more pixels on the items.
+
 ## Step 1 — Gemini adapter (and provider choice)
 
 **What**

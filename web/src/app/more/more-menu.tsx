@@ -30,6 +30,7 @@ const GROUPS: Group[] = [
     title: "Store",
     items: [
       { href: "/transactions", icon: "history", title: "History", detail: "Sales and stock movements" },
+      { href: "/scans/recycle-bin", icon: "trash", title: "Recycle bin", detail: "Deleted photos stay here for 30 days", writersOnly: true },
       { href: "/more/export", icon: "download", title: "Download store data", detail: "Save a copy you can open in Excel", managersOnly: true },
       { href: "/more/ai-usage", icon: "sukat", title: "AI usage", detail: "This month's spending and limit", managersOnly: true },
     ],

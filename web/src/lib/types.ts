@@ -104,10 +104,12 @@ export type CatalogItem = {
   aliases: string[];
   conversions: Conversion[];
   already_in_store: boolean;
+  archived_in_store: boolean;
 };
 
 export type ImportResult = {
   created: number;
+  restored: number;
   skipped: { key: string; name: string; reason: string }[];
   dropped_aliases: { key: string; alias: string; reason: string }[];
 };
@@ -136,6 +138,7 @@ export type CheckReason =
 
 export type ReviewLine = {
   raw_text: string;
+  item_text: string | null;
   product_id: string | null;
   product_name: string | null;
   base_unit: string | null;

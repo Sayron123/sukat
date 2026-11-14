@@ -123,7 +123,7 @@ export function ReviewLineCard({
         </button>
       </div>
 
-      <p className="mt-0.5 mb-3 text-[13px] text-subtle">Written as “{line.rawText}”</p>
+      <p className="mt-0.5 mb-3 text-[13px] text-subtle">{line.readName}</p>
 
       {needsCheck && (
         <div className="mb-3 flex gap-2.5 rounded-button border border-red-edge bg-red-soft p-3">

@@ -4,7 +4,7 @@ import { AppPage } from "@/components/app-page";
 
 import { ChatScreen } from "./chat-screen";
 
-export const metadata: Metadata = { title: "AI · Sukat" };
+export const metadata: Metadata = { title: "Ask Sukat · Sukat" };
 
 export default function AiPage() {
   return (
