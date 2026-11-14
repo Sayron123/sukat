@@ -221,3 +221,28 @@ Migration `0010` adds `users.email_verified_at`, `users.token_version`, and the 
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | port 587 | Mail server, used with `smtp` (needs STARTTLS) |
 
 **Deploying:** set `EMAIL_BACKEND=smtp`, the `SMTP_*` values, and `WEB_APP_URL`. The API refuses to start with `console` unless `APP_ENV=development`.
+
+## Step 10 — Continue with Google
+
+Anyone can sign in, set up a store or join by invite with their Google account. Settings has **Connect Google** for an account that already has a password.
+
+**How it works**
+1. The web app makes a one-time `state`, a PKCE `code_verifier` and a `nonce`, keeps them in a short-lived httpOnly cookie, and sends the person to Google.
+2. Google sends them back to `/api/auth/google/callback`. The web app checks the `state` against the cookie and passes the code, the verifier, its callback address and the nonce to the API.
+3. The API swaps the code for Google's ID token (the client secret never leaves the API), checks its signature, audience, issuer, expiry and nonce with Google's library, and needs a verified email.
+4. The person is found by Google's account id (`sub` in `user_identities`), never by email.
+
+| Endpoint | Who | What it does |
+|---|---|---|
+| `GET /auth/google` | anyone | The client id, or `null` when Google isn't set up (the web app then hides the button). |
+| `POST /auth/google/login` | anyone | Signs in the account linked to this Google account. |
+| `POST /auth/google/signup` | anyone | A new account from Google (verified email, no password) plus a new store, like sign up. |
+| `POST /staff/invites/accept-google` | anyone with an invite | Joins the store with Google: the linked account, or a new one. |
+| `POST /auth/google/connect` | signed in | Links Google to your account. Proves your email if it is the same address. |
+
+**Rules**
+- A Google account is never attached to an existing account just because the email matches: sign-up and invites refuse that email, and the person signs in with their password and uses Connect Google instead.
+- One Google account per Sukat account, and one Sukat account per Google account.
+- The API only accepts its own callback addresses (`CORS_ORIGINS` and `WEB_APP_URL` + `/api/auth/google/callback`).
+- An account made with Google has no password, so Change password says so. A manager reset link can still give it one.
+- Settings: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `api/.env`. Empty = Google is off.
