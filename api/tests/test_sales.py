@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from app.inventory.models import StockMovement, Transaction
 from app.products.models import Product, ProductAlias
-from tests.conftest import auth_header, make_product, scan_line, upload_photo
+from tests.conftest import auth_header, join_store, make_product, scan_line, upload_photo
 
 
 def _rid() -> str:
@@ -156,20 +156,7 @@ def test_unpriced_product_sells_without_price(api, manager):
 
 
 def test_member_can_record_a_sale(api, manager, cement):
-    invite = api.post(
-        "/staff/invites", json={"email": "m@example.com", "role": "member"}, headers=manager
-    ).json()
-    member = auth_header(
-        api.post(
-            "/staff/invites/accept",
-            json={
-                "accept_terms": True,
-                "token": invite["token"],
-                "password": "Member-pass-1",
-                "full_name": "M",
-            },
-        ).json()["access_token"]
-    )
+    member = join_store(api, manager, "member", login="m@example.com")
     res = _txn(api, member, "sale", [{"product_id": cement["id"], "qty": "1", "unit": "bag"}])
     assert res.status_code == 201
 
@@ -218,20 +205,7 @@ def test_sale_from_scan_learns_alias_and_marks_scan_saved(api, db, manager, stor
 
 def test_member_sale_from_scan_learns_no_alias(api, db, manager, storage, reader, nails):
     # Audit M1 (Phase 4 part): only managers and secretaries teach aliases.
-    invite = api.post(
-        "/staff/invites", json={"email": "m@example.com", "role": "member"}, headers=manager
-    ).json()
-    member = auth_header(
-        api.post(
-            "/staff/invites/accept",
-            json={
-                "accept_terms": True,
-                "token": invite["token"],
-                "password": "Member-pass-1",
-                "full_name": "M",
-            },
-        ).json()["access_token"]
-    )
+    member = join_store(api, manager, "member", login="m@example.com")
     scan = _scan(
         api,
         member,

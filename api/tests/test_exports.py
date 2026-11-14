@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 from app.exports.service import BOM, pesos, safe_text
-from tests.conftest import auth_header, make_product
+from tests.conftest import auth_header, join_store, make_product
 
 PATHS = ["/exports/products", "/exports/transactions", "/exports/stock-movements"]
 
@@ -24,17 +24,7 @@ def _rows(res) -> list[dict[str, str]]:
 
 
 def _invite(api, manager, role, email):
-    invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager)
-    token = api.post(
-        "/staff/invites/accept",
-        json={
-            "accept_terms": True,
-            "token": invite.json()["token"],
-            "password": "Staff-pass-1",
-            "full_name": role,
-        },
-    ).json()["access_token"]
-    return auth_header(token)
+    return join_store(api, manager, role, login=email, full_name=role)
 
 
 @pytest.fixture

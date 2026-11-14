@@ -4,16 +4,11 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select, update
 
 from app.inventory.models import Scan
-from tests.conftest import auth_header, make_product, scan_line, upload_photo
+from tests.conftest import auth_header, join_store, make_product, scan_line, upload_photo
 
 
 def _join(api, headers, email, role):
-    invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=headers)
-    res = api.post(
-        "/staff/invites/accept",
-        json={"accept_terms": True, "token": invite.json()["token"], "password": "Staff-pass-1"},
-    )
-    return auth_header(res.json()["access_token"])
+    return join_store(api, headers, role, login=email)
 
 
 def _scan(api, headers, storage, reader, scan_type="sale"):

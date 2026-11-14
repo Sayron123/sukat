@@ -2,46 +2,60 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
+from app.auth.models import TokenPurpose, User
+from app.auth.service import new_token
 from app.stores.models import Invite
 from tests.conftest import auth_header
 
 
-def _invite(api, token, email="staff@example.com", role="member"):
-    return api.post(
-        "/staff/invites", json={"email": email, "role": role}, headers=auth_header(token)
-    )
+def _invite(api, token, role="member", name=None):
+    return api.post("/staff/invites", json={"role": role, "name": name}, headers=auth_header(token))
 
 
-def _accept(api, invite_token, password="Staff-pass-1", full_name="Staff One"):
+def _accept(api, invite_token, password="Staff-pass-1", full_name="Staff One", username="staff"):
     return api.post(
         "/staff/invites/accept",
         json={
             "accept_terms": True,
             "token": invite_token,
+            "username": username,
             "password": password,
             "full_name": full_name,
         },
     )
 
 
+def _join_existing(api, invite_token, login, password):
+    return api.post(
+        "/staff/invites/accept",
+        json={"accept_terms": True, "token": invite_token, "login": login, "password": password},
+    )
+
+
+def _login(api, login, password="Staff-pass-1"):
+    return api.post("/auth/login", json={"login": login, "password": password})
+
+
 def test_invite_accept_list_deactivate_flow(api, db, signup):
     manager = signup()["access_token"]
 
-    res = _invite(api, manager, email="Staff@Example.com", role="secretary")
+    res = _invite(api, manager, role="secretary", name="  Juan  ")
     assert res.status_code == 201
     invite = res.json()
-    assert invite["email"] == "staff@example.com" and invite["role"] == "secretary"
+    assert invite["name"] == "Juan" and invite["role"] == "secretary"
     # Only the hash is stored, never the raw token.
     stored = db.scalar(select(Invite))
     assert stored.token_hash != invite["token"] and len(stored.token_hash) == 64
+    assert stored.email is None
 
-    accepted = _accept(api, invite["token"])
+    accepted = _accept(api, invite["token"], username="  Juan.DC ")
     assert accepted.status_code == 200
     staff_token = accepted.json()["access_token"]
-    assert api.get("/auth/me", headers=auth_header(staff_token)).json()["role"] == "secretary"
+    me = api.get("/auth/me", headers=auth_header(staff_token)).json()
+    assert (me["role"], me["username"], me["email"]) == ("secretary", "juan.dc", None)
 
     staff = api.get("/staff", headers=auth_header(manager)).json()
-    assert [s["email"] for s in staff] == ["owner@example.com", "staff@example.com"]
+    assert [s["email"] or s["username"] for s in staff] == ["owner@example.com", "juan.dc"]
     staff_id = staff[1]["member_id"]
 
     one = api.get(f"/staff/{staff_id}", headers=auth_header(manager))
@@ -53,15 +67,50 @@ def test_invite_accept_list_deactivate_flow(api, db, signup):
     # Deactivation takes effect immediately, even for an existing token...
     assert api.get("/auth/me", headers=auth_header(staff_token)).status_code == 401
     # ...and for new logins.
-    login = api.post("/auth/login", json={"email": "staff@example.com", "password": "Staff-pass-1"})
-    assert login.status_code == 403
+    assert _login(api, "juan.dc").status_code == 403
+
+
+def test_a_username_signs_in_like_an_email(api, signup):
+    manager = signup()["access_token"]
+    _accept(api, _invite(api, manager).json()["token"], username="maria")
+    assert _login(api, "Maria").status_code == 200
+    assert _login(api, "maria", "Wrong-pass-1").status_code == 401
+    old_form = api.post("/auth/login", json={"email": "maria", "password": "Staff-pass-1"})
+    assert old_form.status_code == 200
+
+
+def test_username_rules_and_taken_usernames(api, signup):
+    manager = signup()["access_token"]
+    for bad in ("ab", "1abc", "juan dc", "juan@dc", "x" * 31):
+        token = _invite(api, manager).json()["token"]
+        assert _accept(api, token, username=bad).status_code == 422
+    _accept(api, _invite(api, manager).json()["token"], username="juan")
+    taken = _accept(api, _invite(api, manager).json()["token"], username="JUAN")
+    assert taken.status_code == 409
+
+
+def test_a_new_account_needs_a_name(api, signup):
+    manager = signup()["access_token"]
+    token = _invite(api, manager).json()["token"]
+    assert _accept(api, token, full_name="  ").status_code == 422
+    assert _accept(api, token).status_code == 200
+
+
+def test_accept_needs_either_a_new_username_or_an_existing_login(api, signup):
+    manager = signup()["access_token"]
+    token = _invite(api, manager).json()["token"]
+    both = {"accept_terms": True, "token": token, "username": "juan", "login": "juan"}
+    neither = {"accept_terms": True, "token": token, "full_name": "Juan"}
+    for body in (both, neither):
+        res = api.post("/staff/invites/accept", json={**body, "password": "Staff-pass-1"})
+        assert res.status_code == 422
 
 
 def test_invite_cannot_be_reused(api, signup):
     manager = signup()["access_token"]
     token = _invite(api, manager).json()["token"]
     assert _accept(api, token).status_code == 200
-    assert _accept(api, token).status_code == 400
+    assert _accept(api, token, username="other").status_code == 400
 
 
 def test_expired_invite_is_rejected(api, db, signup):
@@ -77,29 +126,30 @@ def test_bad_invite_token_is_rejected(api):
     assert _accept(api, "not-a-real-token").status_code == 400
 
 
-def test_new_invite_replaces_old_unaccepted_one(api, signup):
+def test_each_invite_is_its_own_link(api, signup):
     manager = signup()["access_token"]
-    old = _invite(api, manager).json()["token"]
-    new = _invite(api, manager).json()["token"]
-    assert _accept(api, old).status_code == 400
-    assert _accept(api, new).status_code == 200
-
-
-def test_cannot_invite_active_staff(api, signup):
-    manager = signup()["access_token"]
-    assert _invite(api, manager, email="owner@example.com").status_code == 409
+    first = _invite(api, manager).json()["token"]
+    second = _invite(api, manager).json()["token"]
+    assert _accept(api, first, username="first").status_code == 200
+    assert _accept(api, second, username="second").status_code == 200
 
 
 def test_existing_user_joins_with_own_password(api, signup):
     manager_a = signup(email="a@example.com", store_name="A")["access_token"]
     signup(email="b@example.com", store_name="B", password="B-password-1")
-    token = _invite(api, manager_a, email="b@example.com").json()["token"]
+    token = _invite(api, manager_a).json()["token"]
 
-    assert _accept(api, token, password="wrong-password").status_code == 401
-    res = _accept(api, token, password="B-password-1")
+    assert _join_existing(api, token, "b@example.com", "wrong-password").status_code == 401
+    res = _join_existing(api, token, "B@Example.com", "B-password-1")
     assert res.status_code == 200
     me = api.get("/auth/me", headers=auth_header(res.json()["access_token"])).json()
     assert me["store_name"] == "A" and me["role"] == "member"
+
+
+def test_active_staff_cannot_join_again(api, signup):
+    manager = signup()["access_token"]
+    token = _invite(api, manager).json()["token"]
+    assert _join_existing(api, token, "owner@example.com", "Correct-horse-1").status_code == 409
 
 
 def test_reinvite_reactivates_deactivated_staff(api, signup):
@@ -109,16 +159,21 @@ def test_reinvite_reactivates_deactivated_staff(api, signup):
     api.post(f"/staff/{staff_id}/deactivate", headers=auth_header(manager))
 
     token = _invite(api, manager, role="secretary").json()["token"]
-    assert _accept(api, token).status_code == 200
+    assert _join_existing(api, token, "staff", "Staff-pass-1").status_code == 200
     again = api.get(f"/staff/{staff_id}", headers=auth_header(manager)).json()
     assert again["active"] is True and again["role"] == "secretary"
 
 
-def test_new_user_name_defaults_to_start_of_email(api, signup):
+def test_a_secretarys_invite_cannot_bring_back_a_removed_person(api, signup):
     manager = signup()["access_token"]
-    token = _invite(api, manager).json()["token"]
-    joined = auth_header(_accept(api, token, full_name="").json()["access_token"])
-    assert api.get("/auth/me", headers=joined).json()["full_name"] == "staff"
+    secretary = _accept(api, _invite(api, manager, "secretary").json()["token"], username="sec")
+    sec = secretary.json()["access_token"]
+    _accept(api, _invite(api, manager).json()["token"])
+    staff_id = api.get("/staff", headers=auth_header(manager)).json()[2]["member_id"]
+    api.post(f"/staff/{staff_id}/deactivate", headers=auth_header(manager))
+
+    token = _invite(api, sec).json()["token"]
+    assert _join_existing(api, token, "staff", "Staff-pass-1").status_code == 403
 
 
 def test_manager_cannot_deactivate_self(api, signup):
@@ -129,32 +184,108 @@ def test_manager_cannot_deactivate_self(api, signup):
 
 def test_pending_invites_list_only_open_ones_newest_first(api, db, signup):
     manager = signup()["access_token"]
-    _invite(api, manager, email="first@example.com")
-    _invite(api, manager, email="second@example.com", role="secretary")
-    accepted = _invite(api, manager, email="joined@example.com").json()
+    _invite(api, manager, name="First")
+    _invite(api, manager, role="secretary", name="Second")
+    accepted = _invite(api, manager, name="Joined").json()
     _accept(api, accepted["token"])
-    _invite(api, manager, email="old@example.com")
-    old = db.scalar(select(Invite).where(Invite.email == "old@example.com"))
+    _invite(api, manager, name="Old")
+    old = db.scalar(select(Invite).where(Invite.name == "Old"))
     old.expires_at = datetime.now(UTC) - timedelta(minutes=1)
     db.commit()
 
     res = api.get("/staff/invites", headers=auth_header(manager))
     assert res.status_code == 200
     rows = res.json()
-    assert [r["email"] for r in rows] == ["second@example.com", "first@example.com"]
+    assert [r["name"] for r in rows] == ["Second", "First"]
     assert rows[0]["role"] == "secretary" and "token" not in rows[0]
 
 
-def test_resending_an_invite_replaces_the_open_one(api, signup):
+def test_renewing_an_invite_gives_a_new_link_and_kills_the_old_one(api, signup):
     manager = signup()["access_token"]
-    first = _invite(api, manager, email="juan@example.com").json()
-    second = _invite(api, manager, email="juan@example.com").json()
-    rows = api.get("/staff/invites", headers=auth_header(manager)).json()
-    assert [r["id"] for r in rows] == [second["id"]]
+    first = _invite(api, manager, name="Juan").json()
+    renewed = api.post(f"/staff/invites/{first['id']}/renew", headers=auth_header(manager))
+    assert renewed.status_code == 200
+    assert renewed.json()["id"] == first["id"] and renewed.json()["name"] == "Juan"
     assert _accept(api, first["token"]).status_code == 400
+    assert _accept(api, renewed.json()["token"]).status_code == 200
+    gone = api.post(f"/staff/invites/{first['id']}/renew", headers=auth_header(manager))
+    assert gone.status_code == 404
+
+
+def test_a_secretary_renews_only_member_invites(api, signup):
+    manager = signup()["access_token"]
+    sec = _accept(api, _invite(api, manager, "secretary").json()["token"], username="sec")
+    headers = auth_header(sec.json()["access_token"])
+    for_member = _invite(api, manager).json()
+    for_secretary = _invite(api, manager, "secretary").json()
+    renew = "/staff/invites/{}/renew"
+    assert api.post(renew.format(for_member["id"]), headers=headers).status_code == 200
+    assert api.post(renew.format(for_secretary["id"]), headers=headers).status_code == 403
+
+
+def test_another_stores_invite_cannot_be_renewed(api, signup):
+    manager_a = signup(email="a@example.com", store_name="A")["access_token"]
+    manager_b = signup(email="b@example.com", store_name="B")["access_token"]
+    invite = _invite(api, manager_a).json()
+    res = api.post(f"/staff/invites/{invite['id']}/renew", headers=auth_header(manager_b))
+    assert res.status_code == 404
 
 
 def test_members_cannot_see_pending_invites(api, signup):
     manager = signup()["access_token"]
     staff = _accept(api, _invite(api, manager).json()["token"]).json()["access_token"]
     assert api.get("/staff/invites", headers=auth_header(staff)).status_code == 403
+
+
+def test_a_manager_makes_a_reset_link_for_a_member_who_forgot(api, signup):
+    manager = signup()["access_token"]
+    _accept(api, _invite(api, manager).json()["token"])
+    staff_id = api.get("/staff", headers=auth_header(manager)).json()[1]["member_id"]
+
+    res = api.post(f"/staff/{staff_id}/reset-link", headers=auth_header(manager))
+    assert res.status_code == 200
+    body = {"token": res.json()["token"], "new_password": "Brand-new-pass-1"}
+    assert api.post("/auth/reset-password", json=body).status_code == 204
+    assert _login(api, "staff", "Brand-new-pass-1").status_code == 200
+    assert api.post("/auth/reset-password", json=body).status_code == 400
+
+
+def test_reset_links_are_refused_for_the_owner_and_people_in_other_stores(api, signup):
+    manager_a = signup(email="a@example.com", store_name="A")["access_token"]
+    signup(email="b@example.com", store_name="B", password="B-password-1")
+    _join_existing(api, _invite(api, manager_a).json()["token"], "b@example.com", "B-password-1")
+    staff = api.get("/staff", headers=auth_header(manager_a)).json()
+    owner_id, other_store_id = staff[0]["member_id"], staff[1]["member_id"]
+    link = "/staff/{}/reset-link"
+    assert api.post(link.format(owner_id), headers=auth_header(manager_a)).status_code == 400
+    assert api.post(link.format(other_store_id), headers=auth_header(manager_a)).status_code == 403
+
+
+def test_only_managers_make_reset_links(api, signup):
+    manager = signup()["access_token"]
+    sec = _accept(api, _invite(api, manager, "secretary").json()["token"], username="sec")
+    _accept(api, _invite(api, manager).json()["token"])
+    staff_id = api.get("/staff", headers=auth_header(manager)).json()[2]["member_id"]
+    res = api.post(f"/staff/{staff_id}/reset-link", headers=auth_header(sec.json()["access_token"]))
+    assert res.status_code == 403
+
+
+def test_a_manager_made_reset_does_not_confirm_an_email(api, db):
+    signed_up = api.post(
+        "/auth/signup",
+        json={
+            "store_name": "B",
+            "full_name": "Owner B",
+            "email": "unproven@example.com",
+            "password": "B-password-1",
+            "accept_terms": True,
+        },
+    )
+    assert signed_up.status_code == 201
+    user = db.scalar(select(User).where(User.email == "unproven@example.com"))
+    token = new_token(db, user.id, TokenPurpose.STAFF_RESET, timedelta(minutes=30))
+    db.commit()
+    body = {"token": token, "new_password": "Brand-new-pass-1"}
+    assert api.post("/auth/reset-password", json=body).status_code == 204
+    db.expire_all()
+    assert db.get(User, user.id).email_verified_at is None

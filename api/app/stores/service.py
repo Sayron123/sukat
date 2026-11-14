@@ -5,11 +5,12 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.models import User
+from app.auth.models import TokenPurpose, User
 from app.auth.rate_limit import (
     clear_failures,
     email_key,
@@ -25,15 +26,16 @@ from app.auth.schemas import (
     password_is_strong,
 )
 from app.auth.security import hash_password, hash_token, verify_password
-from app.auth.service import issue_token
+from app.auth.service import issue_token, new_token, user_by_login
 from app.core.config import settings
 from app.core.errors import BadRequest, Conflict, Forbidden, Invalid, NotFound, Unauthorized
 from app.stores.models import Attendance, AttendanceStatus, Invite, Role, Store, StoreMember
-from app.stores.schemas import InvitePreviewOut
+from app.stores.schemas import AcceptInviteIn, InvitePreviewOut
 
 _STORE_TZ = ZoneInfo(settings.STORE_TIMEZONE)
 ATTENDANCE_SHOWN = 31
 ATTENDANCE_RANGE_DAYS = 62
+USERNAME_TAKEN = "That username is taken. Try another one."
 
 
 def get_member(db: Session, store_id: UUID, member_id: UUID) -> StoreMember:
@@ -83,76 +85,54 @@ def pending_invites(db: Session, store_id: UUID) -> list[Invite]:
     )
 
 
-def _limit_secretary_invite(db: Session, store_id: UUID, email: str, role: Role) -> None:
-    if role != Role.MEMBER:
-        raise Forbidden("Secretaries can only invite members")
-    removed = db.scalar(
-        select(StoreMember.id)
-        .join(User, User.id == StoreMember.user_id)
-        .where(
-            StoreMember.store_id == store_id,
-            StoreMember.active.is_(False),
-            User.email == email,
-        )
-    )
-    if removed is not None:
-        raise Forbidden("This person was removed from the store. Ask a manager to invite them.")
-    higher_invite = db.scalar(
-        select(Invite.id).where(
-            Invite.store_id == store_id,
-            Invite.email == email,
-            Invite.accepted_at.is_(None),
-            Invite.expires_at > datetime.now(UTC),
-            Invite.role != Role.MEMBER,
-        )
-    )
-    if higher_invite is not None:
-        raise Conflict("A manager already invited this person. Ask a manager to change it.")
-
-
-def invite(
-    db: Session, store_id: UUID, invited_by: UUID, inviter_role: str, email: str, role: Role
-) -> tuple[Invite, str]:
-    """Create an invite and return it with the raw token (shown once; only its hash is
-    stored). Replaces any older unaccepted invite for the same email. Commits.
-
-    @param email already normalized (lowercase) by the schema
-    @raises Conflict if the person is already active staff
-    """
-    already_active = db.scalar(
-        select(StoreMember.id)
-        .join(User, User.id == StoreMember.user_id)
-        .where(
-            StoreMember.store_id == store_id,
-            StoreMember.active.is_(True),
-            User.email == email,
-        )
-    )
-    if already_active is not None:
-        raise Conflict("This person is already active staff")
-    if inviter_role == Role.SECRETARY:
-        _limit_secretary_invite(db, store_id, email, role)
-
-    db.execute(
-        delete(Invite).where(
-            Invite.store_id == store_id, Invite.email == email, Invite.accepted_at.is_(None)
-        )
-    )
-    token = secrets.token_urlsafe(32)
-    hours = (
+def _invite_hours(role: str) -> int:
+    return (
         settings.MANAGER_INVITE_EXPIRE_HOURS
         if role == Role.MANAGER
         else settings.INVITE_EXPIRE_HOURS
     )
+
+
+def invite(
+    db: Session, store_id: UUID, invited_by: UUID, inviter_role: str, role: Role, name: str | None
+) -> tuple[Invite, str]:
+    """Create an invite link and return it with the raw token (shown once; only its hash
+    is stored). `name` is only a label so staff can tell open invites apart. Commits.
+
+    @raises Forbidden when a secretary invites anyone but a member
+    """
+    if inviter_role == Role.SECRETARY and role != Role.MEMBER:
+        raise Forbidden("Secretaries can only invite members")
+    token = secrets.token_urlsafe(32)
     row = Invite(
         store_id=store_id,
-        email=email,
+        name=name,
         role=role,
         token_hash=hash_token(token),
         invited_by_user_id=invited_by,
-        expires_at=datetime.now(UTC) + timedelta(hours=hours),
+        expires_at=datetime.now(UTC) + timedelta(hours=_invite_hours(role)),
     )
     db.add(row)
+    db.commit()
+    return row, token
+
+
+def renew_invite(
+    db: Session, store_id: UUID, invite_id: UUID, renewed_by: UUID, renewer_role: str
+) -> tuple[Invite, str]:
+    row = db.scalar(
+        select(Invite)
+        .where(Invite.id == invite_id, Invite.store_id == store_id, Invite.accepted_at.is_(None))
+        .with_for_update()
+    )
+    if row is None:
+        raise NotFound("Invite not found")
+    if renewer_role == Role.SECRETARY and row.role != Role.MEMBER:
+        raise Forbidden("Secretaries can only invite members")
+    token = secrets.token_urlsafe(32)
+    row.token_hash = hash_token(token)
+    row.invited_by_user_id = renewed_by
+    row.expires_at = datetime.now(UTC) + timedelta(hours=_invite_hours(row.role))
     db.commit()
     return row, token
 
@@ -194,46 +174,55 @@ def preview_invite(db: Session, token: str, ip: str | None) -> InvitePreviewOut:
     row = _open_invite(db, token, ip)
     store = db.get(Store, row.store_id)
     assert store is not None
-    has_account = db.scalar(select(User.id).where(User.email == row.email)) is not None
-    return InvitePreviewOut(
-        store_name=store.name, role=Role(row.role), email=row.email, has_account=has_account
-    )
+    return InvitePreviewOut(store_name=store.name, role=Role(row.role), name=row.name)
 
 
-def accept_invite(
-    db: Session, token: str, password: str, full_name: str | None, ip: str | None
-) -> TokenOut:
-    """Join a store with an invite token and return a token for that store. Commits.
+def _new_account(db: Session, username: str, full_name: str, password: str) -> User:
+    if not password_is_strong(password):
+        raise Invalid(PASSWORD_RULES_MESSAGE)
+    if db.scalar(select(User.id).where(User.username == username)) is not None:
+        raise Conflict(USERNAME_TAKEN)
+    user = User(username=username, full_name=full_name, password_hash=hash_password(password))
+    db.add(user)
+    try:
+        with db.begin_nested():
+            db.flush()
+    except IntegrityError:
+        raise Conflict(USERNAME_TAKEN) from None
+    return user
 
-    New email: creates the account (the name defaults to the start of the email, and the
-    password must meet the rules). Existing account: the invitee
-    must give its current password. A deactivated member is re-activated with the
-    invite's role. Bad tokens count against the IP; wrong passwords against the email too.
+
+def _existing_account(db: Session, login: str, password: str, ip: str | None) -> User:
+    limits = limits_for(login, ip)
+    ensure_not_limited(db, limits)
+    user = user_by_login(db, login)
+    password_ok = verify_password(password, user.password_hash if user else None)
+    if user is None or not password_ok:
+        record_failure(db, [key for key, _ in limits])
+        raise Unauthorized("Incorrect email, username or password")
+    clear_failures(db, email_key(login))
+    return user
+
+
+def accept_invite(db: Session, body: AcceptInviteIn, ip: str | None) -> TokenOut:
+    """Join a store with an invite link and return a token for that store. Commits.
+
+    New person: picks a username, their name and a password that meets the rules.
+    Existing account: signs in with its email or username and password. A deactivated
+    member is re-activated with the invite's role, but only from a manager's invite.
+    Bad tokens count against the IP; wrong passwords against the login too.
 
     @raises BadRequest (invalid/expired), Unauthorized (wrong password), Invalid (weak
-        password), Conflict (already active staff), TooManyRequests
+        password), Conflict (username taken, already active staff), Forbidden (a
+        secretary's invite can't bring back a removed person), TooManyRequests
     """
-    row = _open_invite(db, token, ip, lock=True)
-
-    limits = limits_for(row.email, ip)
-    ensure_not_limited(db, limits)
-
-    user = db.scalar(select(User).where(User.email == row.email))
-    if user is None:
-        if not password_is_strong(password):
-            raise Invalid(PASSWORD_RULES_MESSAGE)
-        name = (full_name or "").strip() or row.email.split("@")[0][:120]
-        user = User(email=row.email, full_name=name, password_hash=hash_password(password))
-        db.add(user)
-        db.flush()
-    elif not verify_password(password, user.password_hash):
-        record_failure(db, [key for key, _ in limits])
-        raise Unauthorized("Incorrect password for this account")
+    row = _open_invite(db, body.token, ip, lock=True)
+    if body.username is not None:
+        assert body.full_name is not None
+        user = _new_account(db, body.username, body.full_name, body.password)
     else:
-        clear_failures(db, email_key(row.email))
-
-    user.terms_accepted_at = datetime.now(UTC)
-    user.terms_version = TERMS_VERSION
+        assert body.login is not None
+        user = _existing_account(db, body.login, body.password, ip)
 
     member = db.scalar(
         select(StoreMember).where(
@@ -244,13 +233,41 @@ def accept_invite(
         db.add(StoreMember(store_id=row.store_id, user_id=user.id, role=row.role))
     elif member.active:
         raise Conflict("You are already staff in this store")
+    elif not _inviter_is_still_manager(db, row, lock=False):
+        raise Forbidden("You were removed from this store. Ask a manager for a new invite.")
     else:
         member.active = True  # a re-invite brings a deactivated person back
         member.role = row.role
 
+    user.terms_accepted_at = datetime.now(UTC)
+    user.terms_version = TERMS_VERSION
     row.accepted_at = datetime.now(UTC)
     db.commit()
     return issue_token(user, row.store_id)
+
+
+def staff_reset_link(
+    db: Session, store_id: UUID, member_id: UUID, acting_member_id: UUID
+) -> tuple[str, datetime]:
+    member = get_member(db, store_id, member_id)
+    if member.id == acting_member_id:
+        raise BadRequest("Change your own password in Settings")
+    _refuse_if_owner(member)
+    if not member.active:
+        raise Conflict("This person is inactive. Invite them again to bring them back.")
+    elsewhere = db.scalar(
+        select(StoreMember.id).where(
+            StoreMember.user_id == member.user_id,
+            StoreMember.store_id != store_id,
+            StoreMember.active.is_(True),
+        )
+    )
+    if elsewhere is not None:
+        raise Forbidden("This person also works in another store. They can use Forgot password.")
+    lifetime = timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES)
+    token = new_token(db, member.user_id, TokenPurpose.STAFF_RESET, lifetime)
+    db.commit()
+    return token, datetime.now(UTC) + lifetime
 
 
 def _lock_staff_changes(db: Session, store_id: UUID, acting_member_id: UUID) -> None:

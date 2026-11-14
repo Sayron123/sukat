@@ -1,9 +1,9 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.auth.schemas import must_accept_terms
+from app.auth.schemas import clean_login, clean_username, must_accept_terms
 from app.stores.models import AttendanceStatus, Role
 
 
@@ -12,13 +12,10 @@ def _blank_to_none(value: str | None) -> str | None:
 
 
 class InviteIn(BaseModel):
-    email: EmailStr
     role: Role
+    name: str | None = Field(default=None, max_length=60)
 
-    @field_validator("email")
-    @classmethod
-    def _norm(cls, v: str) -> str:
-        return v.strip().lower()
+    _name = field_validator("name")(_blank_to_none)
 
 
 class StoreIn(BaseModel):
@@ -81,7 +78,7 @@ class DayAttendanceOut(AttendanceOut):
 
 class PendingInviteOut(BaseModel):
     id: UUID
-    email: str
+    name: str | None
     role: Role
     created_at: datetime
     expires_at: datetime
@@ -89,7 +86,7 @@ class PendingInviteOut(BaseModel):
 
 class InviteOut(BaseModel):
     id: UUID
-    email: str
+    name: str | None
     role: Role
     expires_at: datetime
     # The raw token. Shown ONCE here; only its hash is stored. Send it to the invitee.
@@ -103,14 +100,15 @@ class InvitePreviewIn(BaseModel):
 class InvitePreviewOut(BaseModel):
     store_name: str
     role: Role
-    email: str
-    has_account: bool
+    name: str | None
 
 
 class AcceptInviteIn(BaseModel):
     token: str = Field(min_length=1, max_length=200)
+    username: str | None = Field(default=None, max_length=30)
     full_name: str | None = Field(default=None, max_length=120)
-    password: str = Field(min_length=8, max_length=128)
+    login: str | None = Field(default=None, max_length=320)
+    password: str = Field(min_length=1, max_length=128)
     accept_terms: bool = Field(default=False, validate_default=True)
 
     @field_validator("accept_terms")
@@ -118,11 +116,30 @@ class AcceptInviteIn(BaseModel):
     def _must_accept(cls, v: bool) -> bool:
         return must_accept_terms(v)
 
+    @model_validator(mode="after")
+    def _new_or_existing(self) -> "AcceptInviteIn":
+        if (self.username is None) == (self.login is None):
+            raise ValueError("Choose a new username, or sign in with your existing account")
+        if self.username is not None:
+            self.username = clean_username(self.username)
+            self.full_name = _blank_to_none(self.full_name)
+            if self.full_name is None:
+                raise ValueError("Enter your name")
+        else:
+            self.login = clean_login(self.login or "")
+        return self
+
+
+class StaffResetOut(BaseModel):
+    token: str
+    expires_at: datetime
+
 
 class StaffOut(BaseModel):
     member_id: UUID
     user_id: UUID
     email: str | None
+    username: str | None
     full_name: str
     alias: str | None
     role: Role

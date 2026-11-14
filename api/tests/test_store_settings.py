@@ -1,6 +1,6 @@
 import pytest
 
-from tests.conftest import auth_header
+from tests.conftest import auth_header, join_store
 
 
 def _rename(api, headers, name, address=None):
@@ -8,13 +8,7 @@ def _rename(api, headers, name, address=None):
 
 
 def _join(api, headers, role):
-    invite = {"email": f"{role}@example.com", "role": role}
-    token = api.post("/staff/invites", json=invite, headers=headers).json()["token"]
-    res = api.post(
-        "/staff/invites/accept",
-        json={"accept_terms": True, "token": token, "password": "Staff-pass-1"},
-    )
-    return auth_header(res.json()["access_token"])
+    return join_store(api, headers, role, login=role)
 
 
 def test_a_manager_renames_the_store(api, manager):

@@ -5,26 +5,25 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app.auth.schemas import TERMS_VERSION
-from tests.conftest import auth_header
+from tests.conftest import auth_header, username_for
 
 
 def _invite(api, manager, email="new@example.com", role="member"):
-    return api.post("/staff/invites", json={"email": email, "role": role}, headers=manager)
+    body = {"role": role, "name": email.split("@")[0]}
+    return api.post("/staff/invites", json=body, headers=manager)
 
 
 def _preview(api, token):
     return api.post("/staff/invites/preview", json={"token": token})
 
 
-def _accept(api, token, password="Staff-pass-1", full_name="New Person"):
-    return api.post(
-        "/staff/invites/accept",
-        json={"accept_terms": True, "token": token, "password": password, "full_name": full_name},
-    )
+def _accept(api, token, password="Staff-pass-1", full_name="New Person", email="new@example.com"):
+    body = {"username": username_for(email), "password": password, "full_name": full_name}
+    return api.post("/staff/invites/accept", json={"accept_terms": True, "token": token, **body})
 
 
 def test_manager_must_choose_the_role(api, manager):
-    res = api.post("/staff/invites", json={"email": "a@example.com"}, headers=manager)
+    res = api.post("/staff/invites", json={"name": "a"}, headers=manager)
     assert res.status_code == 422
 
 
@@ -47,6 +46,7 @@ def test_the_person_joining_cannot_pick_another_role(api, manager):
         json={
             "accept_terms": True,
             "token": token,
+            "username": "sneaky",
             "password": "Staff-pass-1",
             "full_name": "Sneaky",
             "role": "manager",
@@ -61,15 +61,8 @@ def test_preview_for_a_new_person(api, manager):
     assert _preview(api, token).json() == {
         "store_name": "Store A",
         "role": "secretary",
-        "email": "new@example.com",
-        "has_account": False,
+        "name": "new",
     }
-
-
-def test_preview_knows_an_existing_account(api, manager, signup):
-    signup(email="existing@example.com", store_name="Other")
-    token = _invite(api, manager, email="existing@example.com").json()["token"]
-    assert _preview(api, token).json()["has_account"] is True
 
 
 def test_preview_does_not_use_up_the_link(api, manager):
@@ -95,10 +88,10 @@ def test_preview_refuses_an_expired_link(api, db, manager):
     assert _preview(api, token).status_code == 400
 
 
-def test_preview_refuses_a_replaced_link(api, manager):
-    old = _invite(api, manager).json()["token"]
-    _invite(api, manager, role="secretary")
-    assert _preview(api, old).status_code == 400
+def test_preview_refuses_a_renewed_link(api, manager):
+    invite = _invite(api, manager).json()
+    api.post(f"/staff/invites/{invite['id']}/renew", headers=manager)
+    assert _preview(api, invite["token"]).status_code == 400
 
 
 def test_guessing_preview_links_gets_blocked(api, monkeypatch):
@@ -112,14 +105,20 @@ def test_guessing_preview_links_gets_blocked(api, monkeypatch):
 
 def test_members_cannot_create_links(api, manager):
     token = _invite(api, manager, email="member@example.com", role="member").json()["token"]
-    staff = auth_header(_accept(api, token).json()["access_token"])
+    staff = auth_header(_accept(api, token, email="member@example.com").json()["access_token"])
     assert _invite(api, staff, email="x@example.com").status_code == 403
 
 
 @pytest.mark.parametrize("terms", [{}, {"accept_terms": False}])
 def test_joining_needs_the_terms(api, manager, terms):
     token = _invite(api, manager).json()["token"]
-    body = {"token": token, "password": "Staff-pass-1", **terms}
+    body = {
+        "token": token,
+        "username": "new",
+        "full_name": "N",
+        "password": "Staff-pass-1",
+        **terms,
+    }
     res = api.post("/staff/invites/accept", json=body)
     assert res.status_code == 422 and "Terms and Privacy Policy" in res.text
     assert _accept(api, token).status_code == 200
@@ -127,19 +126,19 @@ def test_joining_needs_the_terms(api, manager, terms):
 
 def test_joining_records_the_terms(api, db, manager):
     assert _accept(api, _invite(api, manager).json()["token"]).status_code == 200
-    version = db.scalar(text("SELECT terms_version FROM users WHERE email = 'new@example.com'"))
+    version = db.scalar(text("SELECT terms_version FROM users WHERE username = 'new'"))
     assert version == TERMS_VERSION
 
 
 def _second_manager(api, owner):
     token = _invite(api, owner, email="second@example.com", role="manager").json()["token"]
-    return auth_header(_accept(api, token).json()["access_token"])
+    return auth_header(_accept(api, token, email="second@example.com").json()["access_token"])
 
 
 def _staff_id(api, headers, email):
-    return next(s for s in api.get("/staff", headers=headers).json() if s["email"] == email)[
-        "member_id"
-    ]
+    names = {email, username_for(email)}
+    rows = api.get("/staff", headers=headers).json()
+    return next(s for s in rows if (s["email"] or s["username"]) in names)["member_id"]
 
 
 def _demote(api, headers, member_id):
@@ -158,8 +157,9 @@ def test_a_manager_link_is_shorter_lived(api, manager, role, hours):
 
 def test_only_the_store_creator_is_the_owner(api, manager):
     second = _second_manager(api, manager)
-    owners = {s["email"]: s["is_owner"] for s in api.get("/staff", headers=second).json()}
-    assert owners == {"owner@example.com": True, "second@example.com": False}
+    rows = api.get("/staff", headers=second).json()
+    owners = {s["email"] or s["username"]: s["is_owner"] for s in rows}
+    assert owners == {"owner@example.com": True, "second": False}
 
 
 def test_a_second_manager_can_run_the_store(api, manager):

@@ -5,6 +5,7 @@ The database is created if missing, migrated with Alembic, and wiped between tes
 """
 
 import os
+import re
 
 # Settings default to production, which refuses the public dev JWT secret. Tests run as
 # development, so they work without a .env file. Must be set before `app` is imported.
@@ -194,6 +195,41 @@ def signup(
 def manager(signup) -> dict[str, str]:
     """Auth header for a fresh store's manager."""
     return auth_header(signup()["access_token"])
+
+
+STAFF_PASSWORD = "Staff-pass-1"
+
+
+def username_for(login: str) -> str:
+    base = re.sub(r"[^a-z0-9._]", ".", login.split("@")[0].lower())
+    if not base[:1].isalpha():
+        base = "u" + base
+    return base.ljust(3, "x")[:30]
+
+
+def join_store(
+    api: TestClient,
+    headers: dict[str, str],
+    role: str = "member",
+    login: str = "staff",
+    password: str = STAFF_PASSWORD,
+    full_name: str | None = None,
+    name: str | None = None,
+) -> dict[str, str]:
+    invite = api.post("/staff/invites", json={"role": role, "name": name}, headers=headers)
+    assert invite.status_code == 201, invite.text
+    res = api.post(
+        "/staff/invites/accept",
+        json={
+            "accept_terms": True,
+            "token": invite.json()["token"],
+            "username": username_for(login),
+            "full_name": full_name or role.title(),
+            "password": password,
+        },
+    )
+    assert res.status_code == 200, res.text
+    return auth_header(res.json()["access_token"])
 
 
 def make_product(api: TestClient, headers: dict[str, str], **overrides: Any) -> dict[str, Any]:

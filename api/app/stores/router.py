@@ -24,6 +24,7 @@ from app.stores.schemas import (
     PendingInviteOut,
     RoleIn,
     StaffOut,
+    StaffResetOut,
     StoreIn,
     StoreOut,
 )
@@ -39,6 +40,7 @@ def staff_out(m: StoreMember, *, show_email: bool = True) -> StaffOut:
         member_id=m.id,
         user_id=m.user_id,
         email=m.user.email if show_email else None,
+        username=m.user.username,
         full_name=m.user.full_name,
         alias=m.alias,
         role=Role(m.role),
@@ -60,12 +62,22 @@ def attendance_out(row: Attendance) -> AttendanceOut:
 
 @router.post("/staff/invites", response_model=InviteOut, status_code=status.HTTP_201_CREATED)
 def invite_staff(body: InviteIn, current: ManagerOrSecretary, db: DbSession) -> InviteOut:
-    """Invite someone by email. The token is returned once; share it with the invitee."""
+    """Make an invite link. The token is returned once; share it with the invitee."""
     row, token = service.invite(
-        db, current.store_id, current.user.id, current.role, body.email, body.role
+        db, current.store_id, current.user.id, current.role, body.role, body.name
     )
     return InviteOut(
-        id=row.id, email=row.email, role=Role(row.role), expires_at=row.expires_at, token=token
+        id=row.id, name=row.name, role=Role(row.role), expires_at=row.expires_at, token=token
+    )
+
+
+@router.post("/staff/invites/{invite_id}/renew", response_model=InviteOut)
+def renew_invite(invite_id: UUID, current: ManagerOrSecretary, db: DbSession) -> InviteOut:
+    row, token = service.renew_invite(
+        db, current.store_id, invite_id, current.user.id, current.role
+    )
+    return InviteOut(
+        id=row.id, name=row.name, role=Role(row.role), expires_at=row.expires_at, token=token
     )
 
 
@@ -74,7 +86,7 @@ def list_pending_invites(current: ManagerOrSecretary, db: DbSession) -> list[Pen
     return [
         PendingInviteOut(
             id=row.id,
-            email=row.email,
+            name=row.name,
             role=Role(row.role),
             created_at=row.created_at,
             expires_at=row.expires_at,
@@ -91,7 +103,7 @@ def preview_invite(body: InvitePreviewIn, request: Request, db: DbSession) -> In
 @router.post("/staff/invites/accept", response_model=TokenOut)
 def accept_invite(body: AcceptInviteIn, request: Request, db: DbSession) -> TokenOut:
     """Join a store with an invite token (no login needed)."""
-    return service.accept_invite(db, body.token, body.password, body.full_name, client_ip(request))
+    return service.accept_invite(db, body, client_ip(request))
 
 
 @router.patch("/store", response_model=StoreOut)
@@ -157,6 +169,12 @@ def record_staff_attendance(
             body.note,
         )
     )
+
+
+@router.post("/staff/{member_id}/reset-link", response_model=StaffResetOut)
+def staff_reset_link(member_id: UUID, current: Manager, db: DbSession) -> StaffResetOut:
+    token, expires_at = service.staff_reset_link(db, current.store_id, member_id, current.member_id)
+    return StaffResetOut(token=token, expires_at=expires_at)
 
 
 @router.post("/staff/{member_id}/deactivate", response_model=StaffOut)

@@ -29,7 +29,7 @@ def signup(body: SignupIn, request: Request, db: DbSession) -> TokenOut:
 @router.post("/login", response_model=TokenOut)
 def login(body: LoginIn, request: Request, db: DbSession) -> TokenOut:
     """Email + password -> token. Rate-limited per email and per IP (429)."""
-    return service.login(db, body.email, body.password, client_ip(request))
+    return service.login(db, body.login or "", body.password, client_ip(request))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
