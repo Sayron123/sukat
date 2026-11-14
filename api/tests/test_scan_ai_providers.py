@@ -115,6 +115,15 @@ def test_gemini_read_request_and_usage(monkeypatch):
     )
 
 
+def test_gemini_backup_reader_marks_its_usage_as_backup():
+    fake = FakeGemini(gemini_response({"lines": [ROW]}))
+    _, usage = GeminiScanAI(fake, model="gemini-3.5-flash-lite", backup=True).read_photo(  # type: ignore[arg-type]
+        JPEG, "image/jpeg"
+    )
+    assert fake.calls[0]["model"] == "gemini-3.5-flash-lite"
+    assert usage.backup is True
+
+
 def test_gemini_match_sends_the_product_list_and_items():
     fake = FakeGemini(gemini_response({"matches": [{"line": 1, "product_id": "P2"}]}))
     answers, _ = GeminiScanAI(fake).match_items(  # type: ignore[arg-type]
@@ -311,10 +320,29 @@ def test_cost_uses_the_providers_prices(monkeypatch):
     # (0.25 + 0.15 + 0.025) USD * 58 PHP * 100 = 2465 centavos
     assert cost_centavos(gemini) == Decimal("2465.0000")
     claude = AIUsageInfo(
-        model="c", input_tokens=1_000_000, output_tokens=100_000, provider="anthropic"
+        model="c", input_tokens=1_000_000, output_tokens=100_000, provider="anthropic", backup=True
     )
     # (4.00 + 2.00) USD * 58 * 100 = 34800 centavos
     assert cost_centavos(claude) == Decimal("34800.0000")
+
+
+def test_a_backup_gemini_model_is_priced_with_the_backup_prices(monkeypatch):
+    monkeypatch.setattr(settings, "AI_FALLBACK_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "USD_TO_PHP", Decimal("58"))
+    for name, price in {
+        "AI_PRICE_INPUT_PER_MTOK_USD": "0.25",
+        "AI_PRICE_OUTPUT_PER_MTOK_USD": "1.50",
+        "AI_FALLBACK_PRICE_INPUT_PER_MTOK_USD": "0.30",
+        "AI_FALLBACK_PRICE_OUTPUT_PER_MTOK_USD": "2.50",
+    }.items():
+        monkeypatch.setattr(settings, name, Decimal(price))
+    main = AIUsageInfo(model="m", provider="gemini", input_tokens=1_000_000, output_tokens=100_000)
+    backup = AIUsageInfo(
+        model="b", provider="gemini", input_tokens=1_000_000, output_tokens=100_000, backup=True
+    )
+    # main: (0.25 + 0.15) * 58 * 100 = 2320; backup: (0.30 + 0.25) * 58 * 100 = 3190
+    assert cost_centavos(main) == Decimal("2320.0000")
+    assert cost_centavos(backup) == Decimal("3190.0000")
 
 
 def test_gemini_key_is_hidden_in_repr():

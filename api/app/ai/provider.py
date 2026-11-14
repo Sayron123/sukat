@@ -12,27 +12,27 @@ from app.ai.base import ChatModel, ScanAI, VisionReader
 from app.core.config import settings
 
 
-def _scan_ai(provider: str, model: str, max_retries: int) -> ScanAI:
+def _scan_ai(provider: str, model: str, max_retries: int, *, backup: bool = False) -> ScanAI:
     if provider == "gemini":
         from app.ai.gemini_reader import GeminiScanAI
 
-        return GeminiScanAI(model=model, max_retries=max_retries)
+        return GeminiScanAI(model=model, max_retries=max_retries, backup=backup)
     if provider == "anthropic":
         from app.ai.anthropic_reader import AnthropicScanAI
 
-        return AnthropicScanAI(model=model, max_retries=max_retries)
+        return AnthropicScanAI(model=model, max_retries=max_retries, backup=backup)
     raise ValueError(f"Unknown AI provider: {provider}")
 
 
-def _chat(provider: str, model: str) -> ChatModel:
+def _chat(provider: str, model: str, *, backup: bool = False) -> ChatModel:
     if provider == "gemini":
         from app.ai.gemini_chat import GeminiChatModel
 
-        return GeminiChatModel(model=model)
+        return GeminiChatModel(model=model, backup=backup)
     if provider == "anthropic":
         from app.ai.anthropic_chat import AnthropicChatModel
 
-        return AnthropicChatModel(model=model)
+        return AnthropicChatModel(model=model, backup=backup)
     raise ValueError(f"Unknown AI provider: {provider}")
 
 
@@ -55,7 +55,9 @@ def get_backup_vision_reader() -> VisionReader | None:
         return None
     from app.ai.scan_pipeline import MultiStepReader
 
-    return MultiStepReader(_scan_ai(settings.AI_FALLBACK_PROVIDER, settings.AI_FALLBACK_MODEL, 0))
+    return MultiStepReader(
+        _scan_ai(settings.AI_FALLBACK_PROVIDER, settings.AI_FALLBACK_MODEL, 0, backup=True)
+    )
 
 
 @cache
@@ -67,4 +69,4 @@ def get_chat_model() -> ChatModel:
 def get_backup_chat_model() -> ChatModel | None:
     if not settings.has_ai_fallback:
         return None
-    return _chat(settings.AI_FALLBACK_PROVIDER, settings.AI_FALLBACK_MODEL)
+    return _chat(settings.AI_FALLBACK_PROVIDER, settings.AI_FALLBACK_MODEL, backup=True)

@@ -69,7 +69,7 @@ def is_transient(error: errors.APIError) -> bool:
     return code in (408, 429) or code >= 500
 
 
-def usage_info(response: Any, model: str) -> AIUsageInfo:
+def usage_info(response: Any, model: str, *, backup: bool = False) -> AIUsageInfo:
     u = response.usage_metadata
     prompt_tokens = (u.prompt_token_count or 0) if u else 0
     cached = (u.cached_content_token_count or 0) if u else 0
@@ -81,6 +81,7 @@ def usage_info(response: Any, model: str) -> AIUsageInfo:
         input_tokens=max(prompt_tokens - cached, 0),
         output_tokens=answer + thoughts,
         cache_read_tokens=cached,
+        backup=backup,
     )
 
 
@@ -110,9 +111,11 @@ class GeminiScanAI:
         *,
         model: str | None = None,
         max_retries: int | None = None,
+        backup: bool = False,
     ) -> None:
         self._client = client
         self.model = model or settings.AI_MODEL
+        self.backup = backup
         self.max_retries = settings.AI_MAX_RETRIES if max_retries is None else max_retries
 
     @property
@@ -158,7 +161,7 @@ class GeminiScanAI:
                 ) from e
             raise AIReadError("The reader is not set up correctly.", retryable=False) from e
 
-        usage = usage_info(response, self.model)
+        usage = usage_info(response, self.model, backup=self.backup)
         if is_blocked(response):
             raise AIReadError("This photo could not be read.", retryable=False, usage=usage)
         if finish_reason(response) == types.FinishReason.MAX_TOKENS:

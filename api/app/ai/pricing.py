@@ -6,8 +6,8 @@ from app.core.config import settings
 _MILLION = Decimal(1_000_000)
 
 
-def _prices(provider: str) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-    if provider == settings.AI_FALLBACK_PROVIDER:
+def _prices(usage: AIUsageInfo) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    if usage.backup:
         return (
             settings.AI_FALLBACK_PRICE_INPUT_PER_MTOK_USD,
             settings.AI_FALLBACK_PRICE_OUTPUT_PER_MTOK_USD,
@@ -24,12 +24,12 @@ def _prices(provider: str) -> tuple[Decimal, Decimal, Decimal, Decimal]:
 
 def cost_centavos(usage: AIUsageInfo) -> Decimal:
     """Estimated cost of one call in PHP centavos, from the price settings of the
-    provider that answered (main: AI_PRICE_*, backup: AI_FALLBACK_PRICE_*).
+    model that answered (main: AI_PRICE_*, backup: AI_FALLBACK_PRICE_*).
 
     Uses the configured model's prices even if a refusal fallback answered; fallbacks
     are rare and priced the same or lower.
     """
-    price_in, price_out, price_write, price_read = _prices(usage.provider)
+    price_in, price_out, price_write, price_read = _prices(usage)
     usd = (
         Decimal(usage.input_tokens) * price_in
         + Decimal(usage.output_tokens) * price_out

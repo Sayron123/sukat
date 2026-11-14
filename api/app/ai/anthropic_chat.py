@@ -54,8 +54,15 @@ def _tools(specs: list[dict[str, Any]]) -> list[BetaToolParam]:
 
 
 class AnthropicChatModel:
-    def __init__(self, client: anthropic.Anthropic | None = None, *, model: str | None = None):
+    def __init__(
+        self,
+        client: anthropic.Anthropic | None = None,
+        *,
+        model: str | None = None,
+        backup: bool = False,
+    ):
         self.model = model or settings.AI_MODEL
+        self.backup = backup
         # Retries are off: one question has one overall deadline, and the caller passes
         # the time left to each call.
         self.client = client or anthropic.Anthropic(
@@ -117,6 +124,6 @@ class AnthropicChatModel:
             text=text,
             tool_calls=calls,
             stop=stop,  # type: ignore[arg-type]  # values come from _STOPS / "end"
-            usage=_usage(response),
+            usage=_usage(response, backup=self.backup),
             raw=response.content,
         )

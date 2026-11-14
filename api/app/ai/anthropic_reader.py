@@ -30,7 +30,7 @@ from app.core.config import settings
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
-def _usage(response: Any) -> AIUsageInfo:
+def _usage(response: Any, *, backup: bool = False) -> AIUsageInfo:
     u = response.usage
     return AIUsageInfo(
         model=response.model,
@@ -39,6 +39,7 @@ def _usage(response: Any) -> AIUsageInfo:
         output_tokens=u.output_tokens or 0,
         cache_write_tokens=u.cache_creation_input_tokens or 0,
         cache_read_tokens=u.cache_read_input_tokens or 0,
+        backup=backup,
     )
 
 
@@ -49,8 +50,10 @@ class AnthropicScanAI:
         *,
         model: str | None = None,
         max_retries: int | None = None,
+        backup: bool = False,
     ) -> None:
         self.model = model or settings.AI_MODEL
+        self.backup = backup
         self.client = client or anthropic.Anthropic(
             api_key=settings.ANTHROPIC_API_KEY.get_secret_value() or None,
             timeout=settings.AI_TIMEOUT_SECONDS,
@@ -90,7 +93,7 @@ class AnthropicScanAI:
                 ) from e
             raise AIReadError("The reader is not set up correctly.", retryable=False) from e
 
-        usage = _usage(response)
+        usage = _usage(response, backup=self.backup)
         if response.stop_reason == "refusal":
             raise AIReadError("This photo could not be read.", retryable=False, usage=usage)
         if response.stop_reason == "max_tokens":
