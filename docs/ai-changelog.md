@@ -4,6 +4,10 @@ One entry per change to the scan or chat AI: prompts, glossary, units, matching 
 
 Keep a change only if `final` goes up, or stays the same at a lower cost, and nothing else drops.
 
+## 2026-11-14: crop the photo on the phone before upload
+
+Staff box the item rows after taking the photo, and only that part is uploaded and read. This is mainly for privacy (the customer's name stays on the phone), with a possible accuracy gain: no header text to mistake for items, and more pixels on the rows. The eval was **not** run: its photos are uploaded as files and don't go through the phone's crop. The closest existing number is the 2026-11-13 run 3 (header and footer covered by hand: 75.0% final vs 73.1%), which is inside the run-to-run noise. Cost per scan: not measured; the image stays at most 1600 px on its longest side, so expect about the same.
+
 ## 2026-11-14: reliability fixes from the backend review
 
 No prompt, glossary, model or matching change, so read, match and final are not expected to move. The eval was **not** run for this entry (the key in `api/.env` is on the free tier and the cases are real receipts).

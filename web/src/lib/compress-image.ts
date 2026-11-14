@@ -1,16 +1,24 @@
+import { type CropBox, WHOLE_PHOTO, cropPixels } from "./crop-box";
+
 /**
- * Shrink a phone photo before upload: longest side at most `maxSide` px, JPEG at
- * `quality`. A 12 MP photo (~4 MB) becomes ~250-400 KB: faster on mobile data, and still
- * sharp enough for the AI to read handwriting.
+ * Cut out `crop` (fractions of the upright photo), then shrink it before upload: longest
+ * side at most `maxSide` px, JPEG at `quality`. A 12 MP photo (~4 MB) becomes ~250-400 KB:
+ * faster on mobile data, and still sharp enough for the AI to read handwriting.
  *
  * Respects EXIF rotation (imageOrientation: "from-image"), so portrait photos stay upright.
  * @throws Error if the file can't be decoded as an image
  */
-export async function compressImage(file: Blob, maxSide = 1600, quality = 0.7): Promise<Blob> {
+export async function compressImage(
+  file: Blob,
+  crop: CropBox = WHOLE_PHOTO,
+  maxSide = 1600,
+  quality = 0.7,
+): Promise<Blob> {
   const source = await decode(file);
-  const scale = Math.min(1, maxSide / Math.max(source.width, source.height));
-  const width = Math.round(source.width * scale);
-  const height = Math.round(source.height * scale);
+  const { sx, sy, sw, sh } = cropPixels(crop, source.width, source.height);
+  const scale = Math.min(1, maxSide / Math.max(sw, sh));
+  const width = Math.round(sw * scale);
+  const height = Math.round(sh * scale);
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -19,7 +27,7 @@ export async function compressImage(file: Blob, maxSide = 1600, quality = 0.7): 
   if (!ctx) throw new Error("Canvas is not supported");
   ctx.fillStyle = "#FFFFFF"; // transparent PNGs become white, not black
   ctx.fillRect(0, 0, width, height);
-  ctx.drawImage(source.image, 0, 0, width, height);
+  ctx.drawImage(source.image, sx, sy, sw, sh, 0, 0, width, height);
   source.close();
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
