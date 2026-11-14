@@ -69,8 +69,8 @@ export function ForgotForm() {
         title="Check your email"
         subtitle={
           <>
-            We sent a link to <strong className="font-bold text-text">{sentTo}</strong>. Open it to make a new
-            password.
+            If <strong className="font-bold text-text">{sentTo}</strong> is a confirmed email on a Sukat account, we
+            sent it a link. Open it to make a new password.
           </>
         }
         emote="success"
@@ -79,7 +79,8 @@ export function ForgotForm() {
       >
         <div className="flex flex-col gap-3">
           <Notice icon="mail" title="Didn’t get it?" className="border border-border">
-            Check your Spam or Promotions folder. The link works for 30 minutes.
+            Check your Spam or Promotions folder. The link works for 30 minutes. If you joined by invite and
+            never confirmed this email, no link was sent.
           </Notice>
           {errorText}
           <Link href="/login" className={`${buttonClass("primary", "lg")} mt-2`}>

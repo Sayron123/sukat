@@ -116,7 +116,7 @@ export function MoreMenu() {
           </Link>
         </div>
       )}
-      {me && !me.email_verified && <VerifyEmailNotice email={me.email} />}
+      {me?.email_confirmation && <VerifyEmailNotice email={me.email} />}
       {groups.map((g) => (
         <section key={g.title ?? g.items[0].href} className="mt-8">
           {g.title && <h2 className="mb-2 text-[13px] font-bold text-muted uppercase">{g.title}</h2>}
