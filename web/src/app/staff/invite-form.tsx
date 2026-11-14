@@ -12,8 +12,8 @@ const ROLES = [
   { value: "manager", title: "Manager", detail: "Full access, including staff. The link lasts 24 hours" },
 ];
 
-type Invite = { email: string; role: string; expires_at: string; token: string };
-type Created = { link: string; email: string; role: string; expires: string };
+type Invite = { name: string | null; role: string; expires_at: string; token: string };
+type Created = { link: string; name: string | null; role: string; expires: string };
 
 export function InviteForm({ inviterRole }: { inviterRole: Role }) {
   const roles = inviterRole === "secretary" ? ROLES.filter((r) => r.value === "member") : ROLES;
@@ -24,18 +24,18 @@ export function InviteForm({ inviterRole }: { inviterRole: Role }) {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const { email, role } = Object.fromEntries(new FormData(e.currentTarget));
+    const { name, role } = Object.fromEntries(new FormData(e.currentTarget));
     setError(null);
     setPending(true);
     try {
       const invite = await api<Invite>("staff/invites", {
         method: "POST",
-        body: JSON.stringify({ email, role }),
+        body: JSON.stringify({ name, role }),
       });
       setCopyNote(null);
       setCreated({
         link: `${window.location.origin}/invite?token=${invite.token}`,
-        email: invite.email,
+        name: invite.name,
         role: invite.role,
         expires: new Date(invite.expires_at).toLocaleString("en-PH", {
           month: "long",
@@ -67,7 +67,7 @@ export function InviteForm({ inviterRole }: { inviterRole: Role }) {
         <div>
           <b className="block text-base text-text">Send this link</b>
           <p className="mt-1 text-sm text-muted">
-            {created.email} will join as a <span className="capitalize">{created.role}</span>. It works once, until{" "}
+            {created.name ?? "They"} will join as a <span className="capitalize">{created.role}</span>. It works once, until{" "}
             {created.expires}.
           </p>
         </div>
@@ -101,7 +101,15 @@ export function InviteForm({ inviterRole }: { inviterRole: Role }) {
   return (
     <Card className="mb-4">
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Field id="invite-email" name="email" type="email" label="Their email" autoComplete="off" required />
+        <Field
+          id="invite-name"
+          name="name"
+          label="Who is it for? (optional)"
+          placeholder="e.g. Juan"
+          maxLength={60}
+          autoComplete="off"
+          hint="Only you and your staff see this, to tell open invites apart."
+        />
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-[7px] text-[13px] font-bold text-text">What will they be?</legend>
           {roles.map((r) => (

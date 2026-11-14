@@ -22,12 +22,21 @@ export type Staff = {
   member_id: string;
   user_id: string;
   email: string | null;
+  username: string | null;
   full_name: string;
   alias: string | null;
   role: Role;
   active: boolean;
   is_owner: boolean;
   created_at: string;
+};
+
+export type PendingInvite = {
+  id: string;
+  name: string | null;
+  role: Role;
+  created_at: string;
+  expires_at: string;
 };
 
 export type AttendanceStatus = "present" | "late" | "half_day" | "absent";
@@ -50,7 +59,8 @@ export type DayAttendance = Attendance & { member_id: string };
 
 export type Me = {
   user_id: string;
-  email: string;
+  email: string | null;
+  username: string | null;
   full_name: string;
   email_verified: boolean;
   email_confirmation: boolean;

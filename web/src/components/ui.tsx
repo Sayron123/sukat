@@ -46,6 +46,7 @@ const BADGE_TONES = {
   amber: "border-amber-edge bg-amber-soft text-amber-text",
   green: "border-green-edge bg-green-soft text-green-text",
   neutral: "border-border bg-surface text-muted",
+  accent: "border-accent bg-surface text-accent-text",
 } as const;
 
 export function Badge({
@@ -266,8 +267,8 @@ export function Chip({
     <button
       type="button"
       aria-pressed={selected}
-      className={`h-[38px] shrink-0 whitespace-nowrap rounded-button border px-3.5 text-[13px] font-semibold ${
-        selected ? "border-text bg-text text-inverse" : "border-line bg-background text-muted hover:bg-surface"
+      className={`h-10 shrink-0 whitespace-nowrap rounded-button border-[1.5px] px-4 text-sm font-bold ${
+        selected ? "border-text bg-text text-inverse" : "border-line bg-background text-text hover:bg-surface"
       } ${className}`}
       {...props}
     />
@@ -275,13 +276,23 @@ export function Chip({
 }
 
 /** Round grey circle with initials. */
-export function Avatar({ name, large = false, text }: { name: string; large?: boolean; text?: string }) {
+export function Avatar({
+  name,
+  large = false,
+  accent = false,
+  text,
+}: {
+  name: string;
+  large?: boolean;
+  accent?: boolean;
+  text?: string;
+}) {
   return (
     <span
       aria-hidden
-      className={`grid shrink-0 place-items-center rounded-full bg-border text-[13px] font-bold text-text ${
-        large ? "h-12 w-12" : "h-[42px] w-[42px]"
-      }`}
+      className={`grid shrink-0 place-items-center rounded-full font-bold ${
+        accent ? "bg-accent text-[15px] font-extrabold text-white" : "bg-border text-[13px] text-text"
+      } ${large ? "h-12 w-12" : "h-[42px] w-[42px]"}`}
     >
       {text ?? initials(name)}
     </span>

@@ -12,8 +12,8 @@ export const metadata: Metadata = { title: "Join a store · Sukat", referrer: "n
 const INVALID = "This invite link is invalid or has expired. Ask your manager for a new one.";
 const SERVER_DOWN = "The Sukat server is not responding. Please try again.";
 
-type SearchParams = Promise<{ token?: string | string[] }>;
-type Preview = { store_name: string; role: string; email: string; has_account: boolean };
+type SearchParams = Promise<{ token?: string | string[]; existing?: string | string[] }>;
+type Preview = { store_name: string; role: string; name: string | null };
 
 export default function InvitePage({ searchParams }: { searchParams: SearchParams }) {
   return (
@@ -35,7 +35,7 @@ function InviteProblem({ message }: { message: string }) {
 }
 
 async function InviteContent({ searchParams }: { searchParams: SearchParams }) {
-  const { token } = await searchParams;
+  const { token, existing } = await searchParams;
   if (typeof token !== "string" || !token) return <InviteProblem message={INVALID} />;
 
   const forwardedFor = (await headers()).get("x-forwarded-for");
@@ -56,35 +56,44 @@ async function InviteContent({ searchParams }: { searchParams: SearchParams }) {
   if (!res.ok) return <InviteProblem message={SERVER_DOWN} />;
 
   const invite = (await res.json()) as Preview;
-  const role = `a ${invite.role}`;
-  const next = invite.has_account
-    ? `${invite.email} already has a Sukat account, so enter its password to join.`
-    : "Create your password to join.";
+  const existingAccount = existing === "1";
+  const link = `/invite?token=${encodeURIComponent(token)}`;
+  const who = invite.name ? `${invite.name}, you` : "You";
   return (
     <AuthForm
       title={`Join ${invite.store_name}`}
-      subtitle={`You are invited as ${role}. ${next}`}
+      subtitle={`${who} are invited as a ${invite.role}. ${
+        existingAccount ? "Sign in with your Sukat account to join." : "Make your account to join."
+      }`}
       endpoint="/api/auth/accept-invite"
       submitLabel="Join Store"
       extra={{ token }}
       agreement
       fields={
-        invite.has_account
+        existingAccount
           ? [
-              {
-                name: "password",
-                label: "Your Sukat password",
-                type: "password",
-                autoComplete: "current-password",
-              },
+              { name: "login", label: "Email or username", autoComplete: "username" },
+              { name: "password", label: "Password", type: "password", autoComplete: "current-password" },
             ]
           : [
-              { name: "email", label: "Email", type: "email", autoComplete: "username", locked: invite.email },
+              {
+                name: "username",
+                label: "Username",
+                autoComplete: "username",
+                minLength: 3,
+                maxLength: 30,
+                placeholder: "e.g. juan.dc",
+                hint: "You sign in with this. Use 3 to 30 small letters, numbers, dots or underscores.",
+              },
+              { name: "full_name", label: "Your name", autoComplete: "name", maxLength: 120 },
               { name: "password", label: "Password", type: "new-password" },
             ]
       }
-      altLink={invite.has_account ? { text: "Forgot your password?", href: "/forgot-password" } : undefined}
-      footer={{ text: "Already have an account? Sign in", href: "/login" }}
+      altLink={
+        existingAccount
+          ? { text: "New to Sukat? Make an account instead", href: link }
+          : { text: "Already have a Sukat account? Join with it", href: `${link}&existing=1` }
+      }
     />
   );
 }

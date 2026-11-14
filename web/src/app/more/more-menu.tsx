@@ -8,7 +8,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Avatar, Notice, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
-import { canEditProducts, type Me, type Role, type Staff } from "@/lib/types";
+import { canEditProducts, type Me, type Staff } from "@/lib/types";
 
 import { ApiStatus } from "../api-status";
 
@@ -23,8 +23,6 @@ type Item = {
 
 type Group = { title?: string; items: Item[] };
 
-const ROLE_SHORT: Record<Role, string> = { manager: "Mgr", secretary: "Sec", member: "Mem" };
-
 const GROUPS: Group[] = [
   {
     title: "Store",
@@ -38,7 +36,7 @@ const GROUPS: Group[] = [
   {
     title: "Products",
     items: [
-      { href: "/stock/new", icon: "plus", title: "Add product", detail: "Create a stock item", writersOnly: true },
+      { href: "/stock/new", icon: "plus", title: "Add product", detail: "Add one new item to your stock", writersOnly: true },
       { href: "/stock/import", icon: "box", title: "Import starter items", detail: "Pick from a ready-made list", writersOnly: true },
     ],
   },
@@ -105,33 +103,33 @@ export function MoreMenu() {
     <>
       <PageHeader eyebrow={me?.store_name ?? " "} title="More" />
       {me && (
-        <div className="flex items-center gap-3.5 border-b border-border pt-2 pb-6">
-          <Avatar name={me.full_name} large text={ROLE_SHORT[me.role]} />
+        <div className="flex items-center gap-3 rounded-card border border-border bg-surface px-4 py-3">
+          <Avatar name={me.full_name} large accent />
           <div className="min-w-0 flex-1">
             <b className="block truncate text-base text-text">{me.full_name}</b>
-            <span className="mt-1 block truncate text-sm text-muted capitalize">{me.role}</span>
+            <span className="mt-0.5 block truncate text-[13px] text-muted capitalize">{me.role}</span>
           </div>
-          <Link href="/more/settings" aria-label="Settings" title="Settings" className={headerIconClass}>
+          <Link href="/more/settings" aria-label="Settings" title="Settings" className={`${headerIconClass} -mr-2`}>
             <Icon name="settings" />
           </Link>
         </div>
       )}
-      {me?.email_confirmation && <VerifyEmailNotice email={me.email} />}
+      {me?.email_confirmation && <VerifyEmailNotice email={me.email ?? ""} />}
       {groups.map((g) => (
-        <section key={g.title ?? g.items[0].href} className="mt-8">
-          {g.title && <h2 className="mb-2 text-[13px] font-bold text-muted uppercase">{g.title}</h2>}
-          <ul className="border-t border-border">
-            {g.items.map((i) => (
-              <li key={i.href}>
-                <Link href={i.href} className="flex min-h-[72px] items-center gap-3 border-b border-border text-text">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center">
-                    <Icon name={i.icon} size={21} />
-                  </span>
+        <section key={g.title ?? g.items[0].href} className="mt-4">
+          {g.title && (
+            <h2 className="mb-2 px-1 text-xs font-bold tracking-[0.06em] text-muted uppercase">{g.title}</h2>
+          )}
+          <ul className="overflow-hidden rounded-card border border-border bg-surface">
+            {g.items.map((i, n) => (
+              <li key={i.href} className={n > 0 ? "border-t border-border" : ""}>
+                <Link href={i.href} className="flex min-h-15 items-center gap-3.5 px-4 py-2.5 text-text hover:bg-border/40">
+                  <Icon name={i.icon} size={22} />
                   <span className="min-w-0 flex-1">
                     <b className="block text-base">{i.title}</b>
-                    <small className="mt-1 block text-sm text-muted">{detailFor(i)}</small>
+                    <small className="mt-0.5 block text-[13px] text-muted">{detailFor(i)}</small>
                   </span>
-                  <Icon name="chevron" size={19} />
+                  <Icon name="chevron" size={20} className="text-muted" />
                 </Link>
               </li>
             ))}
