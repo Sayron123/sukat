@@ -6,13 +6,18 @@ import { Suspense } from "react";
 import { AuthForm, AuthShell } from "@/components/auth-form";
 import { Loading, Notice, textLinkClass } from "@/components/ui";
 import { backendFetch, clientIpHeaders, errorMessage } from "@/lib/server/backend";
+import { googleClientId } from "@/lib/server/google";
 
 export const metadata: Metadata = { title: "Join a store · Sukat", referrer: "no-referrer" };
 
 const INVALID = "This invite link is invalid or has expired. Ask your manager for a new one.";
 const SERVER_DOWN = "The Sukat server is not responding. Please try again.";
 
-type SearchParams = Promise<{ token?: string | string[]; existing?: string | string[] }>;
+type SearchParams = Promise<{
+  token?: string | string[];
+  existing?: string | string[];
+  error?: string | string[];
+}>;
 type Preview = { store_name: string; role: string; name: string | null };
 
 export default function InvitePage({ searchParams }: { searchParams: SearchParams }) {
@@ -35,7 +40,7 @@ function InviteProblem({ message }: { message: string }) {
 }
 
 async function InviteContent({ searchParams }: { searchParams: SearchParams }) {
-  const { token, existing } = await searchParams;
+  const { token, existing, error } = await searchParams;
   if (typeof token !== "string" || !token) return <InviteProblem message={INVALID} />;
 
   const forwardedFor = (await headers()).get("x-forwarded-for");
@@ -57,6 +62,7 @@ async function InviteContent({ searchParams }: { searchParams: SearchParams }) {
 
   const invite = (await res.json()) as Preview;
   const existingAccount = existing === "1";
+  const google = !existingAccount && (await googleClientId()) ? { mode: "invite" as const, token } : undefined;
   const link = `/invite?token=${encodeURIComponent(token)}`;
   const who = invite.name ? `${invite.name}, you` : "You";
   return (
@@ -68,6 +74,8 @@ async function InviteContent({ searchParams }: { searchParams: SearchParams }) {
       endpoint="/api/auth/accept-invite"
       submitLabel="Join Store"
       extra={{ token }}
+      alert={typeof error === "string" ? error : undefined}
+      google={google}
       agreement
       fields={
         existingAccount

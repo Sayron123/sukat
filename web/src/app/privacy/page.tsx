@@ -66,6 +66,11 @@ export default function PrivacyPage() {
           their models.
         </li>
         <li>
+          <b>Google sign-in</b> (if you choose Continue with Google): Google tells us your name, your
+          email and an account id, so you can sign in without a Sukat password. We never get your
+          Google password.
+        </li>
+        <li>
           <b>Cloudflare R2</b>: stores scanned photos.
         </li>
         <li>

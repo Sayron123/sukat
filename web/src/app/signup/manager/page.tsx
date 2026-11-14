@@ -1,12 +1,29 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { AuthForm } from "@/components/auth-form";
+import { Loading } from "@/components/ui";
+import { googleClientId } from "@/lib/server/google";
 
 export const metadata: Metadata = { title: "Create your store · Sukat" };
 
-export default function ManagerSignupPage() {
+type SearchParams = Promise<{ error?: string | string[] }>;
+
+export default function ManagerSignupPage({ searchParams }: { searchParams: SearchParams }) {
+  return (
+    <Suspense fallback={<Loading />}>
+      <SignupContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function SignupContent({ searchParams }: { searchParams: SearchParams }) {
+  const { error } = await searchParams;
+  const google = (await googleClientId()) ? { mode: "signup" as const } : undefined;
   return (
     <AuthForm
+      alert={typeof error === "string" ? error : undefined}
+      google={google}
       title="Set up your store"
       subtitle="Set up your store and your manager account."
       mascot={104}

@@ -129,6 +129,8 @@ export function AuthForm({
   mascot,
   signedOutText,
   createAccount,
+  google,
+  alert,
 }: {
   title: string;
   subtitle: string;
@@ -144,6 +146,8 @@ export function AuthForm({
   mascot?: number;
   signedOutText?: string;
   createAccount?: { prompt: string; text: string; href: string };
+  google?: { mode: "login" | "signup" | "invite"; token?: string };
+  alert?: string;
 }) {
   const sections = [...new Set(fields.flatMap((f) => (f.section ? [f.section] : [])))];
   const [error, setError] = useState<string | null>(null);
@@ -160,9 +164,47 @@ export function AuthForm({
       () => false,
     ) && signedOutText !== undefined;
 
+  function startGoogle(form: HTMLFormElement) {
+    if (!google) return;
+    const data = new FormData(form);
+    if (agreement && data.get("accept_terms") !== "on") {
+      setError("Please agree to the Terms and Privacy Policy first.");
+      return;
+    }
+    if (google.mode === "signup" && !String(data.get("store_name") ?? "").trim()) {
+      setError("Type your store name first.");
+      return;
+    }
+    const values: Record<string, string | undefined> = {
+      mode: google.mode,
+      token: google.token,
+      store_name: String(data.get("store_name") ?? "") || undefined,
+      store_address: String(data.get("store_address") ?? "") || undefined,
+    };
+    const out = document.createElement("form");
+    out.method = "post";
+    out.action = "/api/auth/google/start";
+    for (const [name, value] of Object.entries(values)) {
+      if (value === undefined) continue;
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      out.appendChild(input);
+    }
+    document.body.appendChild(out);
+    setPending(true);
+    out.submit();
+  }
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    const submitter = (e.nativeEvent as SubmitEvent).submitter;
+    if (submitter instanceof HTMLButtonElement && submitter.name === "google") {
+      startGoogle(e.currentTarget);
+      return;
+    }
     const body: Record<string, unknown> = {
       ...Object.fromEntries(new FormData(e.currentTarget)),
       ...extra,
@@ -230,6 +272,11 @@ export function AuthForm({
         </>
       ) : (
         <form method="post" onSubmit={onSubmit} onChange={() => setError(null)} className="flex flex-col gap-[22px]">
+          {alert && (
+            <p role="alert" className="rounded-button border border-red-edge bg-red-soft p-3 text-sm text-red">
+              {alert}
+            </p>
+          )}
           {fields.map((f, i) => {
             const startsSection = f.section !== undefined && f.section !== fields[i - 1]?.section;
             let input: ReactNode;
@@ -274,6 +321,26 @@ export function AuthForm({
             >
               {altLink.text}
             </Link>
+          )}
+          {google && (
+            <>
+              <div className="-my-1 flex items-center gap-3 text-[13px] text-muted">
+                <span aria-hidden className="h-px flex-1 bg-border" />
+                or
+                <span aria-hidden className="h-px flex-1 bg-border" />
+              </div>
+              <button
+                type="submit"
+                name="google"
+                value="1"
+                formNoValidate
+                disabled={!ready || pending}
+                className="flex h-12 items-center justify-center gap-2.5 rounded-button border border-line bg-surface px-4 text-[15px] font-bold text-text hover:bg-background disabled:opacity-45"
+              >
+                <GoogleMark />
+                Continue with Google
+              </button>
+            </>
           )}
           {agreement && (
             <label htmlFor="accept_terms" className="flex items-start gap-3 text-sm text-text">
@@ -333,5 +400,16 @@ export function AuthForm({
         </form>
       )}
     </AuthShell>
+  );
+}
+
+function GoogleMark() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+      <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
   );
 }
