@@ -758,7 +758,7 @@ function Review({
         onConfirm={moveToTrash}
         onCancel={() => setConfirmTrash(false)}
       >
-        It goes to the Recycle bin on Needs review and is deleted for good after 30 days. You can restore it
+        It goes to the Recycle bin in More and is deleted for good after 30 days. You can restore it
         until then.
       </ConfirmDialog>
 
