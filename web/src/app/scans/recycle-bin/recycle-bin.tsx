@@ -102,7 +102,7 @@ export function RecycleBin() {
                   type="button"
                   disabled={busy !== null}
                   onClick={() => restore(item)}
-                  className="flex h-10 shrink-0 items-center gap-1.5 rounded-button border border-line bg-surface px-3 text-sm font-bold text-text hover:bg-surface disabled:opacity-45"
+                  className="flex h-10 shrink-0 items-center gap-1.5 rounded-button border border-line bg-surface px-3 text-sm font-bold text-text hover:bg-border/40 disabled:opacity-45"
                 >
                   <Icon name="restore" size={18} />
                   Restore

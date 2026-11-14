@@ -123,7 +123,7 @@ export function Button({
 
 /** Class names for an outlined button, also used to style links as buttons. */
 export const ghostButtonClass =
-  "flex h-12 items-center justify-center gap-2 rounded-button border border-line bg-surface px-4 text-[15px] font-semibold text-muted hover:bg-surface disabled:opacity-45";
+  "flex h-12 items-center justify-center gap-2 rounded-button border border-line bg-surface px-4 text-[15px] font-semibold text-muted hover:bg-border/40 disabled:opacity-45";
 
 /** Secondary (outlined) button. */
 export function GhostButton({ className = "", ...props }: ComponentProps<"button">) {

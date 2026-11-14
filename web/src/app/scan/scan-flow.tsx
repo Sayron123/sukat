@@ -564,7 +564,7 @@ function Review({
               type="button"
               disabled={saving || rescanning}
               onClick={rescan}
-              className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-button border border-line bg-surface px-4 text-[15px] font-semibold text-text hover:bg-surface disabled:opacity-45"
+              className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-button border border-line bg-surface px-4 text-[15px] font-semibold text-text hover:bg-border/40 disabled:opacity-45"
             >
               <Icon name="camera" size={20} />
               {rescanning ? "Scanning…" : "Scan again"}
