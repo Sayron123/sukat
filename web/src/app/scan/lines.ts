@@ -8,7 +8,7 @@ import type { PickedProduct } from "./product-picker";
 export type EditLine = {
   key: number; // stable React key
   scanLine: number; // index in the scan, for alias learning on the server
-  rawText: string;
+  readName: string;
   product: PickedProduct | null;
   newProduct: { name: string; category: string; base_unit: string } | null;
   qty: string;
@@ -34,7 +34,7 @@ export function toEditLine(line: ReviewLine, index: number): EditLine {
   return {
     key: index,
     scanLine: index,
-    rawText: line.raw_text,
+    readName: line.item_text || line.raw_text,
     product:
       line.product_id && line.product_name && line.base_unit
         ? {
