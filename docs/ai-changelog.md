@@ -4,6 +4,20 @@ One entry per change to the scan or chat AI: prompts, glossary, units, matching 
 
 Keep a change only if `final` goes up, or stays the same at a lower cost, and nothing else drops.
 
+## 2026-11-14: gemini-3.5-flash-lite as the backup model
+
+Same 21 sale receipts (names covered), starter catalog, same prompts, thinking level `minimal`, free tier. Calls were spaced 7 s apart so neither model hit the free tier's 10 requests a minute.
+
+| Model | read | match | final | price | extra | AI req/scan | Thinking tokens | Read time (avg / slowest) | Cost/scan if paid |
+|---|---|---|---|---|---|---|---|---|---|
+| gemini-3.1-flash-lite (main) | 95.5% | 78.8% | 75.6% | 100% | 3 | 2.0 | 0 | 5.8 s / 48.3 s | ₱0.13 |
+| gemini-3.5-flash-lite | 94.9% | 80.1% | 75.6% | 100% | 4 | 2.0 | 0 | 2.8 s / 7.0 s | ₱0.25 |
+
+- Same final accuracy, so 3.1 stays the main model (about half the cost). 3.5 becomes the backup: it reads as well, is faster, and has its own free-tier limit, so a 429 on 3.1 no longer fails the scan.
+- Both models used **0 thinking tokens** on every call at `minimal`, so no money goes to reasoning.
+- A first run without spacing hit the per-minute limit: 3–4 match calls failed per model, and the totals looked like 71.6% vs 77.2%. That gap was the rate limit, not the models. Space calls (or use a paid key) before comparing models.
+- A failed match call doesn't fail the scan: its lines come back unmatched and staff pick the products. The backup only takes over when the read step fails.
+
 ## 2026-11-14: crop the photo on the phone before upload
 
 Staff box the item rows after taking the photo, and only that part is uploaded and read. This is mainly for privacy (the customer's name stays on the phone), with a possible accuracy gain: no header text to mistake for items, and more pixels on the rows. The eval was **not** run: its photos are uploaded as files and don't go through the phone's crop. The closest existing number is the 2026-11-13 run 3 (header and footer covered by hand: 75.0% final vs 73.1%), which is inside the run-to-run noise. Cost per scan: not measured; the image stays at most 1600 px on its longest side, so expect about the same.
