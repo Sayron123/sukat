@@ -6,7 +6,7 @@ from app.ai.errors import AIReadError
 from app.ai.models import AIUsage
 from app.ai.schemas import AIUsageInfo
 from app.inventory.models import Scan
-from tests.conftest import auth_header, make_product, scan_line, upload_photo
+from tests.conftest import join_store, make_product, scan_line, upload_photo
 
 
 def _products(api, headers):
@@ -24,19 +24,7 @@ def _products(api, headers):
 
 
 def _member(api, manager):
-    invite = api.post(
-        "/staff/invites", json={"email": "member@example.com", "role": "member"}, headers=manager
-    ).json()
-    token = api.post(
-        "/staff/invites/accept",
-        json={
-            "accept_terms": True,
-            "token": invite["token"],
-            "password": "Member-pass-1",
-            "full_name": "M",
-        },
-    ).json()["access_token"]
-    return auth_header(token)
+    return join_store(api, manager, "member", login="member@example.com")
 
 
 def test_member_can_scan_and_lines_are_converted_and_flagged(api, manager, storage, reader, db):

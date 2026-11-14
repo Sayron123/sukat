@@ -1,33 +1,38 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import text
 
-from tests.conftest import auth_header
+from tests.conftest import auth_header, username_for
 
 OWNER = "owner@example.com"
 TODAY = datetime.now(ZoneInfo("Asia/Manila")).date()
 
 
 def _invite(api, headers, email, role="member"):
-    return api.post("/staff/invites", json={"email": email, "role": role}, headers=headers)
+    body = {"role": role, "name": email.split("@")[0]}
+    return api.post("/staff/invites", json=body, headers=headers)
 
 
-def _accept(api, token):
-    return api.post(
-        "/staff/invites/accept",
-        json={"accept_terms": True, "token": token, "password": "Staff-pass-1"},
-    )
+def _accept(api, token, email="staff@example.com"):
+    body = {"username": username_for(email), "full_name": "Staff", "password": "Staff-pass-1"}
+    return api.post("/staff/invites/accept", json={"accept_terms": True, "token": token, **body})
+
+
+def _accept_existing(api, token, email="staff@example.com"):
+    body = {"login": username_for(email), "password": "Staff-pass-1"}
+    return api.post("/staff/invites/accept", json={"accept_terms": True, "token": token, **body})
 
 
 def _join(api, headers, email="staff@example.com", role="member"):
     token = _invite(api, headers, email, role).json()["token"]
-    return auth_header(_accept(api, token).json()["access_token"])
+    return auth_header(_accept(api, token, email).json()["access_token"])
 
 
 def _row(api, headers, email):
-    return next(s for s in api.get("/staff", headers=headers).json() if s["email"] == email)
+    names = {email, username_for(email)}
+    rows = api.get("/staff", headers=headers).json()
+    return next(s for s in rows if (s["email"] or s["username"]) in names)
 
 
 def _id(api, headers, email="staff@example.com"):
@@ -56,7 +61,7 @@ def test_manager_gives_someone_an_alias(api, manager):
     _join(api, manager)
     res = _alias(api, manager, _id(api, manager), "  Kuya Ben  ")
     assert res.status_code == 200 and res.json()["alias"] == "Kuya Ben"
-    assert res.json()["full_name"] == "staff"
+    assert res.json()["full_name"] == "Staff"
 
 
 def test_a_blank_alias_clears_it(api, manager):
@@ -103,7 +108,7 @@ def test_an_alias_belongs_to_one_store(api, manager, signup):
     _alias(api, manager, _id(api, manager), "Ben")
     other = auth_header(signup(email="other@example.com", store_name="B")["access_token"])
     token = _invite(api, other, "staff@example.com").json()["token"]
-    assert _accept(api, token).status_code == 200
+    assert _accept_existing(api, token).status_code == 200
     assert _row(api, other, "staff@example.com")["alias"] is None
 
 
@@ -217,7 +222,9 @@ def test_a_secretary_can_invite_a_member(api, manager):
     secretary = _join(api, manager, email="sec@example.com", role="secretary")
     res = _invite(api, secretary, "new@example.com")
     assert res.status_code == 201
-    joined = auth_header(_accept(api, res.json()["token"]).json()["access_token"])
+    joined = auth_header(
+        _accept(api, res.json()["token"], "new@example.com").json()["access_token"]
+    )
     assert api.get("/auth/me", headers=joined).json()["role"] == "member"
 
 
@@ -232,27 +239,10 @@ def test_a_secretary_cannot_bring_back_a_removed_person(api, manager):
     secretary = _join(api, manager, email="sec@example.com", role="secretary")
     _join(api, manager)
     api.post(f"/staff/{_id(api, manager)}/deactivate", headers=manager)
-    assert _invite(api, secretary, "staff@example.com").status_code == 403
-    assert _invite(api, manager, "staff@example.com").status_code == 201
-
-
-def test_a_secretary_cannot_replace_a_managers_higher_link(api, manager):
-    secretary = _join(api, manager, email="sec@example.com", role="secretary")
-    token = _invite(api, manager, "new@example.com", "secretary").json()["token"]
-    assert _invite(api, secretary, "new@example.com").status_code == 409
-    joined = auth_header(_accept(api, token).json()["access_token"])
-    assert api.get("/auth/me", headers=joined).json()["role"] == "secretary"
-
-
-def test_a_secretary_can_replace_an_expired_higher_link(api, db, manager):
-    secretary = _join(api, manager, email="sec@example.com", role="secretary")
-    _invite(api, manager, "new@example.com", "secretary")
-    db.execute(
-        text("UPDATE invites SET expires_at = :t WHERE email = 'new@example.com'"),
-        {"t": datetime.now(UTC) - timedelta(minutes=1)},
-    )
-    db.commit()
-    assert _invite(api, secretary, "new@example.com").status_code == 201
+    from_secretary = _invite(api, secretary, "staff@example.com").json()["token"]
+    assert _accept_existing(api, from_secretary).status_code == 403
+    from_manager = _invite(api, manager, "staff@example.com").json()["token"]
+    assert _accept_existing(api, from_manager).status_code == 200
 
 
 def test_a_member_sees_the_staff_list_without_emails(api, manager):
@@ -265,7 +255,7 @@ def test_a_member_sees_the_staff_list_without_emails(api, manager):
 def test_a_secretary_still_sees_staff_emails(api, manager):
     secretary = _join(api, manager, role="secretary")
     emails = {s["email"] for s in api.get("/staff", headers=secretary).json()}
-    assert emails == {OWNER, "staff@example.com"}
+    assert emails == {OWNER, None}
 
 
 @pytest.mark.parametrize("role", ["member", "secretary"])

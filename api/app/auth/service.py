@@ -64,7 +64,7 @@ def _password_changed_message(to: str) -> Email:
     )
 
 
-def _new_token(db: Session, user_id: UUID, purpose: TokenPurpose, lifetime: timedelta) -> str:
+def new_token(db: Session, user_id: UUID, purpose: TokenPurpose, lifetime: timedelta) -> str:
     db.execute(
         delete(AuthToken).where(
             AuthToken.user_id == user_id,
@@ -84,11 +84,13 @@ def _new_token(db: Session, user_id: UUID, purpose: TokenPurpose, lifetime: time
     return token
 
 
-def _consume_token(db: Session, token: str, purpose: TokenPurpose, ip: str | None) -> User:
+def _consume_token(
+    db: Session, token: str, purposes: tuple[TokenPurpose, ...], ip: str | None
+) -> tuple[User, str]:
     ensure_not_limited(db, limits_for(None, ip))
     row = db.scalar(
         select(AuthToken)
-        .where(AuthToken.token_hash == hash_token(token), AuthToken.purpose == purpose)
+        .where(AuthToken.token_hash == hash_token(token), AuthToken.purpose.in_(purposes))
         .with_for_update()
     )
     now = datetime.now(UTC)
@@ -101,7 +103,21 @@ def _consume_token(db: Session, token: str, purpose: TokenPurpose, ip: str | Non
     db.flush()
     user = db.get(User, row.user_id)
     assert user is not None
-    return user
+    return user, row.purpose
+
+
+def login_name(user: User) -> str:
+    return user.email or user.username or ""
+
+
+def user_by_login(db: Session, login: str) -> User | None:
+    column = User.email if "@" in login else User.username
+    return db.scalar(select(User).where(column == login))
+
+
+def _tell_password_changed(db: Session, user: User) -> None:
+    if user.email:
+        enqueue_email(db, _password_changed_message(user.email))
 
 
 def _revoke_sessions(user: User) -> None:
@@ -147,7 +163,7 @@ def signup(db: Session, data: SignupIn, ip: str | None) -> TokenOut:
     db.add_all([store, user])
     db.flush()  # assigns ids, still inside the same transaction
     db.add(StoreMember(store_id=store.id, user_id=user.id, role=Role.MANAGER, is_owner=True))
-    verify_token = _new_token(
+    verify_token = new_token(
         db,
         user.id,
         TokenPurpose.EMAIL_VERIFY,
@@ -165,27 +181,28 @@ def signup(db: Session, data: SignupIn, ip: str | None) -> TokenOut:
     return issue_token(user, store.id)
 
 
-def login(db: Session, email: str, password: str, ip: str | None) -> TokenOut:
-    """Check email + password; return a token for the user's first active store.
+def login(db: Session, login: str, password: str, ip: str | None) -> TokenOut:
+    """Check an email or username + password; return a token for the user's first active
+    store.
 
-    Too many failures for the same email (or IP) inside the window raise
+    Too many failures for the same login (or IP) inside the window raise
     TooManyRequests even if the password is right, so guessing cannot continue.
 
-    @param email already normalized (lowercase) by the schema
-    @raises Unauthorized (same message for wrong password and unknown email),
+    @param login an email or a username, already normalized (lowercase) by the schema
+    @raises Unauthorized (same message for wrong password and unknown login),
         Forbidden if the account has no active store, TooManyRequests
     """
-    limits = limits_for(email, ip)
+    limits = limits_for(login, ip)
     ensure_not_limited(db, limits)
 
-    user = db.scalar(select(User).where(User.email == email))
+    user = user_by_login(db, login)
     # Always run the hash check (even for unknown emails) so timing does not reveal accounts.
     password_ok = verify_password(password, user.password_hash if user else None)
     if user is None or not password_ok:
         # Unknown emails are counted too, so the 429 does not reveal which emails exist.
         record_failure(db, [key for key, _ in limits])
-        raise Unauthorized("Incorrect email or password")
-    clear_failures(db, email_key(email))
+        raise Unauthorized("Incorrect email, username or password")
+    clear_failures(db, email_key(login))
     db.commit()
 
     # A user signs in to their first active store. Store switching comes later.
@@ -213,16 +230,16 @@ def change_password(
     new_password: str,
     ip: str | None,
 ) -> TokenOut:
-    limits = limits_for(user.email, ip)
+    limits = limits_for(login_name(user), ip)
     ensure_not_limited(db, limits)
     if not verify_password(current_password, user.password_hash):
         record_failure(db, [key for key, _ in limits])
         raise BadRequest("Your current password is incorrect")
     if new_password == current_password:
         raise Invalid("Choose a password different from your current one")
-    clear_failures(db, email_key(user.email))
+    clear_failures(db, email_key(login_name(user)))
     _set_password(db, user, new_password)
-    enqueue_email(db, _password_changed_message(user.email))
+    _tell_password_changed(db, user)
     db.commit()
     return issue_token(user, store_id)
 
@@ -245,7 +262,7 @@ def request_password_reset(db: Session, email: str, ip: str | None) -> None:
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not _email_proven(db, user):
         return
-    token = _new_token(
+    token = new_token(
         db,
         user.id,
         TokenPurpose.PASSWORD_RESET,
@@ -268,25 +285,27 @@ def request_password_reset(db: Session, email: str, ip: str | None) -> None:
 
 
 def reset_password(db: Session, token: str, new_password: str, ip: str | None) -> None:
-    user = _consume_token(db, token, TokenPurpose.PASSWORD_RESET, ip)
+    purposes = (TokenPurpose.PASSWORD_RESET, TokenPurpose.STAFF_RESET)
+    user, purpose = _consume_token(db, token, purposes, ip)
     _set_password(db, user, new_password)
-    user.email_verified_at = user.email_verified_at or datetime.now(UTC)
-    clear_failures(db, email_key(user.email))
-    enqueue_email(db, _password_changed_message(user.email))
+    if purpose == TokenPurpose.PASSWORD_RESET:
+        user.email_verified_at = user.email_verified_at or datetime.now(UTC)
+    clear_failures(db, email_key(login_name(user)))
+    _tell_password_changed(db, user)
     db.commit()
 
 
 def verify_email(db: Session, token: str, ip: str | None) -> None:
-    user = _consume_token(db, token, TokenPurpose.EMAIL_VERIFY, ip)
+    user, _ = _consume_token(db, token, (TokenPurpose.EMAIL_VERIFY,), ip)
     user.email_verified_at = user.email_verified_at or datetime.now(UTC)
     db.commit()
 
 
 def resend_verification(db: Session, user: User, ip: str | None) -> None:
-    if user.email_verified_at is not None:
+    if user.email is None or user.email_verified_at is not None:
         return
     count_email_request(db, "verify", user.email, ip)
-    token = _new_token(
+    token = new_token(
         db,
         user.id,
         TokenPurpose.EMAIL_VERIFY,
@@ -308,6 +327,7 @@ def get_me(db: Session, current: CurrentMember) -> MeOut:
     return MeOut(
         user_id=current.user.id,
         email=current.user.email,
+        username=current.user.username,
         full_name=current.user.full_name,
         email_verified=current.user.email_verified_at is not None,
         email_confirmation=email_confirmation(current),

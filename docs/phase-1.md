@@ -16,7 +16,7 @@ Phase 1 adds accounts, stores, staff, and roles. Every request knows **who** is 
 | `stores` | One row per hardware store (one tenant). |
 | `users` | One row per person. Email is unique and always lowercase. |
 | `store_members` | Links a user to a store with a `role` and an `active` flag. One row per (store, user). |
-| `invites` | A pending invitation: `email`, `role`, `token_hash`, `expires_at`, `accepted_at`. |
+| `invites` | A pending invitation link: an optional `name` label, `role`, `token_hash`, `expires_at`, `accepted_at`. (`email` is only on invites made before usernames.) |
 
 **Ideas**
 - **UUID primary keys** — random ids like `3f1c…`. They can't be guessed or counted (unlike 1, 2, 3), which matters when ids appear in URLs.
@@ -31,7 +31,7 @@ Phase 1 adds accounts, stores, staff, and roles. Every request knows **who** is 
 - `api/app/auth/security.py` — hashes passwords with **argon2** (via `pwdlib`) and creates/checks **JWT** tokens.
 - `api/app/auth/router.py`:
   - `POST /auth/signup` — creates the store, the user, and a manager membership.
-  - `POST /auth/login` — checks email and password, returns an access token.
+  - `POST /auth/login` — checks an email **or a username** (`login`) and the password, returns an access token. The old `email` field still works.
   - `GET /auth/me` — who am I, which store, which role.
 - `api/app/auth/deps.py` — `get_current_member`: reads the token and loads the caller's active membership.
 - `api/app/core/config.py` — new settings: `JWT_SECRET`, `ACCESS_TOKEN_EXPIRE_DAYS`, `INVITE_EXPIRE_HOURS`, `APP_ENV`.
@@ -68,10 +68,12 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession): ...
 
 | Endpoint | Who | What it does |
 |---|---|---|
-| `POST /staff/invites` | manager, secretary | Creates an invite and returns a one-time `token`. A manager can invite any role. A secretary can only invite a `member`. |
-| `GET /staff/invites` | manager, secretary | Invites not accepted yet and not expired, newest first: email, role, when it was made and when it expires. No tokens. To resend one, create it again with `POST /staff/invites`: that replaces the old link. |
-| `POST /staff/invites/preview` | anyone with the token | Shows the store, role and email before joining. Does not use up the link. |
-| `POST /staff/invites/accept` | anyone with the token | Creates the account (or uses the existing one) and joins the store. Returns an access token. |
+| `POST /staff/invites` | manager, secretary | Creates an invite link for a `role`, with an optional `name` label ("Juan") so open invites can be told apart. Returns a one-time `token`. No email. A manager can invite any role. A secretary can only invite a `member`. |
+| `GET /staff/invites` | manager, secretary | Invites not accepted yet and not expired, newest first: name, role, when it was made and when it expires. No tokens. |
+| `POST /staff/invites/{id}/renew` | manager, secretary | Gives an open invite a new link and a new expiry; the old link stops working. A secretary can renew only member invites. |
+| `POST /staff/invites/preview` | anyone with the token | Shows the store, role and name label before joining. Does not use up the link. |
+| `POST /staff/invites/accept` | anyone with the token | Either a new account (`username`, `full_name`, `password`) or an existing one (`login` = its email or username, and `password`), then joins the store. Returns an access token. |
+| `POST /staff/{id}/reset-link` | manager | A one-time password reset link for a staff member who forgot their password (30 minutes). Not for the owner, yourself, or someone who also works in another store. Using it doesn't confirm any email. |
 | `GET /staff` | any staff | Lists everyone in your store. Members do not get email addresses. |
 | `GET /staff/{member_id}` | manager, secretary | One staff member. |
 | `PATCH /staff/{member_id}/role` | manager | Changes a staff member's role. Applies on their next request. |
@@ -82,8 +84,8 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession): ...
 
 **Ideas**
 - Invites expire after `INVITE_EXPIRE_HOURS` (default 72) and work only once. Manager links expire sooner, after `MANAGER_INVITE_EXPIRE_HOURS` (default 24), because they give full control.
-- Sending a new invite to the same email cancels the older one.
-- If the invitee already has an account (e.g. from another store), they confirm with their own password.
+- Each invite is its own link. Resend uses `renew`, which replaces that invite's link.
+- If the invitee already has an account (e.g. from another store), they sign in with its email or username and password.
 - Inviting a deactivated person again turns them back on.
 - A manager can't deactivate themselves or change their own role, so a store always keeps a manager.
 - Staff changes in one store run one at a time (the store row is locked), so two managers can't remove each other at the same moment.
@@ -91,10 +93,10 @@ def invite_staff(body: InviteIn, current: Manager, db: DbSession): ...
 - The manager must choose Manager, Secretary or Member for each link. The link decides the role, so the person joining cannot pick a different one.
 - The person who created the store is its owner (`store_members.is_owner`, migration `0014`). Other managers cannot change or remove the owner, so a second manager is a backup, not a takeover risk.
 - A manager link stops working if the manager who made it is removed or demoted before it is used.
-- A secretary's invite cannot bring back someone a manager removed, and cannot replace a manager's open secretary or manager link.
+- A secretary's invite cannot bring back someone a manager removed (checked when the link is used).
 - Managers open a person from the Staff list (`/staff/{id}`) to see their details, set an alias and save attendance. The Invite someone button opens `/staff/invite`.
 - A branch is a separate store for now. The store name box suggests the form "Hardware (Branch)".
-- A new person joining by link only sets a password. The email comes from the invite, and their name starts as the part of the email before the @.
+- A new person joining by link picks a **username** (3 to 30 small letters, numbers, dots or underscores, starting with a letter), types their name and sets a password. They don't need an email. If they forget the password, a manager makes a reset link for them.
 - New passwords need 8 or more characters, a capital letter, a small letter, a number and a symbol. The server checks this for sign up, invites, reset and change password. Older passwords still work at sign in. The form can also suggest a strong password, and browsers that support it offer to save it. Sukat never stores the plain password.
 - Sign up asks "Manager" or "Member". A manager creates a store. A member cannot make an account alone, because every account must belong to a store, so the app asks for the invite link instead.
 

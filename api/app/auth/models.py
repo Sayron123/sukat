@@ -10,11 +10,16 @@ from app.core.base import Base, created_at_col, updated_at_col, uuid_pk
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("email = lower(email)", name="email_lowercase"),)
+    __table_args__ = (
+        CheckConstraint("email = lower(email)", name="email_lowercase"),
+        CheckConstraint("username = lower(username)", name="username_lowercase"),
+        CheckConstraint("email IS NOT NULL OR username IS NOT NULL", name="email_or_username"),
+    )
 
     id: Mapped[UUID] = uuid_pk()
     # Always stored lowercase (normalized in code), so the unique constraint is case-insensitive.
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+    email: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
+    username: Mapped[str | None] = mapped_column(String(30), unique=True, nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(120), nullable=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(
@@ -32,12 +37,15 @@ class User(Base):
 class TokenPurpose(StrEnum):
     PASSWORD_RESET = "password_reset"
     EMAIL_VERIFY = "email_verify"
+    STAFF_RESET = "staff_reset"
 
 
 class AuthToken(Base):
     __tablename__ = "auth_tokens"
     __table_args__ = (
-        CheckConstraint("purpose IN ('password_reset', 'email_verify')", name="purpose"),
+        CheckConstraint(
+            "purpose IN ('password_reset', 'email_verify', 'staff_reset')", name="purpose"
+        ),
     )
 
     id: Mapped[UUID] = uuid_pk()

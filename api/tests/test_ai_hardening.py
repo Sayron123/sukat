@@ -37,23 +37,13 @@ from app.insights.chat_tools import tool_specs
 from app.inventory.scan_service import stale_after_seconds
 from app.main import app
 from tests.chat_helpers import ScriptedModel, ask, calls, say
-from tests.conftest import FakeReader, auth_header, upload_photo
+from tests.conftest import FakeReader, auth_header, join_store, upload_photo
 
 SPENT_TOKENS = AIUsageInfo(model="gemini-x", provider="gemini", input_tokens=500, output_tokens=10)
 
 
 def _invite(api, manager, role, email):
-    invite = api.post("/staff/invites", json={"email": email, "role": role}, headers=manager).json()
-    token = api.post(
-        "/staff/invites/accept",
-        json={
-            "accept_terms": True,
-            "token": invite["token"],
-            "password": "Staff-pass-1",
-            "full_name": role.title(),
-        },
-    ).json()["access_token"]
-    return auth_header(token)
+    return join_store(api, manager, role, login=email)
 
 
 def _store_id(api, headers):
