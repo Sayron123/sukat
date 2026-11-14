@@ -300,17 +300,21 @@ function PickPhoto({
             <i className="absolute right-0 bottom-0 h-[38px] w-[38px] border-r-[3px] border-b-[3px] border-white" />
           </div>
           {empty ? (
-            <Mascot emote="scan-empty" theme="dark" size={150} alt="" />
+            <div role="alert" className="flex max-w-[260px] flex-col items-center px-4 text-center">
+              <Mascot emote="scan-empty" theme="dark" size={150} alt="" />
+              <p className="mt-3 text-lg font-bold text-white">No items found</p>
+              <p className="mt-1 text-sm leading-snug text-[#d6d3d1]">Take a clear photo of the list or receipt.</p>
+            </div>
           ) : (
             <Icon name="receipt" size={56} className="text-[#78716c]" />
           )}
           <p
-            role={error ? "alert" : undefined}
+            role={error && !empty ? "alert" : undefined}
             className={`absolute inset-x-4 bottom-3.5 mx-auto w-fit rounded-button px-3 py-2 text-center text-[13px] ${
-              error ? "bg-red-fill text-white" : "bg-dark/75"
+              error && !empty ? "bg-red-fill text-white" : "bg-dark/75"
             }`}
           >
-            {error ?? text.pickHelp}
+            {error && !empty ? error : text.pickHelp}
           </p>
         </div>
 
