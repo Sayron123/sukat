@@ -1,5 +1,6 @@
 """App entry point: middleware, error handling, and the routers of each feature."""
 
+import logging
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -7,6 +8,8 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from psycopg import errors as pg_errors
+from sqlalchemy.exc import DBAPIError
 
 from app.auth.router import router as auth_router
 from app.core.body_limit import BodySizeLimitMiddleware
@@ -25,6 +28,10 @@ from app.stores.router import router as stores_router
 # Every API path lives under /v1, so a future /v2 can change things without breaking
 # phones still on the old app. /health stays at the root (hosts and monitors expect it).
 API_PREFIX = "/v1"
+DB_BUSY = "The server is busy right now. Please try again."
+DB_TIMEOUTS = (pg_errors.LockNotAvailable, pg_errors.QueryCanceled)
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -58,6 +65,13 @@ def create_app(config: Settings = settings) -> FastAPI:
     def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
         """Render business-rule errors the same way FastAPI renders HTTPException."""
         return JSONResponse(exc.body(), status_code=exc.status_code, headers=exc.headers)
+
+    @application.exception_handler(DBAPIError)
+    def handle_db_timeout(request: Request, exc: DBAPIError) -> JSONResponse:
+        if not isinstance(exc.orig, DB_TIMEOUTS):
+            raise exc
+        logger.warning("Database timeout (%s) on %s", type(exc.orig).__name__, request.url.path)
+        return JSONResponse({"detail": DB_BUSY}, status_code=503, headers={"Retry-After": "5"})
 
     application.add_middleware(
         BodySizeLimitMiddleware,

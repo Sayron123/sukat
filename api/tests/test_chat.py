@@ -19,7 +19,7 @@ from app.ai.pricing import cost_centavos
 from app.ai.schemas import AIUsageInfo
 from app.core.config import settings
 from app.insights import reports
-from app.insights.chat_service import TOO_SLOW
+from app.insights.chat_service import SOMETHING_WRONG, TOO_SLOW
 from app.insights.chat_tools import NOT_ALLOWED
 from app.insights.schemas import DateRange, MovementFilters
 from tests.chat_helpers import ask, calls, last_results, say
@@ -280,6 +280,25 @@ def test_failed_question_still_logs_spent_tokens(api, db, manager, shop, chat_mo
     }
     [row] = db.scalars(select(AIUsage).where(AIUsage.feature == "chat")).all()
     assert row.tokens_in == 1000 + 300  # first call + the failed one
+
+
+def test_unexpected_error_still_logs_spent_tokens(api, db, manager, shop, chat_model, monkeypatch):
+    def crash(*args, **kwargs):
+        raise RuntimeError("report bug")
+
+    monkeypatch.setattr(reports, "low_stock", crash)
+    model = chat_model(calls(("low_stock", {})), say("never reached"))
+    res = ask(api, manager, "low?")
+    assert res.status_code == 503
+    assert res.json() == {
+        "detail": SOMETHING_WRONG,
+        "code": "chat_unavailable",
+        "retryable": True,
+    }
+    assert len(model.calls) == 1
+    [row] = db.scalars(select(AIUsage).where(AIUsage.feature == "chat")).all()
+    assert (row.tokens_in, row.tokens_out) == (1000, 100)
+    assert row.cost_centavos > 0
 
 
 # ---------- rate limit ----------

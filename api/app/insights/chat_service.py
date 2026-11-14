@@ -24,6 +24,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.ai.base import (
@@ -69,6 +70,7 @@ TOO_SLOW = "Sorry, that took too long. Please try again, or ask a simpler questi
 NO_ANSWER = "Sorry, I couldn't answer that. Please try asking another way."
 REFUSED = "Sorry, I can't help with that one. I can answer questions about your sales and stock."
 TOO_LONG = "Sorry, that answer got too long. Try asking about a shorter period or fewer items."
+SOMETHING_WRONG = "Sorry, something went wrong. Please try again."
 
 
 @cache
@@ -129,6 +131,12 @@ class ChatFailed(Exception):
         self.usage = usage
 
 
+class ChatCrashed(Exception):
+    def __init__(self, usage: AIUsageInfo | None):
+        super().__init__("chat crashed")
+        self.usage = usage
+
+
 def run_chat(
     db: Session,
     store_id: UUID,
@@ -143,6 +151,7 @@ def run_chat(
     no pooled connection is held while the model thinks.
 
     @raises ChatFailed when a model call fails (with the usage spent so far)
+    @raises ChatCrashed for any other error (with the usage spent so far)
     """
     ctx = ToolContext(db=db, store_id=store_id, role=role, now=now)
     items: list[ChatItem] = history_items(messages)
@@ -157,58 +166,64 @@ def run_chat(
 
     # One model call per round: up to CHAT_MAX_TOOL_CALLS rounds with tools, then a
     # last one that must answer in text.
-    for _ in range(settings.CHAT_MAX_TOOL_CALLS + 1):
-        left = deadline - time.monotonic()
-        if left < MIN_CALL_SECONDS:
-            answer = TOO_SLOW
-            timed_out = True
-            break
-        allow_tools = calls < settings.CHAT_MAX_TOOL_CALLS
-        try:
-            turn: ChatTurn = model.respond(
-                system=system_prompt(),
-                context=context,
-                items=list(items),  # a copy: the list keeps growing after this call
-                tools=specs,
-                allow_tools=allow_tools,
-                timeout=left,
-            )
-        except AIChatError as e:
-            raise ChatFailed(e, _add(usage, e.usage) if e.usage else usage) from e
-        usage = _add(usage, turn.usage)
+    try:
+        for _ in range(settings.CHAT_MAX_TOOL_CALLS + 1):
+            left = deadline - time.monotonic()
+            if left < MIN_CALL_SECONDS:
+                answer = TOO_SLOW
+                timed_out = True
+                break
+            allow_tools = calls < settings.CHAT_MAX_TOOL_CALLS
+            try:
+                turn: ChatTurn = model.respond(
+                    system=system_prompt(),
+                    context=context,
+                    items=list(items),  # a copy: the list keeps growing after this call
+                    tools=specs,
+                    allow_tools=allow_tools,
+                    timeout=left,
+                )
+            except AIChatError as e:
+                raise ChatFailed(e, _add(usage, e.usage) if e.usage else usage) from e
+            usage = _add(usage, turn.usage)
 
-        if turn.stop == "refusal":
-            answer = REFUSED
-            break
-        if turn.stop == "tool_use" and turn.tool_calls and allow_tools:
-            items.append(turn)
-            results = []
-            for call in turn.tool_calls:
-                if calls >= settings.CHAT_MAX_TOOL_CALLS:
-                    results.append(
-                        ToolResult(
-                            call.id,
-                            '{"error": "tool call limit reached; answer with what you have"}',
-                            is_error=True,
+            if turn.stop == "refusal":
+                answer = REFUSED
+                break
+            if turn.stop == "tool_use" and turn.tool_calls and allow_tools:
+                items.append(turn)
+                results = []
+                for call in turn.tool_calls:
+                    if calls >= settings.CHAT_MAX_TOOL_CALLS:
+                        results.append(
+                            ToolResult(
+                                call.id,
+                                '{"error": "tool call limit reached; answer with what you have"}',
+                                is_error=True,
+                            )
                         )
-                    )
-                    continue
-                calls += 1
-                outcome = run_tool(ctx, call.name, call.input)
-                outcomes.append((call.name, outcome))
-                results.append(ToolResult(call.id, outcome.content, is_error=not outcome.ok))
-            items.append(ToolResults(results))
-            db.commit()
-            continue
-        if turn.stop == "max_tokens":
-            answer = TOO_LONG
-        else:
-            answer = turn.text or NO_ANSWER
-        break
+                        continue
+                    calls += 1
+                    outcome = run_tool(ctx, call.name, call.input)
+                    outcomes.append((call.name, outcome))
+                    results.append(ToolResult(call.id, outcome.content, is_error=not outcome.ok))
+                items.append(ToolResults(results))
+                db.commit()
+                continue
+            if turn.stop == "max_tokens":
+                answer = TOO_LONG
+            else:
+                answer = turn.text or NO_ANSWER
+            break
+        data = build_display(outcomes, reports.store_today(now))
+    except ChatFailed:
+        raise
+    except Exception as e:
+        raise ChatCrashed(usage) from e
 
     return ChatResult(
         answer=answer,
-        data=build_display(outcomes, reports.store_today(now)),
+        data=data,
         tools_used=[name for name, _ in outcomes],
         usage=usage,
         outcomes=outcomes,
@@ -321,7 +336,7 @@ def ask(
 
     @raises AIBudgetReached (429) when the store has used this month's AI budget
     @raises ChatRateLimited (429) when the store asked too many questions this hour
-    @raises ChatUnavailable (503) when the model could not answer
+    @raises ChatUnavailable (503) when the model could not answer, or anything else failed
     """
     row = reserve_question(db, store_id, now)
     try:
@@ -332,6 +347,17 @@ def ask(
             fill_usage(db.merge(row), e.usage)
             db.commit()
         raise ChatUnavailable(str(e.error), extra={"retryable": e.error.retryable}) from None
+    except ChatCrashed as e:
+        db.rollback()
+        logger.exception("Chat failed unexpectedly for store %s", store_id)
+        if e.usage is not None:
+            try:
+                fill_usage(db.merge(row), e.usage)
+                db.commit()
+            except SQLAlchemyError:
+                db.rollback()
+                logger.exception("Could not save the usage of a failed chat question")
+        raise ChatUnavailable(SOMETHING_WRONG, extra={"retryable": True}) from None
     if result.usage is not None:
         fill_usage(row, result.usage)
     db.commit()

@@ -76,6 +76,7 @@ Set these on your host (not in a file in git). `api/.env.example` explains each 
 | `SENTRY_DSN` | optional, from Sentry (a Python project) |
 | `RELEASE` | optional, e.g. the git commit, shown in Sentry |
 | `WEB_CONCURRENCY` | workers, default `2` (about 1 per CPU) |
+| `DB_STATEMENT_TIMEOUT_MS`, `DB_LOCK_TIMEOUT_MS`, `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` | optional database safety timers; defaults 30 s, 10 s and 60 s |
 | `INTERNAL_API_SECRET` | a random value of 32+ characters, the same on the web app (see below) |
 
 The API refuses to start in production when: `JWT_SECRET` is missing, the default or short; `DEBUG` is on; `DATABASE_URL` uses `sukat:sukat`; or `CORS_ORIGINS` is empty, `*` or not HTTPS. The error says which one.
@@ -165,6 +166,7 @@ Deploy the API first: so far, migrations only add things, so the old web app kee
 
 - Every API response has an `X-Request-ID`. Each log line shows it in `[brackets]`, and Sentry tags events with `request_id`. Search the logs for it.
 - API won't start: read the first error line. Unsafe settings name the setting to fix.
+- "The server is busy right now. Please try again." (503): a query ran past `DB_STATEMENT_TIMEOUT_MS`, or a save waited past `DB_LOCK_TIMEOUT_MS` for a row another request was changing. The log line says which. Repeating the save is safe.
 - `/health` returns 503: the API can't reach the database. Check `DATABASE_URL` and the database's allowed IPs.
 - Photo uploads fail: check the R2 CORS rule has the exact web origin, and the R2 keys.
 - "Too many sign-ups / failed attempts" for everyone: `INTERNAL_API_SECRET` differs between the API and the web app, so all users look like one IP.

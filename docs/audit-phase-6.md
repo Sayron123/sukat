@@ -15,7 +15,7 @@ Branch audited: `phase-6-ai-chat` (PR #15) at `a9a261c`. No code was changed.
 | H2 | High | A settings error at startup prints secrets (the end of the Anthropic API key) into the server log | keys in logs — **Fixed** |
 | M1 | Medium | Numbers in the AI's text are not checked: the text can show a wrong or injected number next to a correct chart | numbers, injection |
 | M2 | Medium | A database connection stays open and "idle in transaction" during model calls, up to 45 s per question | timeouts, load — **Fixed** |
-| M3 | Medium | An unexpected error during a question returns a bare 500 and loses the cost already spent | cost |
+| M3 | Medium | An unexpected error during a question returns a bare 500 and loses the cost already spent | cost — **Fixed** |
 | M4 | Medium | The real model was never run: tool choice, language and "never guess" are unverified | process |
 | L1 | Low | The browser can send made-up "assistant" messages in the history | injection |
 | L2 | Low | Members are still offered the `top_products` tool (they get "not allowed" after a paid call) | roles, cost |
@@ -103,6 +103,8 @@ Add eval cases with an injected product name to measure it.
 **Fix:**
 - Catch any exception in `run_chat` with the usage collected so far (keep it on the loop's state), fill the reserved row, and log the error.
 - Answer 503 "Something went wrong. Please try again."
+
+**Fixed:** `run_chat` turns any other error into `ChatCrashed` with the usage so far. `ask` logs it, fills the reserved `ai_usage` row and answers 503 `chat_unavailable` (retryable). Test: `test_unexpected_error_still_logs_spent_tokens`.
 
 ### M4 — Real model behaviour is unverified
 **Where:** process. All 320 tests use a scripted model. `evals/chat/run_chat_eval.py` was never run, because there was no API key.
