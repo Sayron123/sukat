@@ -123,7 +123,8 @@ class Invite(Base):
     store_id: Mapped[UUID] = mapped_column(
         ForeignKey("stores.id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(60), nullable=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     # SHA-256 of the invite token. The raw token is only shown once, when the invite is created.
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
