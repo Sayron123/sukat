@@ -31,6 +31,7 @@ _SYNONYMS: dict[str, str] = {
     **dict.fromkeys(("ml", "cc", "milliliter", "milliliters"), "ml"),
     **dict.fromkeys(("gal", "gals", "gallon", "gallons", "galon"), "gal"),
     **dict.fromkeys(("ft", "foot", "feet"), "ft"),
+    **dict.fromkeys(("yd", "yds", "yrd", "yrds", "yard", "yards"), "yd"),
     **dict.fromkeys(("bag", "bags", "sako"), "bag"),
     **dict.fromkeys(("box", "boxes", "bx", "bxs", "kahon"), "box"),
     **dict.fromkeys(("roll", "rolls", "rl", "rls", "rolyo"), "roll"),

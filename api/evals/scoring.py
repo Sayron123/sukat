@@ -73,12 +73,19 @@ def pair_lines(
     return [(exp, predicted[pairs[i]] if i in pairs else None) for i, exp in enumerate(expected)]
 
 
-def score_case(expected: list[ExpectedLine], predicted: list[ScanLine]) -> CaseScore:
+def score_case(
+    expected: list[ExpectedLine],
+    predicted: list[ScanLine],
+    names: dict[UUID, str] | None = None,
+) -> CaseScore:
     """Product / qty / unit for every expected line; price only where the expected
-    file gives one. Prices are compared as read from the photo (before any default)."""
+    file gives one. Prices are compared as read from the photo (before any default).
+    With `names`, a wrong product note says which product was picked and how."""
     s = CaseScore(expected=len(expected), predicted=len(predicted))
     used = 0
-    for exp, got in pair_lines(expected, predicted):
+    paired = pair_lines(expected, predicted)
+    paired_ids = {id(got) for _, got in paired if got is not None}
+    for exp, got in paired:
         if got is None:
             s.missing += 1
             s.notes.append(f"missing: {exp.qty} {exp.unit}")
@@ -94,7 +101,14 @@ def score_case(expected: list[ExpectedLine], predicted: list[ScanLine]) -> CaseS
         s.all_ok += product and qty and unit
         problems = []
         if not product:
-            problems.append("wrong product")
+            if names is None:
+                problems.append("wrong product")
+            else:
+                picked = names.get(got.product_id, "none") if got.product_id else "none"
+                wanted = names.get(exp.product_id, "none") if exp.product_id else "none"
+                problems.append(
+                    f"wrong product: got {picked} ({got.matched_by}), expected {wanted}"
+                )
         if exp.unit_price_centavos is not NOT_SCORED:
             s.price_checked += 1
             if got.unit_price_centavos == exp.unit_price_centavos:
@@ -107,6 +121,7 @@ def score_case(expected: list[ExpectedLine], predicted: list[ScanLine]) -> CaseS
                 + (f" ({', '.join(problems)})" if problems else "")
             )
     s.extra = len(predicted) - used
+    s.notes.extend(f'extra: "{p.raw_text}"' for p in predicted if id(p) not in paired_ids)
     return s
 
 

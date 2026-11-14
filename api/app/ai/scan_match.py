@@ -80,11 +80,25 @@ def item_text(line: ReadLine) -> str:
     text = line.raw_text
     for part in (line.total_text, line.price_text):
         text = _remove_once(text, part)
-    # Quantity and unit: only as whole words, so "4" in "pako 4" survives.
-    for part in (line.qty_text, line.unit_text):
+    qty, unit = line.qty_text, line.unit_text
+    if qty and unit:
+        text, n = re.subn(
+            rf"(?<![\w./]){re.escape(qty)}\s*{re.escape(unit)}(?!\w)",
+            " ",
+            text,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+        if n:
+            qty = unit = None
+    for part in (qty, unit):
         if part:
             text = re.sub(
-                rf"(?<![\w.]){re.escape(part)}(?![\w.])", " ", text, count=1, flags=re.IGNORECASE
+                rf"(?<![\w./#]){re.escape(part)}(?![\w./\"”″'])",
+                " ",
+                text,
+                count=1,
+                flags=re.IGNORECASE,
             )
     text = _PRICE_MARKS.sub(" ", text)
     return " ".join(text.split()).strip(" -,:;")

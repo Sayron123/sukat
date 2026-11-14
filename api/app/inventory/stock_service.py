@@ -85,8 +85,18 @@ def alias_from_raw(raw_text: str) -> str | None:
         first, _, rest = text.partition(" ")
         if is_unit_word(first):
             text = rest  # "" when the row was only "2 kg"
-    text = text.strip(" -,:;.")[:80]
+    return _clean_alias(text)
+
+
+def _clean_alias(text: str) -> str | None:
+    text = " ".join(text.lower().split()).strip(" -,:;.")[:80]
     return text if len(text) >= 2 and not text.replace(" ", "").isdigit() else None
+
+
+def scan_line_alias(scan_line: ScanLine) -> str | None:
+    if scan_line.item_text is None:
+        return alias_from_raw(scan_line.raw_text)
+    return _clean_alias(scan_line.item_text)
 
 
 # ---------- the save ----------
@@ -304,12 +314,13 @@ def save_transaction(db: Session, current: CurrentMember, body: TransactionIn) -
 def _learn_alias(
     db: Session, store_id: UUID, product: Product, scan_line: ScanLine, learned: set[str]
 ) -> None:
-    """If staff picked a different product than the AI suggested, remember how this item
-    was written, so the next scan (and search) matches it. Never takes an alias that
-    already belongs to another product."""
-    if scan_line.product_id == product.id:
-        return  # the AI was right; nothing to learn
-    alias = alias_from_raw(scan_line.raw_text)
+    """If staff picked a different product than the scan suggested, or kept a product
+    the AI match step found, remember how this item was written, so the next scan (and
+    search) matches it by code. Never takes an alias that already belongs to another
+    product."""
+    if scan_line.product_id == product.id and scan_line.matched_by != "ai":
+        return
+    alias = scan_line_alias(scan_line)
     if not alias or alias in learned or alias == product.name.lower():
         return
     taken = db.scalar(

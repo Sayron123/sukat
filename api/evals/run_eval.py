@@ -146,6 +146,7 @@ def main() -> None:
         sys.exit(f"No photos in {CASES_DIR}. See evals/README.md to add cases.")
 
     catalog, ids = catalog_entries()
+    names = {e.product_id: e.name for e in catalog}
     reader = get_vision_reader()
     totals = {t: CaseScore() for t in SCAN_TYPES}
     cost = Decimal(0)
@@ -178,7 +179,7 @@ def main() -> None:
         cost += sum((cost_centavos(u) for _, u in result.calls), Decimal(0)) or cost_centavos(
             result.usage
         )
-        s = score_case(expected, result.lines)
+        s = score_case(expected, result.lines, names)
         add_steps(s, result)
         totals[scan_type].add(s)
         print(score_row(f"{image_path.stem} ({'sale' if scan_type == 'sale' else 'in'})", s))

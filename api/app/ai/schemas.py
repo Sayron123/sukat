@@ -9,6 +9,7 @@
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -43,6 +44,8 @@ class ScanLine(BaseModel):
     confidence: float = Field(ge=0, le=1)
     # The line's amount as written (None if not written), for the qty x price check.
     line_total_centavos: int | None = None
+    item_text: str | None = None
+    matched_by: Literal["exact", "fuzzy", "ai", "none"] | None = None
 
 
 @dataclass(frozen=True)

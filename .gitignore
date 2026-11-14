@@ -37,3 +37,8 @@ Thumbs.db
 
 # Local photo uploads (STORAGE_BACKEND=local)
 api/uploads/
+
+# --- Eval cases: real store receipts stay on this machine ---
+api/evals/cases/*
+!api/evals/cases/.gitkeep
+!api/evals/cases/_example*.json
