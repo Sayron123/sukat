@@ -111,6 +111,7 @@ class MeOut(BaseModel):
     email: str
     full_name: str
     email_verified: bool
+    needs_email_confirmation: bool
     store_id: UUID
     store_name: str
     store_address: str | None

@@ -106,9 +106,40 @@ def test_resend_sends_nothing_when_already_verified(api, manager, mailer):
     assert len(mailer.sent) == before
 
 
-def test_invited_staff_are_verified(api, manager):
+def test_invited_staff_can_use_the_ai_without_their_email_being_marked_proven(api, manager):
     staff = _invite_member(api, manager)
-    assert api.get("/auth/me", headers=staff).json()["email_verified"] is True
+    me = api.get("/auth/me", headers=staff).json()
+    assert me["email_verified"] is False and me["needs_email_confirmation"] is False
+    res = api.post("/scans", json={"photo_key": "nope", "type": "sale"}, headers=staff)
+    assert res.json().get("code") != "email_not_verified"
+
+
+def test_an_unconfirmed_owner_must_confirm_before_using_the_ai(api, mailer):
+    token = api.post("/auth/signup", json=SIGNUP).json()["access_token"]
+    owner = auth_header(token)
+    assert api.get("/auth/me", headers=owner).json()["needs_email_confirmation"] is True
+    res = api.post("/scans", json={"photo_key": "nope", "type": "sale"}, headers=owner)
+    assert res.status_code == 403 and res.json()["code"] == "email_not_verified"
+
+
+def test_no_reset_link_goes_to_an_invited_email_nobody_proved(api, manager, mailer):
+    _invite_member(api, manager, email="made.up@example.com")
+    before = len(mailer.sent)
+    res = api.post("/auth/forgot-password", json={"email": "made.up@example.com"})
+    assert res.status_code == 204
+    assert len(mailer.sent) == before
+
+
+def test_a_reset_link_goes_to_an_invited_email_once_it_is_proven(api, manager, mailer):
+    staff = _invite_member(api, manager, email="real@example.com")
+    assert api.post("/auth/resend-verification", headers=staff).status_code == 204
+    assert (
+        api.post("/auth/verify-email", json={"token": _link_token(mailer.sent[-1])}).status_code
+        == 204
+    )
+    before = len(mailer.sent)
+    api.post("/auth/forgot-password", json={"email": "real@example.com"})
+    assert len(mailer.sent) == before + 1 and mailer.sent[-1].to == "real@example.com"
 
 
 def test_forgot_password_looks_the_same_for_unknown_emails(api, signup, mailer):
