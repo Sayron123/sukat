@@ -160,7 +160,7 @@ def test_import_creates_products_with_aliases_and_conversions(api, db, manager):
     keys = ["portland-cement-40kg", "deformed-bar-10mm-x-6m", "common-wire-nail-4in"]
     res = api.post("/products/import", json={"keys": keys}, headers=manager)
     assert res.status_code == 200, res.text
-    assert res.json() == {"created": 3, "skipped": [], "dropped_aliases": []}
+    assert res.json() == {"created": 3, "restored": 0, "skipped": [], "dropped_aliases": []}
 
     nails = api.get("/products?q=pako 4", headers=manager).json()["items"][0]
     assert nails["name"] == 'Common Wire Nail 4"'
@@ -291,8 +291,26 @@ def test_archived_name_clash_says_archived(api, manager):
         headers=manager,
     )
     assert res.status_code == 409 and "archived" in res.json()["detail"]
+
+
+def test_an_archived_product_is_not_shown_as_added_and_importing_brings_it_back(api, manager):
+    p = make_product(api, manager)
+    api.post(f"/products/{p['id']}/archive", headers=manager)
+
+    catalog = api.get("/products/catalog", headers=manager).json()
+    cement = next(i for i in catalog if i["key"] == "portland-cement-40kg")
+    assert cement["already_in_store"] is False and cement["archived_in_store"] is True
+
     imp = api.post("/products/import", json={"keys": ["portland-cement-40kg"]}, headers=manager)
-    assert imp.json()["skipped"][0]["reason"] == "archived in store"
+    assert imp.status_code == 200
+    result = imp.json()
+    assert result["created"] == 0 and result["restored"] == 1 and result["skipped"] == []
+
+    back = api.get(f"/products/{p['id']}", headers=manager).json()
+    assert back["archived"] is False
+    catalog = api.get("/products/catalog", headers=manager).json()
+    cement = next(i for i in catalog if i["key"] == "portland-cement-40kg")
+    assert cement["already_in_store"] is True and cement["archived_in_store"] is False
 
 
 # ---------- phase 5 audit fixes ----------

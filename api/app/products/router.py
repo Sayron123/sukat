@@ -92,8 +92,9 @@ def get_catalog(current: CurrentMemberDep, db: DbSession) -> list[CatalogItemOut
                 ConversionOut(from_unit=c.from_unit, factor=c.factor) for c in item.conversions
             ],
             already_in_store=in_store,
+            archived_in_store=archived,
         )
-        for item, in_store in service.catalog_for_store(db, current.store_id)
+        for item, in_store, archived in service.catalog_for_store(db, current.store_id)
     ]
 
 

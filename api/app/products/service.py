@@ -327,20 +327,29 @@ def delete_product(db: Session, store_id: UUID, product_id: UUID) -> None:
 # ---------- starter catalog ----------
 
 
-def catalog_for_store(db: Session, store_id: UUID) -> list[tuple[CatalogItem, bool]]:
-    """Every starter item with True if the store already has a product of that name."""
-    existing = set(
-        db.scalars(select(func.lower(Product.name)).where(Product.store_id == store_id)).all()
+def catalog_for_store(db: Session, store_id: UUID) -> list[tuple[CatalogItem, bool, bool]]:
+    """Every starter item, with whether the store has an active product of that name and
+    whether it has an archived one."""
+    archived_by_name = dict(
+        db.execute(
+            select(func.lower(Product.name), Product.archived).where(Product.store_id == store_id)
+        ).all()
     )
-    return [(item, item.name.lower() in existing) for item in load_catalog().items]
+    rows = []
+    for item in load_catalog().items:
+        archived = archived_by_name.get(item.name.lower())
+        rows.append((item, archived is False, archived is True))
+    return rows
 
 
 def import_catalog(db: Session, store_id: UUID, keys: list[str]) -> ImportOut:
     """Copy chosen starter items into the store as products (no prices, stock 0).
 
-    - Items whose name already exists in the store are skipped (safe to run twice).
+    - Items whose name is already an active product are skipped (safe to run twice).
+    - Items whose name is an archived product bring that product back (unarchived, with
+      its history), since product names are unique per store.
     - An alias already used by another product in the store is left off that item.
-    All new products are saved in one transaction. Commits.
+    All changes are saved in one transaction. Commits.
 
     @raises Invalid for unknown keys (nothing is imported)
     """
@@ -349,23 +358,27 @@ def import_catalog(db: Session, store_id: UUID, keys: list[str]) -> ImportOut:
     if unknown:
         raise Invalid(f"Unknown catalog keys: {', '.join(unknown)}")
 
-    archived_by_name = dict(
-        db.execute(
-            select(func.lower(Product.name), Product.archived).where(Product.store_id == store_id)
-        ).all()
-    )
-    names = set(archived_by_name)
+    archived_by_name = {
+        product.name.lower(): product
+        for product in db.scalars(
+            select(Product).where(Product.store_id == store_id, Product.archived.is_(True))
+        )
+    }
+    names = set(db.scalars(select(func.lower(Product.name)).where(Product.store_id == store_id)))
     used_aliases = set(
         db.scalars(select(ProductAlias.alias).where(ProductAlias.store_id == store_id))
     )
 
-    created, skipped, dropped = 0, [], []
+    created, restored, skipped, dropped = 0, 0, [], []
     for key in dict.fromkeys(keys):  # de-duplicate, keep order
         item = by_key[key]
+        archived = archived_by_name.pop(item.name.lower(), None)
+        if archived is not None:
+            archived.archived = False
+            restored += 1
+            continue
         if item.name.lower() in names:
-            archived = archived_by_name.get(item.name.lower())
-            reason = "archived in store" if archived else "already in store"
-            skipped.append(SkippedItem(key=key, name=item.name, reason=reason))
+            skipped.append(SkippedItem(key=key, name=item.name, reason="already in store"))
             continue
         product = Product(
             store_id=store_id, name=item.name, category=item.category, base_unit=item.base_unit
@@ -385,4 +398,4 @@ def import_catalog(db: Session, store_id: UUID, keys: list[str]) -> ImportOut:
         created += 1
 
     _commit(db)
-    return ImportOut(created=created, skipped=skipped, dropped_aliases=dropped)
+    return ImportOut(created=created, restored=restored, skipped=skipped, dropped_aliases=dropped)
