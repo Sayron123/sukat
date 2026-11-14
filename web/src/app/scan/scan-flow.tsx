@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -64,7 +65,7 @@ const TEXT = {
 } as const;
 
 type Step =
-  | { name: "pick"; error?: string }
+  | { name: "pick"; error?: string; empty?: boolean }
   | { name: "uploading" }
   | { name: "reading"; photoKey: string; scanId?: string; error?: string }
   | { name: "failed"; scan: Scan }
@@ -103,6 +104,12 @@ export function ScanFlow({
   });
   const [me, setMe] = useState<Me | null>(null);
   const [reviewKey, setReviewKey] = useState(0);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!preview) return;
+    return () => URL.revokeObjectURL(preview);
+  }, [preview]);
 
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => {});
@@ -118,6 +125,7 @@ export function ScanFlow({
     let photoKey: string;
     try {
       const photo = await compressImage(file);
+      setPreview(URL.createObjectURL(photo));
       const up = await api<UploadUrl>("scans/upload-url", {
         method: "POST",
         body: JSON.stringify({ content_type: "image/jpeg", size_bytes: photo.size }),
@@ -151,7 +159,7 @@ export function ScanFlow({
   }
 
   function showScan(scan: Scan, photoKey: string) {
-    if (scan.status === "empty") setStep({ name: "pick", error: scan.error_message ?? EMPTY_PHOTO });
+    if (scan.status === "empty") setStep({ name: "pick", error: scan.error_message ?? EMPTY_PHOTO, empty: true });
     else if (scan.status === "read") setStep({ name: "review", scan });
     else if (scan.status === "failed") setStep({ name: "failed", scan });
     else if (scan.status === "saved") setStep({ name: "pick", error: "This photo was already saved." });
@@ -167,7 +175,7 @@ export function ScanFlow({
       try {
         showScan(await api<Scan>(`scans/${pollingId}`), pollingKey);
       } catch (e) {
-        if (e instanceof ApiError && e.status === 404) setStep({ name: "pick", error: EMPTY_PHOTO });
+        if (e instanceof ApiError && e.status === 404) setStep({ name: "pick", error: EMPTY_PHOTO, empty: true });
         else setStep({ name: "reading", photoKey: pollingKey, scanId: pollingId, error: "Connection lost while reading." });
       }
     }, POLL_MS);
@@ -188,15 +196,16 @@ export function ScanFlow({
 
   switch (step.name) {
     case "pick":
-      return <PickPhoto mode={mode} error={step.error} onFile={startWithFile} />;
+      return <PickPhoto mode={mode} error={step.error} empty={step.empty} onFile={startWithFile} />;
     case "uploading":
-      return <Busy eyebrow={text.title} title="Uploading photo…" />;
+      return <Busy eyebrow={text.title} title="Uploading photo…" note="Sending the photo to Sukat." photo={preview} />;
     case "reading":
       return (
         <Busy
           eyebrow={text.title}
           title={text.reading}
-          note="This can take up to a minute."
+          note="Sukat is reading every line. This can take up to a minute."
+          photo={step.photoKey ? preview : null}
           error={step.error}
           onRetry={step.error ? () => read(step.photoKey) : undefined}
           onCancel={() => setStep({ name: "pick" })}
@@ -245,7 +254,17 @@ export function ScanFlow({
  * Dark camera screen. The big round button opens the phone's camera app (a file input
  * with `capture`), the small one the gallery. Covers the whole page, including the tabs.
  */
-function PickPhoto({ mode, error, onFile }: { mode: ScanMode; error?: string; onFile: (f: File) => void }) {
+function PickPhoto({
+  mode,
+  error,
+  empty = false,
+  onFile,
+}: {
+  mode: ScanMode;
+  error?: string;
+  empty?: boolean;
+  onFile: (f: File) => void;
+}) {
   const text = TEXT[mode];
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
@@ -279,7 +298,11 @@ function PickPhoto({ mode, error, onFile }: { mode: ScanMode; error?: string; on
             <i className="absolute bottom-0 left-0 h-[38px] w-[38px] border-b-[3px] border-l-[3px] border-white" />
             <i className="absolute right-0 bottom-0 h-[38px] w-[38px] border-r-[3px] border-b-[3px] border-white" />
           </div>
-          <Icon name="receipt" size={56} className="text-[#78716c]" />
+          {empty ? (
+            <Mascot emote="scan-empty" theme="dark" size={150} alt="" />
+          ) : (
+            <Icon name="receipt" size={56} className="text-[#78716c]" />
+          )}
           <p
             role={error ? "alert" : undefined}
             className={`absolute inset-x-4 bottom-3.5 mx-auto w-fit rounded-button px-3 py-2 text-center text-[13px] ${
@@ -319,6 +342,7 @@ function Busy({
   eyebrow,
   title,
   note,
+  photo,
   error,
   onRetry,
   onCancel,
@@ -326,35 +350,102 @@ function Busy({
   eyebrow: string;
   title: string;
   note?: string;
+  photo?: string | null;
   error?: string;
   onRetry?: () => void;
   onCancel?: () => void;
 }) {
   return (
-    <>
-      <PageHeader eyebrow={eyebrow} title={error ? "Still not read" : title} onBack={onCancel} />
-      <div className="flex flex-col items-center gap-4 py-10 text-center" aria-live="polite">
-        {!error && <Mascot emote="scanning" size={180} glow />}
-        {error && <Mascot emote="error" size={120} />}
-        {error ? <p className="text-sm text-red">{error}</p> : note && <p className="text-sm text-muted">{note}</p>}
+    <div className="fixed inset-0 z-30 flex flex-col bg-dark">
+      <div className="mx-auto grid w-full max-w-lg grid-cols-[44px_1fr_44px] items-center gap-2 px-4 pt-3">
+        {onCancel ? (
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onCancel}
+            className="grid h-11 w-11 place-items-center rounded-full bg-white/15 text-white"
+          >
+            <Icon name="close" />
+          </button>
+        ) : (
+          <span />
+        )}
+        <p className="text-center text-base font-bold text-white">{eyebrow}</p>
       </div>
-      {(onRetry || onCancel) && (
-        <ActionDock>
-          {onRetry && (
-            <Button size="lg" onClick={onRetry}>
-              Retry
-            </Button>
+
+      <div className="flex min-h-0 flex-1 items-center justify-center px-12 pt-6 pb-12">
+        <ReceiptFrame photo={photo} moving={!error} />
+      </div>
+
+      <div className="-mt-6 rounded-t-[24px] bg-background">
+        <div
+          className="mx-auto flex max-w-lg flex-col gap-4 px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-3.5">
+            <Mascot emote={error ? "error" : "scanning"} size={84} alt="" className="-my-2" />
+            <div className="min-w-0">
+              <h1 className="text-xl font-extrabold text-text">{error ? "Still not read" : title}</h1>
+              {(error ?? note) && (
+                <p className={`mt-1 text-[15px] leading-snug ${error ? "text-red" : "text-muted"}`}>{error ?? note}</p>
+              )}
+            </div>
+          </div>
+          {!error && (
+            <div role="progressbar" aria-label={title} className="h-2.5 overflow-hidden rounded-md border border-border bg-surface">
+              <div className="h-full w-2/5 rounded-md bg-accent motion-safe:animate-sukat-progress" />
+            </div>
           )}
-          {onCancel && (
-            <GhostButton type="button" onClick={onCancel}>
-              Start over
-            </GhostButton>
+          {(onRetry || onCancel) && (
+            <div className={onRetry && onCancel ? "grid grid-cols-2 gap-3" : "flex flex-col"}>
+              {onCancel && (
+                <GhostButton type="button" onClick={onCancel}>
+                  {onRetry ? "Start over" : "Cancel"}
+                </GhostButton>
+              )}
+              {onRetry && <Button onClick={onRetry}>Retry</Button>}
+            </div>
           )}
-        </ActionDock>
-      )}
-    </>
+        </div>
+      </div>
+    </div>
   );
 }
+
+function ReceiptFrame({ photo, moving }: { photo?: string | null; moving: boolean }) {
+  const corner = "absolute h-8 w-8 border-white";
+  return (
+    <div className="relative w-[210px] max-w-full -rotate-2">
+      {photo ? (
+        <Image
+          src={photo}
+          alt="Your photo"
+          width={210}
+          height={280}
+          unoptimized
+          className="block h-auto max-h-[42vh] w-full rounded bg-white object-contain"
+        />
+      ) : (
+        <div aria-hidden className="flex flex-col gap-3 rounded bg-stone-100 px-5 pt-[22px] pb-[30px]">
+          {[60, 85, 70, 90, 55, 80, 65, 75].map((w) => (
+            <span key={w} className="h-2 rounded bg-stone-300" style={{ width: `${w}%` }} />
+          ))}
+        </div>
+      )}
+      {moving && (
+        <span aria-hidden className="absolute -inset-x-4 top-[46%] h-5 motion-safe:animate-sukat-sweep">
+          <span className="absolute inset-0 rounded-[10px] bg-orange-500/25" />
+          <span className="absolute inset-x-0 top-2 h-1 rounded-sm bg-accent" />
+        </span>
+      )}
+      <i aria-hidden className={`${corner} -top-2.5 -left-2.5 rounded-tl-[10px] border-t-4 border-l-4`} />
+      <i aria-hidden className={`${corner} -top-2.5 -right-2.5 rounded-tr-[10px] border-t-4 border-r-4`} />
+      <i aria-hidden className={`${corner} -bottom-2.5 -left-2.5 rounded-bl-[10px] border-b-4 border-l-4`} />
+      <i aria-hidden className={`${corner} -right-2.5 -bottom-2.5 rounded-br-[10px] border-r-4 border-b-4`} />
+    </div>
+  );
+}
+
 function Review({
   scan,
   canCreate,

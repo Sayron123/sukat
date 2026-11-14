@@ -40,7 +40,25 @@
   --radius-card: 16px; /* cards */
 
   --animate-pop-in: pop-in 180ms ease-out;
+  --animate-sukat-sweep: sukat-sweep 2.4s ease-in-out infinite alternate;
+  --animate-sukat-progress: sukat-progress 1.6s ease-in-out infinite;
 
+  @keyframes sukat-sweep {
+    from {
+      top: 6%;
+    }
+    to {
+      top: 88%;
+    }
+  }
+  @keyframes sukat-progress {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
   @keyframes pop-in {
     from {
       opacity: 0;

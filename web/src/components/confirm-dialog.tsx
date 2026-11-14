@@ -52,18 +52,13 @@ export function ConfirmDialog({
         {title}
       </h2>
       <div className="mt-2 text-sm text-muted">{children}</div>
-      <div className="mt-6 flex flex-col gap-2">
-        <Button
-          type="button"
-          disabled={busy}
-          onClick={onConfirm}
-          variant={danger ? "danger" : "primary"}
-        >
-          {busy ? "Please wait…" : confirmLabel}
-        </Button>
+      <div className="mt-6 grid grid-cols-2 gap-3">
         <GhostButton type="button" disabled={busy} onClick={onCancel}>
           Cancel
         </GhostButton>
+        <Button type="button" disabled={busy} onClick={onConfirm} variant={danger ? "danger" : "primary"}>
+          {busy ? "Please wait…" : confirmLabel}
+        </Button>
       </div>
     </dialog>
   );
