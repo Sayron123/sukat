@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+psycopg://sukat:sukat@localhost:5432/sukat"
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
+    DB_STATEMENT_TIMEOUT_MS: int = Field(default=30_000, ge=0)
+    DB_LOCK_TIMEOUT_MS: int = Field(default=10_000, ge=0)
+    DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: int = Field(default=60_000, ge=0)
     # Stores' local time zone. Reports take dates in this zone ("today" = a Manila day)
     # and convert them to UTC for queries, because timestamps are stored in UTC.
     # The web app has its own copy (STORE_TZ in web/src/lib/dates.ts): change both together.
