@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { Fragment, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 
 import { hardNavigate } from "@/lib/hard-navigate";
 import { WEAK_PASSWORD, offerToSavePassword, passwordIsStrong } from "@/lib/password";
 import { clearSessionData } from "@/lib/session-data";
 
 import { Icon } from "./icons";
+import { Mascot, type Emote } from "./mascot";
 import { NewPasswordFields } from "./new-password-fields";
 import { PasswordField } from "./password-field";
 import { Button, Field, Notice, textLinkClass } from "./ui";
@@ -24,21 +25,44 @@ type FieldDef = {
   optional?: boolean;
   locked?: string;
   placeholder?: string;
+  hint?: string;
+  section?: string;
 };
+
+function SectionTitle({ number, title, first }: { number: number; title: string; first: boolean }) {
+  return (
+    <h2 className={`flex items-center gap-2.5 text-base font-extrabold text-text ${first ? "" : "mt-2"}`}>
+      <span
+        aria-hidden
+        className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-[13px] font-extrabold text-white"
+      >
+        {number}
+      </span>
+      {title}
+    </h2>
+  );
+}
 
 export function AuthShell({
   title,
   subtitle,
   back,
+  mascot,
+  emote = "normal",
+  inlineSubmit = false,
   children,
 }: {
   title: string;
   subtitle: string;
   back?: string;
+  mascot?: number;
+  emote?: Emote;
+  inlineSubmit?: boolean;
   children: ReactNode;
 }) {
+  const top = mascot ? (back ? "pt-14" : "pt-8") : back ? "pt-20" : "pt-16";
   return (
-    <main className={`relative mx-auto w-full max-w-lg flex-1 px-6 pb-36 ${back ? "pt-20" : "pt-16"}`}>
+    <main className={`relative mx-auto w-full max-w-lg flex-1 px-6 ${inlineSubmit ? "pb-10" : "pb-36"} ${top}`}>
       {back && (
         <Link
           href={back}
@@ -48,15 +72,31 @@ export function AuthShell({
           Back
         </Link>
       )}
-      <div
-        aria-hidden
-        className="mb-[30px] grid h-[52px] w-[52px] place-items-center rounded-button bg-text text-base font-bold text-inverse"
-      >
-        S
-      </div>
-      <p className="text-[13px] font-bold text-muted uppercase">Sukat</p>
-      <h1 className="mt-1 text-[28px] leading-tight font-bold text-text">{title}</h1>
-      <p className="mt-2 mb-7 text-sm text-muted">{subtitle}</p>
+      {mascot ? (
+        <div className="mb-7 flex flex-col items-center text-center">
+          <Mascot emote={emote} size={mascot} glow alt="" />
+          <h1
+            className={`mt-2 leading-tight font-extrabold tracking-tight text-text ${
+              mascot >= 140 ? "text-[40px]" : "text-[32px]"
+            }`}
+          >
+            Sukat
+          </h1>
+          <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
+        </div>
+      ) : (
+        <>
+          <div
+            aria-hidden
+            className="mb-[30px] grid h-[52px] w-[52px] place-items-center rounded-button bg-text text-base font-bold text-inverse"
+          >
+            S
+          </div>
+          <p className="text-[13px] font-bold text-muted uppercase">Sukat</p>
+          <h1 className="mt-1 text-[28px] leading-tight font-bold text-text">{title}</h1>
+          <p className="mt-2 mb-7 text-sm text-muted">{subtitle}</p>
+        </>
+      )}
       {children}
     </main>
   );
@@ -74,19 +114,28 @@ export function AuthForm({
   extra,
   done,
   agreement = false,
+  mascot,
+  signedOutText,
+  createAccount,
+  note,
 }: {
   title: string;
   subtitle: string;
   endpoint: string;
   fields: FieldDef[];
   submitLabel: string;
-  footer: { text: string; href: string };
+  footer?: { text: string; href: string };
   back?: string;
   altLink?: { text: string; href: string };
   extra?: Record<string, string>;
   done?: string;
   agreement?: boolean;
+  mascot?: number;
+  signedOutText?: string;
+  createAccount?: { prompt: string; text: string; href: string };
+  note?: string;
 }) {
+  const sections = [...new Set(fields.flatMap((f) => (f.section ? [f.section] : [])))];
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -98,6 +147,12 @@ export function AuthForm({
     () => true,
     () => false,
   );
+  const signedOut =
+    useSyncExternalStore(
+      noopSubscribe,
+      () => new URLSearchParams(window.location.search).has("expired"),
+      () => false,
+    ) && signedOutText !== undefined;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -149,42 +204,67 @@ export function AuthForm({
   }
 
   return (
-    <AuthShell title={title} subtitle={subtitle} back={back}>
+    <AuthShell
+      title={title}
+      subtitle={signedOut && signedOutText ? signedOutText : subtitle}
+      back={back}
+      mascot={mascot}
+      emote={signedOut ? "sleeping" : "normal"}
+      inlineSubmit={createAccount !== undefined}
+    >
       {finished ? (
         <>
           <Notice title="Done">{done}</Notice>
-          <Link href={footer.href} className={`${textLinkClass} mt-3`}>
-            {footer.text}
-          </Link>
+          {footer && (
+            <Link href={footer.href} className={`${textLinkClass} mt-3`}>
+              {footer.text}
+            </Link>
+          )}
         </>
       ) : (
         <form method="post" onSubmit={onSubmit} onChange={() => setError(null)} className="flex flex-col gap-[22px]">
-          {fields.map((f) => {
+          {fields.map((f, i) => {
+            const startsSection = f.section !== undefined && f.section !== fields[i - 1]?.section;
+            let input: ReactNode;
             if (f.type === "new-password") {
-              return <NewPasswordFields key={f.name} name={f.name} label={f.label} onSuggest={() => setError(null)} />;
+              input = <NewPasswordFields name={f.name} label={f.label} onSuggest={() => setError(null)} />;
+            } else {
+              const locked = f.locked
+                ? { defaultValue: f.locked, readOnly: true, hint: "This comes from your invite." }
+                : {};
+              const shared = {
+                id: f.name,
+                name: f.name,
+                label: f.label,
+                autoComplete: f.autoComplete,
+                minLength: f.minLength,
+                maxLength: f.maxLength,
+                required: !f.optional,
+                placeholder: f.placeholder,
+                hint: f.hint,
+                ...locked,
+              };
+              input =
+                f.type === "password" ? <PasswordField {...shared} /> : <Field type={f.type ?? "text"} {...shared} />;
             }
-            const locked = f.locked
-              ? { defaultValue: f.locked, readOnly: true, hint: "This comes from your invite." }
-              : {};
-            const shared = {
-              id: f.name,
-              name: f.name,
-              label: f.label,
-              autoComplete: f.autoComplete,
-              minLength: f.minLength,
-              maxLength: f.maxLength,
-              required: !f.optional,
-              placeholder: f.placeholder,
-              ...locked,
-            };
-            return f.type === "password" ? (
-              <PasswordField key={f.name} {...shared} />
-            ) : (
-              <Field key={f.name} type={f.type ?? "text"} {...shared} />
+            return (
+              <Fragment key={f.name}>
+                {startsSection && f.section && (
+                  <SectionTitle number={sections.indexOf(f.section) + 1} title={f.section} first={i === 0} />
+                )}
+                {input}
+              </Fragment>
             );
           })}
           {altLink && (
-            <Link href={altLink.href} className={`${textLinkClass} -mt-4 self-start`}>
+            <Link
+              href={altLink.href}
+              className={
+                createAccount
+                  ? "-mt-4 inline-flex min-h-11 items-center self-start text-[13px] font-semibold text-accent-text underline"
+                  : `${textLinkClass} -mt-4 self-start`
+              }
+            >
               {altLink.text}
             </Link>
           )}
@@ -215,20 +295,37 @@ export function AuthForm({
               {error}
             </p>
           )}
-          {footer.href !== back && (
+          {footer && footer.href !== back && (
             <Link href={footer.href} className={`${textLinkClass} self-start`}>
               {footer.text}
             </Link>
           )}
-          <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background">
-            <div className="mx-auto max-w-lg px-6 pt-3 pb-6">
-              <Button type="submit" size="lg" disabled={!ready || pending}>
+          {createAccount ? (
+            <>
+              <Button type="submit" size="lg" disabled={!ready || pending} className="-mt-2">
                 {pending ? "Please wait…" : submitLabel}
               </Button>
+              <div className="-my-1 flex items-center gap-3 text-[13px] text-muted">
+                <span aria-hidden className="h-px flex-1 bg-border" />
+                {createAccount.prompt}
+                <span aria-hidden className="h-px flex-1 bg-border" />
+              </div>
+              <Link href={createAccount.href} className="flex h-12 items-center justify-center rounded-button border border-line bg-surface px-4 text-[15px] font-bold text-text hover:bg-background">
+                {createAccount.text}
+              </Link>
+            </>
+          ) : (
+            <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background">
+              <div className="mx-auto max-w-lg px-6 pt-3 pb-6">
+                <Button type="submit" size="lg" disabled={!ready || pending}>
+                  {pending ? "Please wait…" : submitLabel}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </form>
       )}
+      {note && !finished && <p className="mt-16 text-center text-[13px] leading-relaxed text-muted">{note}</p>}
     </AuthShell>
   );
 }

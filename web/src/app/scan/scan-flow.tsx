@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActionDock } from "@/components/action-dock";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
+import { Mascot, MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { Button, Card, GhostButton, Notice, ghostButtonClass, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
@@ -205,7 +206,7 @@ export function ScanFlow({
       return (
         <>
           <PageHeader eyebrow={text.title} title={text.readFailed} onBack={() => setStep({ name: "pick" })} />
-          <Notice icon="spark" title="The photo could not be read">
+          <Notice mascot="error" title="The photo could not be read">
             {step.scan.error_message ?? "Something went wrong."}
           </Notice>
           <ActionDock>
@@ -332,8 +333,17 @@ function Busy({
       <PageHeader eyebrow={eyebrow} title={error ? "Still not read" : title} onBack={onCancel} />
       <div className="flex flex-col items-center gap-4 py-10 text-center" aria-live="polite">
         {!error && (
-          <span aria-hidden className="h-10 w-10 animate-spin rounded-full border-4 border-border border-t-accent" />
+          <>
+            <div aria-hidden className="relative flex w-50 flex-col gap-3 overflow-hidden rounded-button bg-surface p-5">
+              {[70, 55, 82, 40, 64, 50].map((w) => (
+                <span key={w} className="h-2 rounded-full bg-line" style={{ width: `${w}%` }} />
+              ))}
+              <span className="absolute inset-x-2 top-2 h-0.75 rounded-full bg-accent shadow-[0_0_10px_2px_rgb(194_65_12/0.45)] motion-safe:animate-sukat-scan" />
+            </div>
+            <Mascot emote="thinking" size={140} />
+          </>
         )}
+        {error && <Mascot emote="error" size={120} />}
         {error ? <p className="text-sm text-red">{error}</p> : note && <p className="text-sm text-muted">{note}</p>}
       </div>
       {(onRetry || onCancel) && (
@@ -501,8 +511,8 @@ function Review({
         }
       />
       {checks > 0 && (
-        <div className="mb-5 flex gap-3 rounded-card border border-red-edge bg-red-soft p-4 text-sm">
-          <Icon name="alert" size={20} className="mt-px text-red" />
+        <div className="mb-5 flex items-center gap-3 rounded-card border border-red-edge bg-red-soft p-4 text-sm">
+          <Mascot emote="confused" size={52} alt="" className="-my-1" />
           <div className="min-w-0">
             <p className="font-bold text-red">
               {checks} line{checks === 1 ? " needs" : "s need"} a double check
@@ -513,7 +523,11 @@ function Review({
           </div>
         </div>
       )}
-      {lines.length === 0 && <Card className="text-muted">No items left on this list.</Card>}
+      {lines.length === 0 && (
+        <Card>
+          <MascotMessage emote="empty">No items left on this list.</MascotMessage>
+        </Card>
+      )}
       <ul className="flex flex-col gap-3">
         {lines.map((line, i) => (
           <ReviewLineCard
@@ -550,7 +564,7 @@ function Review({
               type="button"
               disabled={saving || rescanning}
               onClick={rescan}
-              className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-button border border-line bg-background px-4 text-[15px] font-semibold text-text hover:bg-surface disabled:opacity-45"
+              className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-button border border-line bg-surface px-4 text-[15px] font-semibold text-text hover:bg-border/40 disabled:opacity-45"
             >
               <Icon name="camera" size={20} />
               {rescanning ? "Scanning…" : "Scan again"}
@@ -645,9 +659,7 @@ function Done({ txn, mode, onAgain }: { txn: Transaction; mode: ScanMode; onAgai
         back={text.exit}
       />
       <div role="status" className="mb-5 flex items-center gap-3 rounded-card bg-surface p-4">
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-green text-white">
-          <Icon name="check" />
-        </span>
+        <Mascot emote="happy" size={64} alt="" className="-my-2" />
         <div>
           <p className="font-bold text-text">{text.saved}</p>
           {txn.total_centavos > 0 && <p className="text-2xl font-bold text-text">{formatPeso(txn.total_centavos)}</p>}

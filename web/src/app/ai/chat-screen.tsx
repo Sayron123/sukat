@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { Icon } from "@/components/icons";
+import { Mascot } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { GhostButton, Loading } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
@@ -121,10 +122,8 @@ function Chat() {
       />
 
       {empty ? (
-        <div className="pt-10 text-center">
-          <div className="mx-auto mb-[22px] grid h-[52px] w-[52px] place-items-center text-text">
-            <Icon name="spark" size={27} />
-          </div>
+        <div className="pt-4 text-center">
+          <Mascot emote="normal" size={128} glow className="mx-auto mb-4" />
           <h2 className="text-xl font-bold text-text">What do you want to know?</h2>
           <p className="mx-auto mt-2 mb-6 max-w-xs text-sm text-muted">
             Ask about sales, products, or stock. I’ll use your store records.
@@ -135,7 +134,7 @@ function Chat() {
                 key={q}
                 type="button"
                 onClick={() => ask(q)}
-                className="flex min-h-[60px] items-center justify-between rounded-card border border-border bg-background px-4 text-base font-semibold text-text hover:bg-surface"
+                className="flex min-h-[60px] items-center justify-between rounded-card border border-border bg-surface px-4 text-base font-semibold text-text hover:bg-border/40"
               >
                 {q}
                 <Icon name="chevron" size={18} />
@@ -158,20 +157,12 @@ function Chat() {
             ),
           )}
           {status.name === "loading" && (
-            <AnswerCard>
-              <p className="flex items-center gap-1.5 text-muted" role="status">
-                Thinking
-                <span className="flex gap-1" aria-hidden>
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="h-1.5 w-1.5 animate-pulse rounded-full bg-subtle"
-                      style={{ animationDelay: `${i * 200}ms` }}
-                    />
-                  ))}
-                </span>
-              </p>
-            </AnswerCard>
+            <div role="status" className="flex items-center gap-2 self-start motion-safe:animate-pop-in">
+              <Mascot emote="thinking" size={72} alt="" />
+              <span className="rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5 text-sm text-muted">
+                Sukat is thinking…
+              </span>
+            </div>
           )}
           {status.name === "error" && (
             <AnswerCard>
@@ -203,7 +194,7 @@ function Chat() {
             placeholder="Ask about your store…"
             aria-label="Your question"
             enterKeyHint="send"
-            className="min-w-0 flex-1 rounded-button border border-line bg-background px-3 text-sm text-text outline-none placeholder:text-subtle focus:border-text focus:ring-1 focus:ring-text"
+            className="min-w-0 flex-1 rounded-button border border-line bg-surface px-3 text-sm text-text outline-none placeholder:text-subtle focus:border-text focus:ring-1 focus:ring-text"
           />
           <button
             type="submit"
@@ -221,9 +212,9 @@ function Chat() {
 
 function AnswerCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-card border border-border bg-background p-4 text-sm">
+    <div className="rounded-card border border-border bg-surface p-4 text-sm">
       <p className="mb-2 flex items-center gap-1.5 text-text">
-        <Icon name="spark" size={17} />
+        <Icon name="sukat" size={18} />
         <b>Sukat AI</b>
       </p>
       {children}

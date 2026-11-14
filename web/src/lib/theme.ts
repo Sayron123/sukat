@@ -1,7 +1,7 @@
 export type ThemeChoice = "light" | "dark" | "system";
 
 const STORAGE_KEY = "sukat-theme";
-const LIGHT_BAR = "#ffffff";
+const LIGHT_BAR = "#f5f5f4";
 const DARK_BAR = "#1c1917";
 const BAR_SELECTOR = 'meta[name="theme-color"]';
 const DARK_QUERY = "(prefers-color-scheme: dark)";

@@ -8,7 +8,7 @@ export type Tab = "home" | "stock" | "ai" | "more";
 const TABS: { key: Tab; label: string; icon: IconName; href?: string }[] = [
   { key: "home", label: "Home", icon: "home", href: "/" },
   { key: "stock", label: "Stock", icon: "box", href: "/stock" },
-  { key: "ai", label: "AI", icon: "spark", href: "/ai" },
+  { key: "ai", label: "AI", icon: "sukat", href: "/ai" },
   { key: "more", label: "More", icon: "menu", href: "/more" },
 ];
 

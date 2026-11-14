@@ -6,9 +6,10 @@ import { useEffect, useState } from "react";
 import { ActionDock } from "@/components/action-dock";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
+import { MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
 import { ScanButton } from "@/components/scan-button";
-import { Badge, Button, Card, Chip, Notice, Pager, SearchBox, buttonClass } from "@/components/ui";
+import { Button, Card, Chip, Notice, Pager, SearchBox, StockBadge, buttonClass, isOutOfStock } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { formatPeso, formatQty } from "@/lib/format";
 import {
@@ -182,12 +183,14 @@ export function StockList() {
       ) : data.items.length === 0 ? (
         <Card className="text-center">
           {filtering ? (
-            <p className="text-muted">No products match.</p>
+            <MascotMessage emote="searching" title="No products match">
+              Try another name or category.
+            </MascotMessage>
           ) : (
             <>
-              <p className="font-bold text-text">No products yet</p>
+              <MascotMessage emote="empty" title="No products yet" />
               {canEdit && (
-                <Link href="/stock/import" className={`${buttonClass()} mt-4`}>
+                <Link href="/stock/import" className={`${buttonClass()} mt-2`}>
                   Import starter items
                 </Link>
               )}
@@ -201,6 +204,7 @@ export function StockList() {
               <StockRow
                 key={p.id}
                 product={p}
+                canEdit={canEdit}
                 press={canDelete ? press.handlers(() => setSelected(new Set([p.id]))) : undefined}
                 selected={selected ? selected.has(p.id) : null}
                 onToggle={() => toggle(p.id)}
@@ -245,11 +249,13 @@ export function StockList() {
 
 function StockRow({
   product: p,
+  canEdit,
   press,
   selected,
   onToggle,
 }: {
   product: Product;
+  canEdit: boolean;
   press?: ReturnType<ReturnType<typeof useLongPress>["handlers"]>;
   selected: boolean | null;
   onToggle: () => void;
@@ -268,16 +274,24 @@ function StockRow({
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-[7px]">
           <b className="min-w-0 text-base text-text">{p.name}</b>
-          {p.is_low_stock && <Badge tone="red">Low</Badge>}
+          <StockBadge qty={p.stock_qty} low={p.is_low_stock} />
         </p>
         <small className="mt-[5px] block text-sm text-muted">
-          {p.category} · {formatPeso(p.price_centavos)}
-          {p.price_centavos !== null && `/${p.base_unit}`}
+          {p.category} ·{" "}
+          {p.price_centavos !== null ? (
+            `${formatPeso(p.price_centavos)}/${p.base_unit}`
+          ) : canEdit ? (
+            <span className="font-bold text-accent-text">Add price</span>
+          ) : (
+            formatPeso(null)
+          )}
         </small>
       </div>
       <div className="min-w-[62px] shrink-0 text-right">
-        <strong className="block text-2xl leading-none text-text">{formatQty(p.stock_qty)}</strong>
-        <span className="text-[13px] text-muted">{p.base_unit}</span>
+        <strong className={`block text-2xl leading-none ${isOutOfStock(p.stock_qty) ? "text-red" : "text-text"}`}>
+          {formatQty(p.stock_qty)}
+        </strong>
+        <span className="text-[13px] text-muted">{p.base_unit} left</span>
       </div>
     </Card>
   );

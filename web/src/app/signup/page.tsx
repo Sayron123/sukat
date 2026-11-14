@@ -30,7 +30,7 @@ export default function SignupPage() {
           <Link
             key={c.href}
             href={c.href}
-            className="flex min-h-[84px] items-center gap-3 rounded-card border border-border bg-background px-4 text-text hover:bg-surface"
+            className="flex min-h-[84px] items-center gap-3 rounded-card border border-border bg-surface px-4 text-text hover:bg-border/40"
           >
             <Icon name={c.icon} size={22} />
             <span className="min-w-0 flex-1">

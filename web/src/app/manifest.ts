@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Inventory and sales for Philippine hardware stores",
     start_url: "/",
     display: "standalone",
-    background_color: "#FFFFFF",
-    theme_color: "#FFFFFF",
+    background_color: "#F5F5F4",
+    theme_color: "#F5F5F4",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

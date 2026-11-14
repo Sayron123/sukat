@@ -41,7 +41,7 @@ export function UsageView() {
   return (
     <div className="flex flex-col gap-4">
       {usage.reached && (
-        <Notice icon="spark" title="This month's limit is reached">
+        <Notice icon="sukat" title="This month's limit is reached">
           Photo reading and the AI assistant will work again on {resetDate(usage.resets_on)}.
         </Notice>
       )}
