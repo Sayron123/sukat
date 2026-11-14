@@ -11,10 +11,12 @@ import { textLinkClass } from "./ui";
 export function NewPasswordFields({
   name,
   label,
+  confirmLabel = "Confirm password",
   onSuggest,
 }: {
   name: string;
   label: string;
+  confirmLabel?: string;
   onSuggest: () => void;
 }) {
   const [value, setValue] = useState("");
@@ -75,7 +77,7 @@ export function NewPasswordFields({
         key={suggested ? "confirm-suggested" : "confirm-typed"}
         id="confirm_password"
         name="confirm_password"
-        label="Confirm password"
+        label={confirmLabel}
         autoComplete="new-password"
         required
         startVisible={suggested}
