@@ -21,6 +21,7 @@ export function RecycleBin() {
   const [locked, setLocked] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [forever, setForever] = useState<TrashedScan | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
   const [now] = useState(() => Date.now());
 
   useEffect(() => {
@@ -55,14 +56,46 @@ export function RecycleBin() {
     setForever(null);
   }
 
+  async function deleteAll() {
+    setBusy("all");
+    setError(null);
+    const failed: TrashedScan[] = [];
+    for (const item of items ?? []) {
+      try {
+        await api(`scans/${item.scan_id}`, { method: "DELETE" });
+      } catch {
+        failed.push(item);
+      }
+    }
+    setItems(failed);
+    if (failed.length > 0) {
+      setError(`Could not delete ${failed.length} photo${failed.length === 1 ? "" : "s"}. Please try again.`);
+    }
+    setBusy(null);
+    setConfirmAll(false);
+  }
+
+  const count = items?.length ?? 0;
+
   return (
     <>
-      <PageHeader
-        eyebrow={items ? `${items.length} photo${items.length === 1 ? "" : "s"}` : " "}
-        title="Recycle bin"
-        back="/scans/review"
-      />
-      <p className="mb-5 text-sm text-muted">Photos here are deleted for good 30 days after they were moved here.</p>
+      <PageHeader eyebrow={items ? `${count} photo${count === 1 ? "" : "s"}` : " "} title="Recycle bin" back="/more" />
+      <div className="mb-5 flex items-start gap-3">
+        <p className="min-w-0 flex-1 text-sm text-muted">
+          Photos here are deleted for good 30 days after they were moved here.
+        </p>
+        {count > 0 && (
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => setConfirmAll(true)}
+            className="-mt-2.5 flex h-10 shrink-0 items-center gap-1.5 rounded-button border border-red-edge bg-red-soft px-3 text-sm font-bold text-red hover:bg-red-edge/60 disabled:opacity-45"
+          >
+            <Icon name="trash" size={18} />
+            Delete all
+          </button>
+        )}
+      </div>
       {error && (
         <p role="alert" className="mb-4 text-sm text-red">
           {error}
@@ -132,6 +165,18 @@ export function RecycleBin() {
         onCancel={() => setForever(null)}
       >
         The photo and everything read from it are deleted right away. This can’t be undone.
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmAll}
+        title={`Delete all ${count} photo${count === 1 ? "" : "s"} forever?`}
+        confirmLabel="Delete all"
+        danger
+        busy={busy !== null}
+        onConfirm={deleteAll}
+        onCancel={() => setConfirmAll(false)}
+      >
+        Every photo in the Recycle bin and everything read from them are deleted right away. This can’t be undone.
       </ConfirmDialog>
     </>
   );

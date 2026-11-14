@@ -43,6 +43,17 @@ function SectionTitle({ number, title, first }: { number: number; title: string;
   );
 }
 
+export function useHydrated() {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
+
+const backClass =
+  "absolute top-4 left-6 -ml-2 flex h-11 items-center gap-1.5 rounded-button px-2 text-[15px] font-semibold text-text hover:bg-surface";
+
 export function AuthShell({
   title,
   subtitle,
@@ -53,50 +64,51 @@ export function AuthShell({
   children,
 }: {
   title: string;
-  subtitle: string;
-  back?: string;
+  subtitle: ReactNode;
+  back?: string | (() => void);
   mascot?: number;
   emote?: Emote;
   inlineSubmit?: boolean;
   children: ReactNode;
 }) {
-  const top = mascot ? (back ? "pt-14" : "pt-8") : back ? "pt-20" : "pt-16";
   return (
-    <main className={`relative mx-auto w-full max-w-lg flex-1 px-6 ${inlineSubmit ? "pb-10" : "pb-36"} ${top}`}>
-      {back && (
-        <Link
-          href={back}
-          className="absolute top-4 left-6 -ml-2 flex h-11 items-center gap-1.5 rounded-button px-2 text-[15px] font-semibold text-text hover:bg-surface"
-        >
+    <main
+      className={`relative mx-auto flex w-full max-w-lg flex-1 flex-col px-6 ${inlineSubmit ? "pb-10" : "pb-36"} ${
+        back ? "pt-14" : "pt-8"
+      }`}
+    >
+      {typeof back === "string" && (
+        <Link href={back} className={backClass}>
           <Icon name="arrow" />
           Back
         </Link>
       )}
-      {mascot ? (
-        <div className="mb-7 flex flex-col items-center text-center">
-          <Mascot emote={emote} size={mascot} glow alt="" />
-          <h1
-            className={`mt-2 leading-tight font-extrabold tracking-tight text-text ${
-              mascot >= 140 ? "text-[40px]" : "text-[32px]"
-            }`}
-          >
-            Sukat
-          </h1>
-          <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
-        </div>
-      ) : (
-        <>
-          <div
-            aria-hidden
-            className="mb-[30px] grid h-[52px] w-[52px] place-items-center rounded-button bg-text text-base font-bold text-inverse"
-          >
-            S
-          </div>
-          <p className="text-[13px] font-bold text-muted uppercase">Sukat</p>
-          <h1 className="mt-1 text-[28px] leading-tight font-bold text-text">{title}</h1>
-          <p className="mt-2 mb-7 text-sm text-muted">{subtitle}</p>
-        </>
+      {typeof back === "function" && (
+        <button type="button" onClick={back} className={backClass}>
+          <Icon name="arrow" />
+          Back
+        </button>
       )}
+      <div className="mb-7 flex flex-col items-center text-center">
+        <Mascot emote={emote} size={mascot ?? 120} glow alt="" />
+        {mascot ? (
+          <>
+            <h1
+              className={`mt-2 leading-tight font-extrabold tracking-tight text-text ${
+                mascot >= 140 ? "text-[40px]" : "text-[32px]"
+              }`}
+            >
+              Sukat
+            </h1>
+            <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
+          </>
+        ) : (
+          <>
+            <h1 className="mt-3 text-[28px] leading-8.5 font-extrabold tracking-tight text-text">{title}</h1>
+            <p className="mt-2 max-w-[320px] text-[15px] leading-5.5 text-muted">{subtitle}</p>
+          </>
+        )}
+      </div>
       {children}
     </main>
   );
@@ -117,7 +129,6 @@ export function AuthForm({
   mascot,
   signedOutText,
   createAccount,
-  note,
 }: {
   title: string;
   subtitle: string;
@@ -133,7 +144,6 @@ export function AuthForm({
   mascot?: number;
   signedOutText?: string;
   createAccount?: { prompt: string; text: string; href: string };
-  note?: string;
 }) {
   const sections = [...new Set(fields.flatMap((f) => (f.section ? [f.section] : [])))];
   const [error, setError] = useState<string | null>(null);
@@ -142,11 +152,7 @@ export function AuthForm({
   // Keep submit disabled until JavaScript has loaded, so the browser never falls back to a
   // plain form submit. (method="post" below also keeps fields out of the URL either way.)
   // false during server render and before hydration, true once the page is interactive.
-  const ready = useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false,
-  );
+  const ready = useHydrated();
   const signedOut =
     useSyncExternalStore(
       noopSubscribe,
@@ -209,7 +215,7 @@ export function AuthForm({
       subtitle={signedOut && signedOutText ? signedOutText : subtitle}
       back={back}
       mascot={mascot}
-      emote={signedOut ? "sleeping" : "normal"}
+      emote={finished ? "success" : signedOut ? "sleeping" : "normal"}
       inlineSubmit={createAccount !== undefined}
     >
       {finished ? (
@@ -325,7 +331,6 @@ export function AuthForm({
           )}
         </form>
       )}
-      {note && !finished && <p className="mt-16 text-center text-[13px] leading-relaxed text-muted">{note}</p>}
     </AuthShell>
   );
 }
