@@ -85,9 +85,12 @@ def _tool_config(specs: list[dict[str, Any]], allow_tools: bool) -> types.ToolCo
 
 
 class GeminiChatModel:
-    def __init__(self, client: genai.Client | None = None, *, model: str | None = None) -> None:
+    def __init__(
+        self, client: genai.Client | None = None, *, model: str | None = None, backup: bool = False
+    ) -> None:
         self.client = client
         self.model = model or settings.AI_MODEL
+        self.backup = backup
 
     def respond(
         self,
@@ -131,7 +134,7 @@ class GeminiChatModel:
                 ) from e
             raise AIChatError("The assistant is not set up correctly.", retryable=False) from e
 
-        usage = usage_info(response, self.model)
+        usage = usage_info(response, self.model, backup=self.backup)
         parts = reply_parts(response)
         calls = [
             ToolCall(

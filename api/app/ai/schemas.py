@@ -56,6 +56,7 @@ class AIUsageInfo:
     output_tokens: int = 0
     cache_write_tokens: int = 0
     cache_read_tokens: int = 0
+    backup: bool = False
 
     @property
     def tokens_in(self) -> int:

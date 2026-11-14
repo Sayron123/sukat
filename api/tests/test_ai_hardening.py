@@ -254,7 +254,7 @@ def test_backup_is_priced_with_backup_prices(monkeypatch):
     monkeypatch.setattr(settings, "AI_FALLBACK_PRICE_INPUT_PER_MTOK_USD", Decimal("10"))
     monkeypatch.setattr(settings, "USD_TO_PHP", Decimal("50"))
     main = AIUsageInfo(model="m", provider="gemini", input_tokens=1_000_000)
-    backup = AIUsageInfo(model="b", provider="anthropic", input_tokens=1_000_000)
+    backup = AIUsageInfo(model="b", provider="anthropic", input_tokens=1_000_000, backup=True)
     assert cost_centavos(main) == Decimal("5000.0000")
     assert cost_centavos(backup) == Decimal("50000.0000")
 
@@ -403,18 +403,49 @@ def test_provider_setting_picks_gemini_or_claude(monkeypatch):
 
 
 def test_no_backup_when_turned_off():
+    assert get_vision_reader.__wrapped__().backup is None
     assert get_backup_vision_reader.__wrapped__() is None
     assert get_backup_chat_model.__wrapped__() is None
 
 
-def test_backup_must_be_a_different_provider():
+def test_backup_must_be_a_different_provider_or_model():
     with pytest.raises(ValidationError):
         Settings(
             APP_ENV="development",
             EMAIL_BACKEND="console",
             AI_PROVIDER="gemini",
+            AI_MODEL="gemini-3.1-flash-lite",
             AI_FALLBACK_PROVIDER="gemini",
+            AI_FALLBACK_MODEL="gemini-3.1-flash-lite",
         )
+    same_provider = Settings(
+        APP_ENV="development",
+        EMAIL_BACKEND="console",
+        AI_PROVIDER="gemini",
+        AI_MODEL="gemini-3.1-flash-lite",
+        AI_FALLBACK_PROVIDER="gemini",
+        AI_FALLBACK_MODEL="gemini-3.5-flash-lite",
+    )
+    assert same_provider.has_ai_fallback
+
+
+def test_a_gemini_backup_reader_and_chat_use_the_backup_model_and_prices(monkeypatch):
+    monkeypatch.setattr(settings, "AI_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "AI_FALLBACK_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "AI_MODEL", "gemini-3.1-flash-lite")
+    monkeypatch.setattr(settings, "AI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
+    get_scan_ai.cache_clear()
+    main = get_vision_reader.__wrapped__()
+    get_scan_ai.cache_clear()
+    backup = get_backup_vision_reader.__wrapped__()
+    backup_chat = get_backup_chat_model.__wrapped__()
+    assert isinstance(main.ai, GeminiScanAI) and main.ai.backup is False
+    assert main.ai.model == "gemini-3.1-flash-lite" and main.ai.max_retries == 0
+    assert isinstance(backup.ai, GeminiScanAI) and backup.ai.backup is True
+    assert backup.ai.model == "gemini-3.5-flash-lite"
+    assert main.backup is backup.ai
+    assert isinstance(backup_chat, GeminiChatModel) and backup_chat.backup is True
+    assert backup_chat.model == "gemini-3.5-flash-lite"
 
 
 def test_stale_time_covers_both_providers(monkeypatch):

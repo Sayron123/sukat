@@ -47,7 +47,7 @@ Each step's output is saved on the scan (`scans.ai_result_json` → `steps`), so
 - **Most lines match by code:** free, instant, and the same every time. A scan where every line matches by code makes **only 1 AI request**.
 - **The AI is used only for the hard cases** (spelling, Tagalog, unusual names), and it can't invent a product.
 - **The glossary is a plain file:** add a short form your store sees, and every scan benefits.
-- **If the match call fails,** the scan still works: those lines are simply unmatched for staff to pick.
+- **If the match call fails** because the AI is busy or slow, the same request goes once to the backup model (when `AI_FALLBACK_PROVIDER` is set). If that fails too, or there is no backup, the scan still works: those lines are simply unmatched for staff to pick.
 
 ## Step 4 — Check
 

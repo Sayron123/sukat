@@ -13,7 +13,7 @@ The setting `AI_PROVIDER` picks who answers first. It can be `gemini` or `anthro
 
 The default is Gemini, with the model `gemini-3.1-flash-lite`.
 
-Both providers do both jobs, and the rest of the app does not care which one is used. Photo reading runs in three steps: read, match, check (see `docs/ai-scan-pipeline.md`). If the backup is needed, all the steps run again on it. Chat uses the same tools, the same role limits and the same tests on both.
+Both providers do both jobs, and the rest of the app does not care which one is used. Photo reading runs in three steps: read, match, check (see `docs/ai-scan-pipeline.md`). If the read step fails, all the steps run again on the backup. If only the match step fails, just that one request goes to the backup. Chat uses the same tools, the same role limits and the same tests on both.
 
 | Job | Gemini file | Claude file |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ Thinking costs money, because Google charges it as output. Sukat sets `AI_GEMINI
 
 ## 2. The backup provider
 
-The setting `AI_FALLBACK_PROVIDER` picks the backup. It can be `none`, `gemini` or `anthropic`, and it must be different from `AI_PROVIDER`.
+The setting `AI_FALLBACK_PROVIDER` picks the backup and `AI_FALLBACK_MODEL` its model. The provider can be `none`, `gemini` or `anthropic`. The backup may be the **same provider with a different model**, for example `gemini-3.1-flash-lite` as the main model and `gemini-3.5-flash-lite` as the backup. Each Gemini model has its own free-tier limit, so a second model also helps when the first one hits its limit (429). Only the exact same provider and model is refused.
 
 The backup gets **one try** when the main provider:
 
@@ -46,6 +46,8 @@ The backup is **not** used when the problem would not change on a retry:
 ### How a photo falls back
 
 The photo is sent to the backup. If the backup also fails, staff see the normal "failed" screen with a Retry button.
+
+The **match** step (the AI call for rows code couldn't match) has its own one-time backup: if it fails in a way a retry may fix, the same rows and product list go to the backup model. If that fails too, the scan still works and those rows are left for staff to pick. Each call that spent tokens gets its own `scan_match` row in `ai_usage`, and `steps.match.by_backup` on the scan says when the backup answered.
 
 ### How a chat question falls back
 
@@ -70,7 +72,7 @@ Every AI cost is saved in the `ai_usage` table. The new `provider` column says w
 
 The `chat_failed_attempt` row exists so a fallback still counts as one question in the 30-per-hour limit, while its cost still counts in the budget.
 
-The main and backup models have separate price settings: `AI_PRICE_*` and `AI_FALLBACK_PRICE_*`. Each row is priced with the prices of the provider that made it.
+The main and backup models have separate price settings: `AI_PRICE_*` and `AI_FALLBACK_PRICE_*`. Each row is priced with the prices of the model that made it (the backup reader and chat mark their usage as backup, so this also works when both are Gemini).
 
 ## 4. The monthly budget
 
@@ -99,17 +101,17 @@ The API behind it is `GET /v1/insights/ai-usage`. The amounts are estimates base
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `AI_PROVIDER` | `gemini` | Who answers first |
-| `AI_FALLBACK_PROVIDER` | `none` | Who answers if the first one fails |
+| `AI_FALLBACK_PROVIDER` | `none` | Who answers if the first one fails (may be the same provider as `AI_PROVIDER` with another model) |
 | `GEMINI_API_KEY` | empty | The Gemini key |
 | `ANTHROPIC_API_KEY` | empty | The Claude key |
 | `AI_MODEL` | `gemini-3.1-flash-lite` | The main model |
-| `AI_FALLBACK_MODEL` | `claude-opus-5-5` | The backup model |
+| `AI_FALLBACK_MODEL` | `gemini-3.5-flash-lite` | The backup model (same accuracy as the main model on the 2026-11-14 eval, its own free-tier limit) |
 | `AI_GEMINI_THINKING_LEVEL` | `minimal` | How much Gemini thinks |
 | `AI_PRICE_INPUT_PER_MTOK_USD` | `0.25` | Main model, input |
 | `AI_PRICE_OUTPUT_PER_MTOK_USD` | `1.50` | Main model, output and thinking |
 | `AI_PRICE_CACHE_WRITE_PER_MTOK_USD` | `0.25` | Main model, cache write. Gemini does not use it |
 | `AI_PRICE_CACHE_READ_PER_MTOK_USD` | `0.025` | Main model, cached input |
-| `AI_FALLBACK_PRICE_*_PER_MTOK_USD` | `4.00` / `20.00` / `5.00` / `0.20` | Backup model, same order |
+| `AI_FALLBACK_PRICE_*_PER_MTOK_USD` | `0.30` / `2.50` / `0.30` / `0.03` | Backup model, same order |
 | `AI_MONTHLY_BUDGET_CENTAVOS` | `50000` | Default budget per store per month |
 
 Prices are in US dollars per one million tokens. The Gemini prices come from Google's pricing page and were checked on November 9, 2026. Update them when the model or the prices change.

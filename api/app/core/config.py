@@ -88,7 +88,7 @@ class Settings(BaseSettings):
     AI_PROVIDER: Literal["gemini", "anthropic"] = "gemini"
     AI_FALLBACK_PROVIDER: Literal["none", "gemini", "anthropic"] = "none"
     AI_MODEL: str = "gemini-3.1-flash-lite"
-    AI_FALLBACK_MODEL: str = "claude-opus-5-5"
+    AI_FALLBACK_MODEL: str = "gemini-3.5-flash-lite"
     AI_GEMINI_THINKING_LEVEL: Literal["minimal", "low", "medium", "high"] = "minimal"
     AI_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
     AI_TIMEOUT_SECONDS: float = 45.0
@@ -101,10 +101,10 @@ class Settings(BaseSettings):
     AI_PRICE_OUTPUT_PER_MTOK_USD: Decimal = Decimal("1.50")
     AI_PRICE_CACHE_WRITE_PER_MTOK_USD: Decimal = Decimal("0.25")
     AI_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.025")
-    AI_FALLBACK_PRICE_INPUT_PER_MTOK_USD: Decimal = Decimal("4.00")
-    AI_FALLBACK_PRICE_OUTPUT_PER_MTOK_USD: Decimal = Decimal("20.00")
-    AI_FALLBACK_PRICE_CACHE_WRITE_PER_MTOK_USD: Decimal = Decimal("5.00")
-    AI_FALLBACK_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.20")
+    AI_FALLBACK_PRICE_INPUT_PER_MTOK_USD: Decimal = Decimal("0.30")
+    AI_FALLBACK_PRICE_OUTPUT_PER_MTOK_USD: Decimal = Decimal("2.50")
+    AI_FALLBACK_PRICE_CACHE_WRITE_PER_MTOK_USD: Decimal = Decimal("0.30")
+    AI_FALLBACK_PRICE_CACHE_READ_PER_MTOK_USD: Decimal = Decimal("0.03")
     USD_TO_PHP: Decimal = Decimal("58.00")
     AI_MONTHLY_BUDGET_CENTAVOS: int = Field(default=50000, ge=0)
 
@@ -151,8 +151,11 @@ class Settings(BaseSettings):
             raise ValueError("Set EMAIL_BACKEND=smtp outside development.")
         if self.EMAIL_BACKEND == "smtp" and not (self.SMTP_HOST and self.SMTP_FROM):
             raise ValueError("EMAIL_BACKEND=smtp needs SMTP_HOST and SMTP_FROM.")
-        if self.AI_FALLBACK_PROVIDER == self.AI_PROVIDER:
-            raise ValueError("AI_FALLBACK_PROVIDER must be different from AI_PROVIDER.")
+        if (
+            self.AI_FALLBACK_PROVIDER == self.AI_PROVIDER
+            and self.AI_FALLBACK_MODEL == self.AI_MODEL
+        ):
+            raise ValueError("The backup must use a different provider or a different model.")
         if self.is_production:
             if self.DEBUG:
                 raise ValueError("DEBUG must be off in production.")
