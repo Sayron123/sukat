@@ -64,7 +64,7 @@ def _password_changed_message(to: str) -> Email:
     )
 
 
-def _new_token(db: Session, user_id: UUID, purpose: TokenPurpose, lifetime: timedelta) -> str:
+def new_token(db: Session, user_id: UUID, purpose: TokenPurpose, lifetime: timedelta) -> str:
     db.execute(
         delete(AuthToken).where(
             AuthToken.user_id == user_id,
@@ -84,11 +84,13 @@ def _new_token(db: Session, user_id: UUID, purpose: TokenPurpose, lifetime: time
     return token
 
 
-def _consume_token(db: Session, token: str, purpose: TokenPurpose, ip: str | None) -> User:
+def _consume_token(
+    db: Session, token: str, purposes: tuple[TokenPurpose, ...], ip: str | None
+) -> tuple[User, str]:
     ensure_not_limited(db, limits_for(None, ip))
     row = db.scalar(
         select(AuthToken)
-        .where(AuthToken.token_hash == hash_token(token), AuthToken.purpose == purpose)
+        .where(AuthToken.token_hash == hash_token(token), AuthToken.purpose.in_(purposes))
         .with_for_update()
     )
     now = datetime.now(UTC)
@@ -101,7 +103,7 @@ def _consume_token(db: Session, token: str, purpose: TokenPurpose, ip: str | Non
     db.flush()
     user = db.get(User, row.user_id)
     assert user is not None
-    return user
+    return user, row.purpose
 
 
 def login_name(user: User) -> str:
@@ -161,7 +163,7 @@ def signup(db: Session, data: SignupIn, ip: str | None) -> TokenOut:
     db.add_all([store, user])
     db.flush()  # assigns ids, still inside the same transaction
     db.add(StoreMember(store_id=store.id, user_id=user.id, role=Role.MANAGER, is_owner=True))
-    verify_token = _new_token(
+    verify_token = new_token(
         db,
         user.id,
         TokenPurpose.EMAIL_VERIFY,
@@ -260,7 +262,7 @@ def request_password_reset(db: Session, email: str, ip: str | None) -> None:
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not _email_proven(db, user):
         return
-    token = _new_token(
+    token = new_token(
         db,
         user.id,
         TokenPurpose.PASSWORD_RESET,
@@ -283,16 +285,18 @@ def request_password_reset(db: Session, email: str, ip: str | None) -> None:
 
 
 def reset_password(db: Session, token: str, new_password: str, ip: str | None) -> None:
-    user = _consume_token(db, token, TokenPurpose.PASSWORD_RESET, ip)
+    purposes = (TokenPurpose.PASSWORD_RESET, TokenPurpose.STAFF_RESET)
+    user, purpose = _consume_token(db, token, purposes, ip)
     _set_password(db, user, new_password)
-    user.email_verified_at = user.email_verified_at or datetime.now(UTC)
+    if purpose == TokenPurpose.PASSWORD_RESET:
+        user.email_verified_at = user.email_verified_at or datetime.now(UTC)
     clear_failures(db, email_key(login_name(user)))
     _tell_password_changed(db, user)
     db.commit()
 
 
 def verify_email(db: Session, token: str, ip: str | None) -> None:
-    user = _consume_token(db, token, TokenPurpose.EMAIL_VERIFY, ip)
+    user, _ = _consume_token(db, token, (TokenPurpose.EMAIL_VERIFY,), ip)
     user.email_verified_at = user.email_verified_at or datetime.now(UTC)
     db.commit()
 
@@ -301,7 +305,7 @@ def resend_verification(db: Session, user: User, ip: str | None) -> None:
     if user.email is None or user.email_verified_at is not None:
         return
     count_email_request(db, "verify", user.email, ip)
-    token = _new_token(
+    token = new_token(
         db,
         user.id,
         TokenPurpose.EMAIL_VERIFY,

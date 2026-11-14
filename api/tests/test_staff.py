@@ -2,6 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
+from app.auth.models import TokenPurpose, User
+from app.auth.service import new_token
 from app.stores.models import Invite
 from tests.conftest import auth_header
 
@@ -233,3 +235,57 @@ def test_members_cannot_see_pending_invites(api, signup):
     manager = signup()["access_token"]
     staff = _accept(api, _invite(api, manager).json()["token"]).json()["access_token"]
     assert api.get("/staff/invites", headers=auth_header(staff)).status_code == 403
+
+
+def test_a_manager_makes_a_reset_link_for_a_member_who_forgot(api, signup):
+    manager = signup()["access_token"]
+    _accept(api, _invite(api, manager).json()["token"])
+    staff_id = api.get("/staff", headers=auth_header(manager)).json()[1]["member_id"]
+
+    res = api.post(f"/staff/{staff_id}/reset-link", headers=auth_header(manager))
+    assert res.status_code == 200
+    body = {"token": res.json()["token"], "new_password": "Brand-new-pass-1"}
+    assert api.post("/auth/reset-password", json=body).status_code == 204
+    assert _login(api, "staff", "Brand-new-pass-1").status_code == 200
+    assert api.post("/auth/reset-password", json=body).status_code == 400
+
+
+def test_reset_links_are_refused_for_the_owner_and_people_in_other_stores(api, signup):
+    manager_a = signup(email="a@example.com", store_name="A")["access_token"]
+    signup(email="b@example.com", store_name="B", password="B-password-1")
+    _join_existing(api, _invite(api, manager_a).json()["token"], "b@example.com", "B-password-1")
+    staff = api.get("/staff", headers=auth_header(manager_a)).json()
+    owner_id, other_store_id = staff[0]["member_id"], staff[1]["member_id"]
+    link = "/staff/{}/reset-link"
+    assert api.post(link.format(owner_id), headers=auth_header(manager_a)).status_code == 400
+    assert api.post(link.format(other_store_id), headers=auth_header(manager_a)).status_code == 403
+
+
+def test_only_managers_make_reset_links(api, signup):
+    manager = signup()["access_token"]
+    sec = _accept(api, _invite(api, manager, "secretary").json()["token"], username="sec")
+    _accept(api, _invite(api, manager).json()["token"])
+    staff_id = api.get("/staff", headers=auth_header(manager)).json()[2]["member_id"]
+    res = api.post(f"/staff/{staff_id}/reset-link", headers=auth_header(sec.json()["access_token"]))
+    assert res.status_code == 403
+
+
+def test_a_manager_made_reset_does_not_confirm_an_email(api, db):
+    signed_up = api.post(
+        "/auth/signup",
+        json={
+            "store_name": "B",
+            "full_name": "Owner B",
+            "email": "unproven@example.com",
+            "password": "B-password-1",
+            "accept_terms": True,
+        },
+    )
+    assert signed_up.status_code == 201
+    user = db.scalar(select(User).where(User.email == "unproven@example.com"))
+    token = new_token(db, user.id, TokenPurpose.STAFF_RESET, timedelta(minutes=30))
+    db.commit()
+    body = {"token": token, "new_password": "Brand-new-pass-1"}
+    assert api.post("/auth/reset-password", json=body).status_code == 204
+    db.expire_all()
+    assert db.get(User, user.id).email_verified_at is None

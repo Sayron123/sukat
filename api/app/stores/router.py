@@ -24,6 +24,7 @@ from app.stores.schemas import (
     PendingInviteOut,
     RoleIn,
     StaffOut,
+    StaffResetOut,
     StoreIn,
     StoreOut,
 )
@@ -168,6 +169,12 @@ def record_staff_attendance(
             body.note,
         )
     )
+
+
+@router.post("/staff/{member_id}/reset-link", response_model=StaffResetOut)
+def staff_reset_link(member_id: UUID, current: Manager, db: DbSession) -> StaffResetOut:
+    token, expires_at = service.staff_reset_link(db, current.store_id, member_id, current.member_id)
+    return StaffResetOut(token=token, expires_at=expires_at)
 
 
 @router.post("/staff/{member_id}/deactivate", response_model=StaffOut)

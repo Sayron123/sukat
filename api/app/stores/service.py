@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.models import User
+from app.auth.models import TokenPurpose, User
 from app.auth.rate_limit import (
     clear_failures,
     email_key,
@@ -26,7 +26,7 @@ from app.auth.schemas import (
     password_is_strong,
 )
 from app.auth.security import hash_password, hash_token, verify_password
-from app.auth.service import issue_token, user_by_login
+from app.auth.service import issue_token, new_token, user_by_login
 from app.core.config import settings
 from app.core.errors import BadRequest, Conflict, Forbidden, Invalid, NotFound, Unauthorized
 from app.stores.models import Attendance, AttendanceStatus, Invite, Role, Store, StoreMember
@@ -244,6 +244,30 @@ def accept_invite(db: Session, body: AcceptInviteIn, ip: str | None) -> TokenOut
     row.accepted_at = datetime.now(UTC)
     db.commit()
     return issue_token(user, row.store_id)
+
+
+def staff_reset_link(
+    db: Session, store_id: UUID, member_id: UUID, acting_member_id: UUID
+) -> tuple[str, datetime]:
+    member = get_member(db, store_id, member_id)
+    if member.id == acting_member_id:
+        raise BadRequest("Change your own password in Settings")
+    _refuse_if_owner(member)
+    if not member.active:
+        raise Conflict("This person is inactive. Invite them again to bring them back.")
+    elsewhere = db.scalar(
+        select(StoreMember.id).where(
+            StoreMember.user_id == member.user_id,
+            StoreMember.store_id != store_id,
+            StoreMember.active.is_(True),
+        )
+    )
+    if elsewhere is not None:
+        raise Forbidden("This person also works in another store. They can use Forgot password.")
+    lifetime = timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES)
+    token = new_token(db, member.user_id, TokenPurpose.STAFF_RESET, lifetime)
+    db.commit()
+    return token, datetime.now(UTC) + lifetime
 
 
 def _lock_staff_changes(db: Session, store_id: UUID, acting_member_id: UUID) -> None:

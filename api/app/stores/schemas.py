@@ -130,6 +130,11 @@ class AcceptInviteIn(BaseModel):
         return self
 
 
+class StaffResetOut(BaseModel):
+    token: str
+    expires_at: datetime
+
+
 class StaffOut(BaseModel):
     member_id: UUID
     user_id: UUID
