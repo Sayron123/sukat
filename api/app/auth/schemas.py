@@ -39,7 +39,7 @@ def clean_login(value: str) -> str:
 
 LinkToken = Annotated[str, Field(max_length=200)]
 
-TERMS_VERSION = "2026-11-09"
+TERMS_VERSION = "2026-11-15"
 
 
 def must_accept_terms(accepted: bool) -> bool:
