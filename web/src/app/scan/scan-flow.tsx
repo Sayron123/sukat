@@ -237,6 +237,7 @@ export function ScanFlow({
           scan={step.scan}
           canCreate={step.scan.type === "stock_in" && canEditProducts(me?.role)}
           canDelete={canEditProducts(me?.role)}
+          photo={preview}
           onReplaced={(scan) => {
             setReviewKey((k) => k + 1);
             showScan(scan, "");
@@ -450,6 +451,7 @@ function Review({
   scan,
   canCreate,
   canDelete,
+  photo,
   onReplaced,
   onSaved,
   onCancel,
@@ -457,6 +459,7 @@ function Review({
   scan: Scan;
   canCreate: boolean;
   canDelete: boolean;
+  photo: string | null;
   onReplaced: (scan: Scan) => void;
   onSaved: (txn: Transaction) => void;
   onCancel: () => void;
@@ -573,6 +576,17 @@ function Review({
     }
   }
 
+  if (rescanning) {
+    return (
+      <Busy
+        eyebrow={text.title}
+        title={text.reading}
+        note="Sukat is reading every line again. This can take up to a minute."
+        photo={photo}
+      />
+    );
+  }
+
   return (
     <>
       <PageHeader
@@ -655,7 +669,7 @@ function Review({
               className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-button border border-line bg-surface px-4 text-[15px] font-semibold text-text hover:bg-border/40 disabled:opacity-45"
             >
               <Icon name="camera" size={20} />
-              {rescanning ? "Scanning…" : "Scan again"}
+              Scan again
             </button>
           )}
           <Button size="lg" className="flex-1" disabled={saving || rescanning} onClick={() => save()}>
