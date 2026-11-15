@@ -64,6 +64,7 @@ export type Me = {
   full_name: string;
   email_verified: boolean;
   email_confirmation: boolean;
+  google: boolean;
   store_id: string;
   store_name: string;
   store_address: string | null;

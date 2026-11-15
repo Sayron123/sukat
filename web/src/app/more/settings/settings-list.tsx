@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
@@ -56,11 +57,33 @@ function Row({ label, value, href, locked }: { label: string; value: string; hre
   );
 }
 
+function GoogleRow({ connected }: { connected: boolean }) {
+  return (
+    <li className="flex min-h-14 items-center gap-3 px-4">
+      <span className="shrink-0 text-[15px] font-semibold text-text">Google</span>
+      <span className="min-w-0 flex-1" />
+      {connected ? (
+        <span className="text-sm text-muted">Connected</span>
+      ) : (
+        <form method="post" action="/api/auth/google/start">
+          <input type="hidden" name="mode" value="connect" />
+          <button type="submit" className="min-h-11 text-sm font-bold text-accent-text underline">
+            Connect
+          </button>
+        </form>
+      )}
+    </li>
+  );
+}
+
 export function SettingsList() {
   const [me, setMe] = useState<Me | null | "error">(null);
+  const [google, setGoogle] = useState(false);
+  const problem = useSearchParams().get("error");
 
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => setMe("error"));
+    api<{ client_id: string | null }>("auth/google").then((g) => setGoogle(g.client_id !== null), () => {});
   }, []);
 
   if (me === null) return <Loading />;
@@ -70,6 +93,11 @@ export function SettingsList() {
 
   return (
     <div className="flex flex-col gap-6">
+      {problem && (
+        <p role="alert" className="rounded-button border border-red-edge bg-red-soft p-3 text-sm text-red">
+          {problem}
+        </p>
+      )}
       <Group
         title="Your account"
         note={`Your ${me.email ? "email" : "username"} is how you sign in. It can’t be changed here.`}
@@ -82,6 +110,7 @@ export function SettingsList() {
             <Row label="Username" value={me.username ?? ""} locked />
           )}
           <Row label="Password" value="Change" href="/more/settings/password" />
+          {(google || me.google) && <GoogleRow connected={me.google} />}
         </Rows>
       </Group>
       <Group title="Store" note={storeHref ? undefined : "Only a manager can change the store details."}>

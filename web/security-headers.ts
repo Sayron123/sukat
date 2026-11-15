@@ -28,7 +28,7 @@ export function contentSecurityPolicy(env: NodeJS.ProcessEnv, production: boolea
     "manifest-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    "form-action 'self' https://accounts.google.com",
     "frame-ancestors 'none'",
   ].join("; ");
 }
