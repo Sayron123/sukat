@@ -20,6 +20,8 @@ dependencies = [
     "httpx2>=2.16.0",
     "rapidfuzz>=3.14.6",
     "sentry-sdk[fastapi]>=2.74.0",
+    "google-auth>=2.40",
+    "requests>=2.32",
 ]
 
 [dependency-groups]

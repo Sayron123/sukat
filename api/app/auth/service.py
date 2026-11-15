@@ -9,7 +9,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import CurrentMember, email_confirmation
-from app.auth.models import AuthToken, TokenPurpose, User
+from app.auth.google import GoogleUser
+from app.auth.models import AuthToken, TokenPurpose, User, UserIdentity
 from app.auth.rate_limit import (
     clear_failures,
     count_email_request,
@@ -20,7 +21,7 @@ from app.auth.rate_limit import (
     record_failure,
     signup_key,
 )
-from app.auth.schemas import TERMS_VERSION, MeOut, SignupIn, TokenOut
+from app.auth.schemas import TERMS_VERSION, GoogleSignupIn, MeOut, SignupIn, TokenOut
 from app.auth.security import create_access_token, hash_password, hash_token, verify_password
 from app.core.config import settings
 from app.core.errors import BadRequest, Conflict, Forbidden, Invalid, Unauthorized
@@ -30,6 +31,15 @@ from app.stores.models import Role, Store, StoreMember
 
 EMAIL_TAKEN = "An account with this email already exists"
 TOO_MANY_SIGNUPS = "Too many sign-ups from this network. Please wait and try again."
+NO_GOOGLE_ACCOUNT = (
+    "No Sukat account uses this Google account yet. Join with your invite link, or sign in "
+    "with your password and connect Google in Settings."
+)
+GOOGLE_EMAIL_TAKEN = (
+    "A Sukat account already uses this email. Sign in with your password, then connect "
+    "Google in Settings."
+)
+GOOGLE_TAKEN = "This Google account is already connected to another Sukat account."
 
 
 def issue_token(user: User, store_id: UUID) -> TokenOut:
@@ -204,7 +214,10 @@ def login(db: Session, login: str, password: str, ip: str | None) -> TokenOut:
         raise Unauthorized("Incorrect email, username or password")
     clear_failures(db, email_key(login))
     db.commit()
+    return _first_store_token(db, user)
 
+
+def _first_store_token(db: Session, user: User) -> TokenOut:
     # A user signs in to their first active store. Store switching comes later.
     member = db.scalar(
         select(StoreMember)
@@ -215,6 +228,81 @@ def login(db: Session, login: str, password: str, ip: str | None) -> TokenOut:
     if member is None:
         raise Forbidden("Your account is not active in any store")
     return issue_token(user, member.store_id)
+
+
+def google_account(db: Session, guser: GoogleUser) -> User | None:
+    return db.scalar(
+        select(User)
+        .join(UserIdentity, UserIdentity.user_id == User.id)
+        .where(UserIdentity.provider == "google", UserIdentity.subject == guser.subject)
+    )
+
+
+def new_google_account(db: Session, guser: GoogleUser) -> User:
+    if db.scalar(select(User.id).where(User.email == guser.email)) is not None:
+        raise Conflict(GOOGLE_EMAIL_TAKEN)
+    user = User(
+        email=guser.email,
+        email_verified_at=datetime.now(UTC),
+        full_name=guser.name,
+        password_hash=None,
+    )
+    db.add(user)
+    db.flush()
+    db.add(UserIdentity(user_id=user.id, provider="google", subject=guser.subject))
+    return user
+
+
+def google_login(db: Session, guser: GoogleUser) -> TokenOut:
+    user = google_account(db, guser)
+    if user is None:
+        raise Unauthorized(NO_GOOGLE_ACCOUNT)
+    return _first_store_token(db, user)
+
+
+def google_signup(db: Session, guser: GoogleUser, data: GoogleSignupIn, ip: str | None) -> TokenOut:
+    key = signup_key(ip)
+    if key:
+        ensure_not_limited(db, [(key, settings.SIGNUP_MAX_PER_IP)], TOO_MANY_SIGNUPS)
+        record_failure(db, [key])
+    if google_account(db, guser) is not None:
+        raise Conflict("This Google account already has a Sukat account. Sign in instead.")
+    user = new_google_account(db, guser)
+    user.terms_accepted_at = datetime.now(UTC)
+    user.terms_version = TERMS_VERSION
+    store = Store(name=data.store_name, address=data.store_address)
+    db.add(store)
+    db.flush()
+    db.add(StoreMember(store_id=store.id, user_id=user.id, role=Role.MANAGER, is_owner=True))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise Conflict(GOOGLE_EMAIL_TAKEN) from None
+    return issue_token(user, store.id)
+
+
+def connect_google(db: Session, user: User, guser: GoogleUser) -> None:
+    owner = google_account(db, guser)
+    if owner is not None and owner.id == user.id:
+        return
+    if owner is not None:
+        raise Conflict(GOOGLE_TAKEN)
+    linked = db.scalar(
+        select(UserIdentity.id).where(
+            UserIdentity.user_id == user.id, UserIdentity.provider == "google"
+        )
+    )
+    if linked is not None:
+        raise Conflict("Your account is already connected to a Google account.")
+    db.add(UserIdentity(user_id=user.id, provider="google", subject=guser.subject))
+    if user.email == guser.email and user.email_verified_at is None:
+        user.email_verified_at = datetime.now(UTC)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise Conflict(GOOGLE_TAKEN) from None
 
 
 def logout(db: Session, user: User) -> None:
@@ -230,6 +318,8 @@ def change_password(
     new_password: str,
     ip: str | None,
 ) -> TokenOut:
+    if user.password_hash is None:
+        raise BadRequest("This account signs in with Google, so it has no password to change.")
     limits = limits_for(login_name(user), ip)
     ensure_not_limited(db, limits)
     if not verify_password(current_password, user.password_hash):
@@ -331,6 +421,12 @@ def get_me(db: Session, current: CurrentMember) -> MeOut:
         full_name=current.user.full_name,
         email_verified=current.user.email_verified_at is not None,
         email_confirmation=email_confirmation(current),
+        google=db.scalar(
+            select(UserIdentity.id).where(
+                UserIdentity.user_id == current.user.id, UserIdentity.provider == "google"
+            )
+        )
+        is not None,
         store_id=store.id,
         store_name=store.name,
         store_address=store.address,

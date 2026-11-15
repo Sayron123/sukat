@@ -2,12 +2,15 @@
 
 from fastapi import APIRouter, Request, status
 
-from app.auth import service
+from app.auth import google, service
 from app.auth.deps import CurrentMemberDep, DbSession
 from app.auth.rate_limit import client_ip
 from app.auth.schemas import (
     ChangePasswordIn,
     ForgotPasswordIn,
+    GoogleClientOut,
+    GoogleIn,
+    GoogleSignupIn,
     LoginIn,
     MeOut,
     ProfileIn,
@@ -16,6 +19,7 @@ from app.auth.schemas import (
     TokenOut,
     VerifyEmailIn,
 )
+from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -30,6 +34,29 @@ def signup(body: SignupIn, request: Request, db: DbSession) -> TokenOut:
 def login(body: LoginIn, request: Request, db: DbSession) -> TokenOut:
     """Email + password -> token. Rate-limited per email and per IP (429)."""
     return service.login(db, body.login or "", body.password, client_ip(request))
+
+
+@router.get("/google", response_model=GoogleClientOut)
+def google_client() -> GoogleClientOut:
+    return GoogleClientOut(client_id=settings.GOOGLE_CLIENT_ID if google.enabled() else None)
+
+
+@router.post("/google/login", response_model=TokenOut)
+def google_login(body: GoogleIn, db: DbSession) -> TokenOut:
+    guser = google.google_user(body.code, body.code_verifier, body.redirect_uri, body.nonce)
+    return service.google_login(db, guser)
+
+
+@router.post("/google/signup", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
+def google_signup(body: GoogleSignupIn, request: Request, db: DbSession) -> TokenOut:
+    guser = google.google_user(body.code, body.code_verifier, body.redirect_uri, body.nonce)
+    return service.google_signup(db, guser, body, client_ip(request))
+
+
+@router.post("/google/connect", status_code=status.HTTP_204_NO_CONTENT)
+def connect_google(body: GoogleIn, current: CurrentMemberDep, db: DbSession) -> None:
+    guser = google.google_user(body.code, body.code_verifier, body.redirect_uri, body.nonce)
+    service.connect_google(db, current.user, guser)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

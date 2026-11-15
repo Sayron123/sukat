@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.auth.google import GoogleUser
 from app.auth.models import TokenPurpose, User
 from app.auth.rate_limit import (
     clear_failures,
@@ -26,7 +27,13 @@ from app.auth.schemas import (
     password_is_strong,
 )
 from app.auth.security import hash_password, hash_token, verify_password
-from app.auth.service import issue_token, new_token, user_by_login
+from app.auth.service import (
+    google_account,
+    issue_token,
+    new_google_account,
+    new_token,
+    user_by_login,
+)
 from app.core.config import settings
 from app.core.errors import BadRequest, Conflict, Forbidden, Invalid, NotFound, Unauthorized
 from app.stores.models import Attendance, AttendanceStatus, Invite, Role, Store, StoreMember
@@ -223,7 +230,16 @@ def accept_invite(db: Session, body: AcceptInviteIn, ip: str | None) -> TokenOut
     else:
         assert body.login is not None
         user = _existing_account(db, body.login, body.password, ip)
+    return _join(db, row, user)
 
+
+def accept_invite_google(db: Session, token: str, guser: GoogleUser, ip: str | None) -> TokenOut:
+    row = _open_invite(db, token, ip, lock=True)
+    user = google_account(db, guser) or new_google_account(db, guser)
+    return _join(db, row, user)
+
+
+def _join(db: Session, row: Invite, user: User) -> TokenOut:
     member = db.scalar(
         select(StoreMember).where(
             StoreMember.store_id == row.store_id, StoreMember.user_id == user.id

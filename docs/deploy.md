@@ -71,6 +71,7 @@ Set these on your host (not in a file in git). `api/.env.example` explains each 
 | `PUBLIC_API_URL` | `https://api.sukat.example.com` |
 | `STORAGE_BACKEND` | `r2` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | from step 3 |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | from Google Cloud Console (a Web application client with redirect URI `https://sukat.example.com/api/auth/google/callback`). Leave empty to turn Continue with Google off. |
 | `AI_PROVIDER` | `anthropic` or `gemini` |
 | `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` | the key for that provider |
 | `SENTRY_DSN` | optional, from Sentry (a Python project) |

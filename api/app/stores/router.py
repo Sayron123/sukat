@@ -6,12 +6,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 
+from app.auth import google
 from app.auth.deps import CurrentMember, CurrentMemberDep, DbSession, require_role
 from app.auth.rate_limit import client_ip
 from app.auth.schemas import TokenOut
 from app.stores import service
 from app.stores.models import Attendance, AttendanceStatus, Role, StoreMember
 from app.stores.schemas import (
+    AcceptGoogleIn,
     AcceptInviteIn,
     AliasIn,
     AttendanceIn,
@@ -104,6 +106,12 @@ def preview_invite(body: InvitePreviewIn, request: Request, db: DbSession) -> In
 def accept_invite(body: AcceptInviteIn, request: Request, db: DbSession) -> TokenOut:
     """Join a store with an invite token (no login needed)."""
     return service.accept_invite(db, body, client_ip(request))
+
+
+@router.post("/staff/invites/accept-google", response_model=TokenOut)
+def accept_invite_google(body: AcceptGoogleIn, request: Request, db: DbSession) -> TokenOut:
+    guser = google.google_user(body.code, body.code_verifier, body.redirect_uri, body.nonce)
+    return service.accept_invite_google(db, body.token, guser, client_ip(request))
 
 
 @router.patch("/store", response_model=StoreOut)
