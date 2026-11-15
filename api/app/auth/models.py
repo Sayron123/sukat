@@ -85,8 +85,8 @@ class UserIdentity(Base):
     __tablename__ = "user_identities"
     __table_args__ = (
         CheckConstraint("provider IN ('google')", name="provider"),
-        UniqueConstraint("provider", "subject", name="provider_subject"),
-        UniqueConstraint("user_id", "provider", name="user_provider"),
+        UniqueConstraint("provider", "subject"),
+        UniqueConstraint("user_id", "provider", name="uq_user_identities_user_provider"),
     )
 
     id: Mapped[UUID] = uuid_pk()

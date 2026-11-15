@@ -179,7 +179,7 @@ def signup(db: Session, data: SignupIn, ip: str | None) -> TokenOut:
         TokenPurpose.EMAIL_VERIFY,
         timedelta(hours=settings.EMAIL_VERIFY_EXPIRE_HOURS),
     )
-    enqueue_email(db, _verify_email_message(user.email, verify_token))
+    enqueue_email(db, _verify_email_message(data.email, verify_token))
     try:
         db.commit()  # all three rows are saved together, or none are
     except IntegrityError as e:
@@ -361,7 +361,7 @@ def request_password_reset(db: Session, email: str, ip: str | None) -> None:
     enqueue_email(
         db,
         Email(
-            to=user.email,
+            to=email,
             subject="Reset your Sukat password",
             body=(
                 "Open this link to set a new password:\n\n"
