@@ -13,6 +13,7 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 ISSUERS = ("accounts.google.com", "https://accounts.google.com")
 CALLBACK_PATH = "/api/auth/google/callback"
 FAILED = "Google sign-in didn't work. Please try again."
+CLOCK_SKEW_SECONDS = 10
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,10 @@ def exchange(code: str, verifier: str, redirect_uri: str) -> str:
 def verify(token: str, nonce: str) -> GoogleUser:
     try:
         info = id_token.verify_oauth2_token(
-            token, google_requests.Request(), settings.GOOGLE_CLIENT_ID
+            token,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=CLOCK_SKEW_SECONDS,
         )
     except (ValueError, GoogleAuthError) as e:
         raise BadRequest(FAILED) from e
