@@ -6,21 +6,17 @@ import {
   CALLBACK_PATH,
   COOKIE_OPTIONS,
   GOOGLE_COOKIE,
-  type GoogleTrip,
+  TICKET_COOKIE,
+  TICKET_COOKIE_OPTIONS,
   backTo,
+  packTicket,
   sameText,
   siteOrigin,
   unpackTrip,
 } from "@/lib/server/google";
 
 const FAILED = "Google sign-in didn't work. Please try again.";
-
-const API_PATH: Record<GoogleTrip["mode"], string> = {
-  login: "/auth/google/login",
-  signup: "/auth/google/signup",
-  invite: "/staff/invites/accept-google",
-  connect: "/auth/google/connect",
-};
+const HAS_ACCOUNT = "This Google account already has a Sukat account. Sign in with Google here.";
 
 export async function GET(req: NextRequest) {
   const origin = siteOrigin(req);
@@ -29,12 +25,11 @@ export async function GET(req: NextRequest) {
   const code = params.get("code");
   const state = params.get("state") ?? "";
 
-  function finish(path: string, error?: string, token?: string) {
+  function finish(path: string, error?: string) {
     const target = new URL(path, origin);
     if (error) target.searchParams.set("error", error);
     const response = NextResponse.redirect(target, 303);
     response.cookies.set(GOOGLE_COOKIE, "", { ...COOKIE_OPTIONS, maxAge: 0 });
-    if (token) setSessionCookie(response, token);
     return response;
   }
 
@@ -49,18 +44,14 @@ export async function GET(req: NextRequest) {
     redirect_uri: `${origin}${CALLBACK_PATH}`,
     nonce: trip.nonce,
   };
-  const extra =
-    trip.mode === "signup"
-      ? { store_name: trip.storeName, store_address: trip.storeAddress ?? null, accept_terms: true }
-      : trip.mode === "invite"
-        ? { token: trip.invite, accept_terms: true }
-        : {};
+  const path =
+    trip.mode === "login" ? "/auth/google/login" : trip.mode === "connect" ? "/auth/google/connect" : "/auth/google/ticket";
 
   let res: Response;
   try {
-    res = await backendFetch(API_PATH[trip.mode], {
+    res = await backendFetch(path, {
       method: "POST",
-      body: JSON.stringify({ ...flow, ...extra }),
+      body: JSON.stringify(flow),
       headers: clientIpHeaders(req.headers.get("x-forwarded-for")),
       token: trip.mode === "connect" ? await getToken() : undefined,
     });
@@ -69,6 +60,21 @@ export async function GET(req: NextRequest) {
   }
   const data: unknown = await res.json().catch(() => null);
   if (!res.ok) return finish(back, errorMessage(data, FAILED));
+
   if (trip.mode === "connect") return finish("/more/settings");
-  return finish("/", undefined, (data as { access_token: string }).access_token);
+  if (trip.mode === "login") {
+    const response = finish("/");
+    setSessionCookie(response, (data as { access_token: string }).access_token);
+    return response;
+  }
+
+  const ticket = data as { ticket: string; email: string; name: string; account: boolean };
+  if (trip.mode === "signup" && ticket.account) return finish("/login", HAS_ACCOUNT);
+  const response = finish("/google");
+  response.cookies.set(
+    TICKET_COOKIE,
+    packTicket({ mode: trip.mode, invite: trip.invite, ...ticket }),
+    TICKET_COOKIE_OPTIONS,
+  );
+  return response;
 }

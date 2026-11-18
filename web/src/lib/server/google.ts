@@ -19,8 +19,25 @@ export type GoogleTrip = {
   verifier: string;
   nonce: string;
   invite?: string;
-  storeName?: string;
-  storeAddress?: string;
+};
+
+export const TICKET_COOKIE = "sukat_google_ticket";
+
+export type GoogleTicket = {
+  mode: "signup" | "invite";
+  ticket: string;
+  email: string;
+  name: string;
+  account: boolean;
+  invite?: string;
+};
+
+export const TICKET_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: IS_PRODUCTION,
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 900,
 };
 
 export const COOKIE_OPTIONS = {
@@ -47,6 +64,21 @@ export function sameText(a: string, b: string): boolean {
 
 export function packTrip(trip: GoogleTrip): string {
   return Buffer.from(JSON.stringify(trip)).toString("base64url");
+}
+
+export function packTicket(ticket: GoogleTicket): string {
+  return Buffer.from(JSON.stringify(ticket)).toString("base64url");
+}
+
+export function unpackTicket(value: string | undefined): GoogleTicket | null {
+  if (!value) return null;
+  try {
+    const ticket = JSON.parse(Buffer.from(value, "base64url").toString()) as GoogleTicket;
+    const known = ticket.mode === "signup" || (ticket.mode === "invite" && typeof ticket.invite === "string");
+    return known && typeof ticket.ticket === "string" && typeof ticket.email === "string" ? ticket : null;
+  } catch {
+    return null;
+  }
 }
 
 export function unpackTrip(value: string | undefined): GoogleTrip | null {

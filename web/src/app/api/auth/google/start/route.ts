@@ -34,8 +34,6 @@ export async function POST(req: NextRequest) {
     verifier: random(48),
     nonce: random(),
     invite: text(form, "token"),
-    storeName: text(form, "store_name"),
-    storeAddress: text(form, "store_address"),
   };
   const back = new URL(backTo(trip), origin);
 
