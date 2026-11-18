@@ -8,12 +8,16 @@ import { SettingsList } from "./settings-list";
 
 export const metadata: Metadata = { title: "Settings · Sukat" };
 
-export default async function SettingsPage() {
-  const google = (await googleClientId()) !== null;
+export default function SettingsPage() {
   return (
     <AppPage tab="more">
       <PageHeader title="Settings" back="/more" />
-      <SettingsList google={google} />
+      <SettingsContent />
     </AppPage>
   );
+}
+
+async function SettingsContent() {
+  const google = (await googleClientId()) !== null;
+  return <SettingsList google={google} />;
 }
