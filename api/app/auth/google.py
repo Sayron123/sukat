@@ -1,4 +1,5 @@
 import hmac
+import logging
 from dataclasses import dataclass
 
 import httpx2
@@ -14,6 +15,8 @@ ISSUERS = ("accounts.google.com", "https://accounts.google.com")
 CALLBACK_PATH = "/api/auth/google/callback"
 FAILED = "Google sign-in didn't work. Please try again."
 CLOCK_SKEW_SECONDS = 10
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -48,9 +51,11 @@ def exchange(code: str, verifier: str, redirect_uri: str) -> str:
             timeout=10,
         )
     except httpx2.HTTPError as e:
+        logger.warning("Google token exchange failed: %s", e)
         raise BadRequest(FAILED) from e
     token = res.json().get("id_token") if res.status_code == 200 else None
     if not isinstance(token, str):
+        logger.warning("Google token exchange gave no ID token (status %s)", res.status_code)
         raise BadRequest(FAILED)
     return token
 
@@ -64,8 +69,13 @@ def verify(token: str, nonce: str) -> GoogleUser:
             clock_skew_in_seconds=CLOCK_SKEW_SECONDS,
         )
     except (ValueError, GoogleAuthError) as e:
+        logger.warning("Google token refused: %s", e)
         raise BadRequest(FAILED) from e
-    if info.get("iss") not in ISSUERS or not hmac.compare_digest(str(info.get("nonce", "")), nonce):
+    if info.get("iss") not in ISSUERS:
+        logger.warning("Google token from an unknown issuer")
+        raise BadRequest(FAILED)
+    if not hmac.compare_digest(str(info.get("nonce", "")), nonce):
+        logger.warning("Google token nonce does not match")
         raise BadRequest(FAILED)
     email = str(info.get("email") or "").strip().lower()
     if not email or info.get("email_verified") is not True:
