@@ -130,12 +130,24 @@ class GoogleIn(BaseModel):
     nonce: str = Field(min_length=16, max_length=200)
 
 
-class GoogleSignupIn(GoogleIn):
+GoogleTicket = Annotated[str, Field(min_length=1, max_length=2000)]
+
+
+class GoogleTicketOut(BaseModel):
+    ticket: str
+    email: str
+    name: str
+    account: bool
+
+
+class GoogleSignupIn(BaseModel):
+    ticket: GoogleTicket
+    full_name: str = Field(min_length=1, max_length=120)
     store_name: str = Field(min_length=1, max_length=120)
     store_address: str | None = Field(default=None, max_length=300)
     accept_terms: bool = Field(default=False, validate_default=True)
 
-    _strip = field_validator("store_name")(_not_blank)
+    _strip = field_validator("store_name", "full_name")(_not_blank)
 
     @field_validator("accept_terms")
     @classmethod
@@ -166,6 +178,7 @@ class MeOut(BaseModel):
     email_verified: bool
     email_confirmation: bool
     google: bool
+    google_email: str | None
     store_id: UUID
     store_name: str
     store_address: str | None

@@ -11,6 +11,7 @@ from app.auth.schemas import (
     GoogleClientOut,
     GoogleIn,
     GoogleSignupIn,
+    GoogleTicketOut,
     LoginIn,
     MeOut,
     ProfileIn,
@@ -47,10 +48,15 @@ def google_login(body: GoogleIn, db: DbSession) -> TokenOut:
     return service.google_login(db, guser)
 
 
+@router.post("/google/ticket", response_model=GoogleTicketOut)
+def google_ticket(body: GoogleIn, db: DbSession) -> GoogleTicketOut:
+    guser = google.google_user(body.code, body.code_verifier, body.redirect_uri, body.nonce)
+    return service.google_ticket(db, guser)
+
+
 @router.post("/google/signup", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
 def google_signup(body: GoogleSignupIn, request: Request, db: DbSession) -> TokenOut:
-    guser = google.google_user(body.code, body.code_verifier, body.redirect_uri, body.nonce)
-    return service.google_signup(db, guser, body, client_ip(request))
+    return service.google_signup(db, google.read_ticket(body.ticket), body, client_ip(request))
 
 
 @router.post("/google/connect", status_code=status.HTTP_204_NO_CONTENT)

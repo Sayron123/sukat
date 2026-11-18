@@ -110,8 +110,8 @@ def accept_invite(body: AcceptInviteIn, request: Request, db: DbSession) -> Toke
 
 @router.post("/staff/invites/accept-google", response_model=TokenOut)
 def accept_invite_google(body: AcceptGoogleIn, request: Request, db: DbSession) -> TokenOut:
-    guser = google.google_user(body.code, body.code_verifier, body.redirect_uri, body.nonce)
-    return service.accept_invite_google(db, body.token, guser, client_ip(request))
+    guser = google.read_ticket(body.ticket)
+    return service.accept_invite_google(db, body.token, guser, body.full_name, client_ip(request))
 
 
 @router.patch("/store", response_model=StoreOut)
