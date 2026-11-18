@@ -252,6 +252,27 @@ export function AuthForm({
     }
   }
 
+  const googleOption = google && (
+    <>
+      <div className="-my-1 flex items-center gap-3 text-[13px] text-muted">
+        <span aria-hidden className="h-px flex-1 bg-border" />
+        or
+        <span aria-hidden className="h-px flex-1 bg-border" />
+      </div>
+      <button
+        type="submit"
+        name="google"
+        value="1"
+        formNoValidate
+        disabled={!ready || pending}
+        className="flex h-12 items-center justify-center gap-2.5 rounded-button border border-line bg-surface px-4 text-[15px] font-bold text-text hover:bg-background disabled:opacity-45"
+      >
+        <GoogleMark />
+        Continue with Google
+      </button>
+    </>
+  );
+
   return (
     <AuthShell
       title={title}
@@ -322,26 +343,6 @@ export function AuthForm({
               {altLink.text}
             </Link>
           )}
-          {google && (
-            <>
-              <div className="-my-1 flex items-center gap-3 text-[13px] text-muted">
-                <span aria-hidden className="h-px flex-1 bg-border" />
-                or
-                <span aria-hidden className="h-px flex-1 bg-border" />
-              </div>
-              <button
-                type="submit"
-                name="google"
-                value="1"
-                formNoValidate
-                disabled={!ready || pending}
-                className="flex h-12 items-center justify-center gap-2.5 rounded-button border border-line bg-surface px-4 text-[15px] font-bold text-text hover:bg-background disabled:opacity-45"
-              >
-                <GoogleMark />
-                Continue with Google
-              </button>
-            </>
-          )}
           {agreement && (
             <label htmlFor="accept_terms" className="flex items-start gap-3 text-sm text-text">
               <input
@@ -369,16 +370,29 @@ export function AuthForm({
               {error}
             </p>
           )}
+          {!createAccount && (
+            <>
+              <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background">
+                <div className="mx-auto max-w-lg px-6 pt-3 pb-6">
+                  <Button type="submit" size="lg" disabled={!ready || pending}>
+                    {pending ? "Please wait…" : submitLabel}
+                  </Button>
+                </div>
+              </div>
+              {googleOption}
+            </>
+          )}
           {footer && footer.href !== back && (
             <Link href={footer.href} className={`${textLinkClass} self-start`}>
               {footer.text}
             </Link>
           )}
-          {createAccount ? (
+          {createAccount && (
             <>
               <Button type="submit" size="lg" disabled={!ready || pending} className="-mt-2">
                 {pending ? "Please wait…" : submitLabel}
               </Button>
+              {googleOption}
               <div className="-my-1 flex items-center gap-3 text-[13px] text-muted">
                 <span aria-hidden className="h-px flex-1 bg-border" />
                 {createAccount.prompt}
@@ -388,14 +402,6 @@ export function AuthForm({
                 {createAccount.text}
               </Link>
             </>
-          ) : (
-            <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background">
-              <div className="mx-auto max-w-lg px-6 pt-3 pb-6">
-                <Button type="submit" size="lg" disabled={!ready || pending}>
-                  {pending ? "Please wait…" : submitLabel}
-                </Button>
-              </div>
-            </div>
           )}
         </form>
       )}
