@@ -16,15 +16,15 @@ const PATHS = {
     </>
   ),
   sukat: (
-    <g transform="scale(0.2553) translate(-12 -14)" fill="currentColor" stroke="none">
-      <rect x="44" y="20" width="20" height="12" rx="4" />
-      <path d="M84 84H98" fill="none" stroke="currentColor" strokeWidth="15" strokeLinecap="butt" />
-      <rect x="90" y="80" width="16" height="8" rx="2" transform="rotate(90 98 84)" />
-      <rect x="20" y="28" width="68" height="66" rx="22" stroke="currentColor" strokeWidth="5" />
-      <circle cx="54" cy="62" r="23" className="fill-background" stroke="currentColor" strokeWidth="4" />
-      <circle cx="43" cy="60" r="4.5" />
-      <circle cx="65" cy="60" r="4.5" />
-      <path d="M46 70Q54 77 62 70" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <g transform="scale(0.75) translate(-1 0)" fill="currentColor" stroke="none">
+      <rect x="23" y="14" width="6" height="5" rx="1.5" />
+      <path
+        fillRule="evenodd"
+        d="M11 6h8a6 6 0 0 1 6 6v8a6 6 0 0 1-6 6h-8a6 6 0 0 1-6-6v-8a6 6 0 0 1 6-6Zm3.5 3.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Z"
+      />
+      <circle cx="12.3" cy="15.2" r="1.4" />
+      <circle cx="16.7" cy="15.2" r="1.4" />
+      <path d="M12.2 18.2Q14.5 20 16.8 18.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </g>
   ),
   menu: <path d="M5 7h14M5 12h14M5 17h14" />,
