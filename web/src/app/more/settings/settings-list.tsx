@@ -76,14 +76,12 @@ function GoogleRow({ connected }: { connected: boolean }) {
   );
 }
 
-export function SettingsList() {
+export function SettingsList({ google }: { google: boolean }) {
   const [me, setMe] = useState<Me | null | "error">(null);
-  const [google, setGoogle] = useState(false);
   const problem = useSearchParams().get("error");
 
   useEffect(() => {
     api<Me>("auth/me").then(setMe, () => setMe("error"));
-    api<{ client_id: string | null }>("auth/google").then((g) => setGoogle(g.client_id !== null), () => {});
   }, []);
 
   if (me === null) return <Loading />;
