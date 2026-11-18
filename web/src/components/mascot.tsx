@@ -43,6 +43,16 @@ const ALT: Record<Emote, string> = {
   "scan-done": "Sukat mascot, scan done",
 };
 
+export function Glow() {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute -inset-1/4 rounded-full"
+      style={{ backgroundImage: "radial-gradient(closest-side, var(--color-glow), transparent)" }}
+    />
+  );
+}
+
 function src(emote: Emote, theme: Theme) {
   return `/mascot/sukat-${emote}-${theme}.svg`;
 }
@@ -69,13 +79,7 @@ export function Mascot({
       className={`relative inline-grid shrink-0 place-items-center ${className}`}
       style={{ width: size, height: size }}
     >
-      {glow && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -inset-1/4 rounded-full"
-          style={{ backgroundImage: "radial-gradient(closest-side, var(--color-glow), transparent)" }}
-        />
-      )}
+      {glow && <Glow />}
       {theme ? (
         <Image src={src(emote, theme)} alt={label} width={size} height={size} className="relative" />
       ) : (

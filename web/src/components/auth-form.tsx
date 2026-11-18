@@ -12,6 +12,7 @@ import { Mascot, type Emote } from "./mascot";
 import { NewPasswordFields } from "./new-password-fields";
 import { PasswordField } from "./password-field";
 import { GoogleMark } from "./google-mark";
+import { SukatMascot } from "./sukat-mascot";
 import { Button, Field, Notice, textLinkClass } from "./ui";
 
 const noopSubscribe = () => () => {};
@@ -92,11 +93,15 @@ export function AuthShell({
         </button>
       )}
       <div className="mb-7 flex flex-col items-center text-center">
-        <Mascot emote={emote} size={mascot ?? 120} glow alt="" />
+        {mascot && emote === "normal" ? (
+          <SukatMascot motion="wave" size={mascot} glow alt="" />
+        ) : (
+          <Mascot emote={emote} size={mascot ?? 120} glow alt="" />
+        )}
         {mascot ? (
           <>
             <h1
-              className={`mt-2 leading-tight font-extrabold tracking-tight text-text ${
+              className={`mt-2 font-brand leading-tight font-extrabold tracking-tight text-text ${
                 mascot >= 140 ? "text-[40px]" : "text-[32px]"
               }`}
             >

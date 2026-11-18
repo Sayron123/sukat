@@ -25,7 +25,13 @@ const CHOICES: { href: string; icon: IconName; title: string; detail: string; no
 
 export default function SignupPage() {
   return (
-    <AuthShell title="Create an account" subtitle="Which one are you?" back="/login" inlineSubmit>
+    <AuthShell
+      title="Create an account"
+      subtitle="Create an account. Which one are you?"
+      mascot={120}
+      back="/login"
+      inlineSubmit
+    >
       <div className="flex flex-col gap-3">
         {CHOICES.map((c) => (
           <Link

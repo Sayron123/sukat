@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Icon } from "@/components/icons";
 import { Mascot, MascotMessage } from "@/components/mascot";
 import { PageHeader, headerIconClass } from "@/components/page-header";
+import { SukatMascot } from "@/components/sukat-mascot";
 import { Button, Card, GhostButton, Notice, ghostButtonClass, textLinkClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api-client";
 import { compressImage } from "@/lib/compress-image";
@@ -414,7 +415,11 @@ function Busy({
           aria-live="polite"
         >
           <div className="flex items-center gap-3.5">
-            <Mascot emote={error ? "error" : "scanning"} size={84} alt="" className="-my-2" />
+            {error ? (
+              <Mascot emote="error" size={84} alt="" className="-my-2" />
+            ) : (
+              <SukatMascot motion="measure" size={84} alt="" className="-my-2" />
+            )}
             <div className="min-w-0">
               <h1 className="text-xl font-extrabold text-text">{error ? "Still not read" : title}</h1>
               {(error ?? note) && (
@@ -639,7 +644,7 @@ function Review({
       />
       {checks > 0 && (
         <div className="mb-5 flex items-center gap-3 rounded-card border border-red-edge bg-red-soft p-4 text-sm">
-          <Mascot emote="confused" size={52} alt="" className="-my-1" />
+          <SukatMascot motion="confused" size={52} alt="" className="-my-1" />
           <div className="min-w-0">
             <p className="font-bold text-red">
               {checks} line{checks === 1 ? " needs" : "s need"} a double check
@@ -791,7 +796,7 @@ function Done({ txn, mode, onAgain }: { txn: Transaction; mode: ScanMode; onAgai
         back={text.exit}
       />
       <div role="status" className="mb-5 flex items-center gap-3 rounded-card bg-surface p-4">
-        <Mascot emote="happy" size={64} alt="" className="-my-2" />
+        <SukatMascot motion="happy" size={64} alt="" className="-my-2" />
         <div>
           <p className="font-bold text-text">{text.saved}</p>
           {txn.total_centavos > 0 && <p className="text-2xl font-bold text-text">{formatPeso(txn.total_centavos)}</p>}
