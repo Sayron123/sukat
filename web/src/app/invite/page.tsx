@@ -8,7 +8,7 @@ import { Loading, Notice, textLinkClass } from "@/components/ui";
 import { backendFetch, clientIpHeaders, errorMessage } from "@/lib/server/backend";
 import { googleClientId } from "@/lib/server/google";
 
-export const metadata: Metadata = { title: "Join a store · Sukat", referrer: "no-referrer" };
+export const metadata: Metadata = { title: "Join a store · Sukat", referrer: "same-origin" };
 
 const INVALID = "This invite link is invalid or has expired. Ask your manager for a new one.";
 const SERVER_DOWN = "The Sukat server is not responding. Please try again.";

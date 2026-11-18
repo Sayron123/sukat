@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { GoogleMark } from "@/components/google-mark";
 import { Icon } from "@/components/icons";
 import { LogoutButton } from "@/components/logout-button";
 import { Toast } from "@/components/toast";
@@ -29,11 +30,31 @@ function Rows({ children }: { children: ReactNode }) {
   return <ul className="divide-y divide-border rounded-card border border-border bg-surface">{children}</ul>;
 }
 
-function Row({ label, value, href, locked }: { label: string; value: string; href?: string; locked?: boolean }) {
+function Row({
+  label,
+  value,
+  href,
+  locked,
+  google,
+}: {
+  label: string;
+  value: string;
+  href?: string;
+  locked?: boolean;
+  google?: boolean;
+}) {
   const body = (
     <>
       <span className="shrink-0 text-[15px] font-semibold text-text">{label}</span>
-      <span className="min-w-0 flex-1 truncate text-right text-sm text-muted">{value}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-sm text-muted">
+        {google && (
+          <>
+            <GoogleMark size={16} />
+            <span className="sr-only">Connected to Google:</span>
+          </>
+        )}
+        <span className="truncate">{value}</span>
+      </span>
       {href && <Icon name="chevron" size={18} className="text-muted" />}
       {locked && (
         <>
@@ -57,13 +78,16 @@ function Row({ label, value, href, locked }: { label: string; value: string; hre
   );
 }
 
-function GoogleRow({ connected }: { connected: boolean }) {
+function GoogleRow({ email }: { email: string | null }) {
   return (
     <li className="flex min-h-14 items-center gap-3 px-4">
       <span className="shrink-0 text-[15px] font-semibold text-text">Google</span>
       <span className="min-w-0 flex-1" />
-      {connected ? (
-        <span className="text-sm text-muted">Connected</span>
+      {email ? (
+        <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted">
+          <GoogleMark size={16} />
+          <span className="truncate">{email}</span>
+        </span>
       ) : (
         <form method="post" action="/api/auth/google/start">
           <input type="hidden" name="mode" value="connect" />
@@ -88,6 +112,8 @@ export function SettingsList({ google }: { google: boolean }) {
   if (me === "error") return <p className="text-sm text-red">Could not load your settings.</p>;
 
   const storeHref = me.role === "manager" ? "/more/settings/store" : undefined;
+  const googleEmail = me.google && me.email !== null && (me.google_email ?? me.email) === me.email;
+  const signIn = me.email ? "email" : "username";
 
   return (
     <div className="flex flex-col gap-6">
@@ -98,17 +124,23 @@ export function SettingsList({ google }: { google: boolean }) {
       )}
       <Group
         title="Your account"
-        note={`Your ${me.email ? "email" : "username"} is how you sign in. It can’t be changed here.`}
+        note={
+          googleEmail
+            ? "You sign in with your email and password, or with Google. Your email can’t be changed here."
+            : `Your ${signIn} is how you sign in. It can’t be changed here.`
+        }
       >
         <Rows>
           <Row label="Name" value={me.full_name} href="/more/settings/name" />
           {me.email ? (
-            <Row label="Email" value={me.email} locked />
+            <Row label="Email" value={me.email} locked google={googleEmail} />
           ) : (
             <Row label="Username" value={me.username ?? ""} locked />
           )}
           <Row label="Password" value="Change" href="/more/settings/password" />
-          {(google || me.google) && <GoogleRow connected={me.google} />}
+          {(google || me.google) && !googleEmail && (
+            <GoogleRow email={me.google ? (me.google_email ?? "Connected") : null} />
+          )}
         </Rows>
       </Group>
       <Group title="Store" note={storeHref ? undefined : "Only a manager can change the store details."}>
