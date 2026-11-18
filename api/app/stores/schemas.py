@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.auth.schemas import GoogleIn, clean_login, clean_username, must_accept_terms
+from app.auth.schemas import GoogleTicket, clean_login, clean_username, must_accept_terms
 from app.stores.models import AttendanceStatus, Role
 
 
@@ -130,9 +130,16 @@ class AcceptInviteIn(BaseModel):
         return self
 
 
-class AcceptGoogleIn(GoogleIn):
+class AcceptGoogleIn(BaseModel):
+    ticket: GoogleTicket
     token: str = Field(min_length=1, max_length=200)
+    full_name: str | None = Field(default=None, max_length=120)
     accept_terms: bool = Field(default=False, validate_default=True)
+
+    @field_validator("full_name")
+    @classmethod
+    def _optional_name(cls, v: str | None) -> str | None:
+        return _blank_to_none(v)
 
     @field_validator("accept_terms")
     @classmethod

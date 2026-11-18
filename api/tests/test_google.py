@@ -39,13 +39,22 @@ def _invite(api, headers, role="member"):
     return api.post("/staff/invites", json={"role": role}, headers=headers).json()["token"]
 
 
-def _join_google(api, token):
-    body = {**FLOW, "token": token, "accept_terms": True}
+def _ticket(api):
+    return api.post("/auth/google/ticket", json=FLOW).json()["ticket"]
+
+
+def _join_google(api, token, **extra):
+    body = {"ticket": _ticket(api), "token": token, "accept_terms": True, **extra}
     return api.post("/staff/invites/accept-google", json=body)
 
 
-def _signup_google(api, store_name="Juan Hardware"):
-    body = {**FLOW, "store_name": store_name, "accept_terms": True}
+def _signup_google(api, store_name="Juan Hardware", full_name="Juan D."):
+    body = {
+        "ticket": _ticket(api),
+        "full_name": full_name,
+        "store_name": store_name,
+        "accept_terms": True,
+    }
     return api.post("/auth/google/signup", json=body)
 
 
@@ -81,13 +90,14 @@ def test_a_new_owner_sets_up_a_store_with_google(api, as_google):
     me = api.get("/auth/me", headers=auth_header(res.json()["access_token"])).json()
     assert me["store_name"] == "Juan Hardware" and me["role"] == "manager"
     assert me["email_confirmation"] is False
+    assert (me["full_name"], me["google_email"]) == ("Juan D.", "juan@gmail.com")
     assert _signup_google(api, "Second Store").status_code == 409
 
 
 def test_google_never_takes_over_an_account_by_email(api, signup, manager, as_google):
     signup(email="juan@gmail.com", store_name="Other")
-    assert _join_google(api, _invite(api, manager)).status_code == 409
-    assert _signup_google(api).status_code == 409
+    res = api.post("/auth/google/ticket", json=FLOW)
+    assert res.status_code == 409 and "Sign in with your password" in res.json()["detail"]
     assert api.post("/auth/google/login", json=FLOW).status_code == 401
 
 
@@ -139,8 +149,56 @@ def test_a_google_only_account_has_no_password_to_change(api, manager, as_google
 
 
 def test_google_joining_needs_the_terms(api, manager, as_google):
-    body = {**FLOW, "token": _invite(api, manager)}
+    body = {"ticket": _ticket(api), "token": _invite(api, manager)}
     assert api.post("/staff/invites/accept-google", json=body).status_code == 422
+
+
+def test_the_ticket_says_who_google_says_you_are(api, manager, as_google):
+    res = api.post("/auth/google/ticket", json=FLOW).json()
+    assert (res["email"], res["name"], res["account"]) == (
+        "juan@gmail.com",
+        "Juan Dela Cruz",
+        False,
+    )
+    _join_google(api, _invite(api, manager))
+    assert api.post("/auth/google/ticket", json=FLOW).json()["account"] is True
+
+
+def test_the_name_typed_on_the_form_is_used(api, manager, as_google):
+    joined = _join_google(api, _invite(api, manager), full_name="  Juanito  ")
+    me = api.get("/auth/me", headers=auth_header(joined.json()["access_token"])).json()
+    assert me["full_name"] == "Juanito"
+
+
+def test_a_made_up_or_old_ticket_is_refused(api, manager, monkeypatch, as_google):
+    body = {"ticket": "not-a-ticket", "token": _invite(api, manager), "accept_terms": True}
+    res = api.post("/staff/invites/accept-google", json=body)
+    assert res.status_code == 400 and "timed out" in res.json()["detail"]
+    ticket = _ticket(api)
+    monkeypatch.setattr(google, "TICKET_MINUTES", -1)
+    old = _ticket(api)
+    for t in (old, ticket.replace(ticket[-5:], "AAAAA")):
+        res = api.post("/auth/google/signup", json={**_signup_body(), "ticket": t})
+        assert res.status_code == 400
+
+
+def test_an_access_token_is_not_a_ticket(api, manager, as_google):
+    joined = _join_google(api, _invite(api, manager)).json()["access_token"]
+    res = api.post("/auth/google/signup", json={**_signup_body(), "ticket": joined})
+    assert res.status_code == 400
+
+
+def test_signing_in_keeps_the_google_email_up_to_date(api, manager, as_google):
+    _join_google(api, _invite(api, manager))
+    as_google["user"] = GoogleUser(subject="google-sub-1", email="juan.new@gmail.com", name="J")
+    token = api.post("/auth/google/login", json=FLOW).json()["access_token"]
+    assert api.get("/auth/me", headers=auth_header(token)).json()["google_email"] == (
+        "juan.new@gmail.com"
+    )
+
+
+def _signup_body():
+    return {"full_name": "Juan", "store_name": "S", "accept_terms": True}
 
 
 def test_the_client_id_is_shared_only_when_google_is_set_up(api, monkeypatch):

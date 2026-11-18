@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import CurrentMember, email_confirmation
-from app.auth.google import GoogleUser
+from app.auth.google import GoogleUser, issue_ticket
 from app.auth.models import AuthToken, TokenPurpose, User, UserIdentity
 from app.auth.rate_limit import (
     clear_failures,
@@ -21,7 +21,14 @@ from app.auth.rate_limit import (
     record_failure,
     signup_key,
 )
-from app.auth.schemas import TERMS_VERSION, GoogleSignupIn, MeOut, SignupIn, TokenOut
+from app.auth.schemas import (
+    TERMS_VERSION,
+    GoogleSignupIn,
+    GoogleTicketOut,
+    MeOut,
+    SignupIn,
+    TokenOut,
+)
 from app.auth.security import create_access_token, hash_password, hash_token, verify_password
 from app.core.config import settings
 from app.core.errors import BadRequest, Conflict, Forbidden, Invalid, Unauthorized
@@ -238,25 +245,49 @@ def google_account(db: Session, guser: GoogleUser) -> User | None:
     )
 
 
-def new_google_account(db: Session, guser: GoogleUser) -> User:
-    if db.scalar(select(User.id).where(User.email == guser.email)) is not None:
+def _email_taken(db: Session, email: str) -> bool:
+    return db.scalar(select(User.id).where(User.email == email)) is not None
+
+
+def new_google_account(db: Session, guser: GoogleUser, full_name: str) -> User:
+    if _email_taken(db, guser.email):
         raise Conflict(GOOGLE_EMAIL_TAKEN)
     user = User(
         email=guser.email,
         email_verified_at=datetime.now(UTC),
-        full_name=guser.name,
+        full_name=full_name,
         password_hash=None,
     )
     db.add(user)
     db.flush()
-    db.add(UserIdentity(user_id=user.id, provider="google", subject=guser.subject))
+    db.add(
+        UserIdentity(user_id=user.id, provider="google", subject=guser.subject, email=guser.email)
+    )
     return user
 
 
+def google_ticket(db: Session, guser: GoogleUser) -> GoogleTicketOut:
+    account = google_account(db, guser) is not None
+    if not account and _email_taken(db, guser.email):
+        raise Conflict(GOOGLE_EMAIL_TAKEN)
+    return GoogleTicketOut(
+        ticket=issue_ticket(guser), email=guser.email, name=guser.name, account=account
+    )
+
+
 def google_login(db: Session, guser: GoogleUser) -> TokenOut:
-    user = google_account(db, guser)
-    if user is None:
+    identity = db.scalar(
+        select(UserIdentity).where(
+            UserIdentity.provider == "google", UserIdentity.subject == guser.subject
+        )
+    )
+    if identity is None:
         raise Unauthorized(NO_GOOGLE_ACCOUNT)
+    if identity.email != guser.email:
+        identity.email = guser.email
+        db.commit()
+    user = db.get(User, identity.user_id)
+    assert user is not None
     return _first_store_token(db, user)
 
 
@@ -267,7 +298,7 @@ def google_signup(db: Session, guser: GoogleUser, data: GoogleSignupIn, ip: str 
         record_failure(db, [key])
     if google_account(db, guser) is not None:
         raise Conflict("This Google account already has a Sukat account. Sign in instead.")
-    user = new_google_account(db, guser)
+    user = new_google_account(db, guser, data.full_name)
     user.terms_accepted_at = datetime.now(UTC)
     user.terms_version = TERMS_VERSION
     store = Store(name=data.store_name, address=data.store_address)
@@ -295,7 +326,9 @@ def connect_google(db: Session, user: User, guser: GoogleUser) -> None:
     )
     if linked is not None:
         raise Conflict("Your account is already connected to a Google account.")
-    db.add(UserIdentity(user_id=user.id, provider="google", subject=guser.subject))
+    db.add(
+        UserIdentity(user_id=user.id, provider="google", subject=guser.subject, email=guser.email)
+    )
     if user.email == guser.email and user.email_verified_at is None:
         user.email_verified_at = datetime.now(UTC)
     try:
@@ -414,6 +447,11 @@ def update_profile(db: Session, current: CurrentMember, full_name: str) -> MeOut
 def get_me(db: Session, current: CurrentMember) -> MeOut:
     store = db.get(Store, current.store_id)
     assert store is not None
+    identity = db.scalar(
+        select(UserIdentity).where(
+            UserIdentity.user_id == current.user.id, UserIdentity.provider == "google"
+        )
+    )
     return MeOut(
         user_id=current.user.id,
         email=current.user.email,
@@ -421,12 +459,8 @@ def get_me(db: Session, current: CurrentMember) -> MeOut:
         full_name=current.user.full_name,
         email_verified=current.user.email_verified_at is not None,
         email_confirmation=email_confirmation(current),
-        google=db.scalar(
-            select(UserIdentity.id).where(
-                UserIdentity.user_id == current.user.id, UserIdentity.provider == "google"
-            )
-        )
-        is not None,
+        google=identity is not None,
+        google_email=identity.email if identity else None,
         store_id=store.id,
         store_name=store.name,
         store_address=store.address,

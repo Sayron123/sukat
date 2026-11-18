@@ -233,9 +233,11 @@ def accept_invite(db: Session, body: AcceptInviteIn, ip: str | None) -> TokenOut
     return _join(db, row, user)
 
 
-def accept_invite_google(db: Session, token: str, guser: GoogleUser, ip: str | None) -> TokenOut:
+def accept_invite_google(
+    db: Session, token: str, guser: GoogleUser, full_name: str | None, ip: str | None
+) -> TokenOut:
     row = _open_invite(db, token, ip, lock=True)
-    user = google_account(db, guser) or new_google_account(db, guser)
+    user = google_account(db, guser) or new_google_account(db, guser, full_name or guser.name)
     return _join(db, row, user)
 
 

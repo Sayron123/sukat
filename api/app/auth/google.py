@@ -1,8 +1,10 @@
 import hmac
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 import httpx2
+import jwt
 from google.auth.exceptions import GoogleAuthError
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -15,6 +17,8 @@ ISSUERS = ("accounts.google.com", "https://accounts.google.com")
 CALLBACK_PATH = "/api/auth/google/callback"
 FAILED = "Google sign-in didn't work. Please try again."
 CLOCK_SKEW_SECONDS = 10
+TICKET_MINUTES = 15
+TICKET_EXPIRED = "Your Google sign-in timed out. Please continue with Google again."
 
 logger = logging.getLogger(__name__)
 
@@ -89,3 +93,35 @@ def google_user(code: str, verifier: str, redirect_uri: str, nonce: str) -> Goog
         raise BadRequest("Sign in with Google isn't set up yet.")
     check_redirect(redirect_uri)
     return verify(exchange(code, verifier, redirect_uri), nonce)
+
+
+def issue_ticket(guser: GoogleUser) -> str:
+    now = datetime.now(UTC)
+    payload = {
+        "type": "google_ticket",
+        "sub": guser.subject,
+        "email": guser.email,
+        "name": guser.name,
+        "iat": now,
+        "exp": now + timedelta(minutes=TICKET_MINUTES),
+    }
+    return jwt.encode(
+        payload, settings.JWT_SECRET.get_secret_value(), algorithm=settings.JWT_ALGORITHM
+    )
+
+
+def read_ticket(ticket: str) -> GoogleUser:
+    try:
+        payload = jwt.decode(
+            ticket,
+            settings.JWT_SECRET.get_secret_value(),
+            algorithms=[settings.JWT_ALGORITHM],
+            options={"require": ["sub", "email", "name", "exp", "iat"]},
+        )
+    except jwt.PyJWTError as e:
+        raise BadRequest(TICKET_EXPIRED) from e
+    if payload.get("type") != "google_ticket":
+        raise BadRequest(TICKET_EXPIRED)
+    return GoogleUser(
+        subject=str(payload["sub"]), email=str(payload["email"]), name=str(payload["name"])
+    )
