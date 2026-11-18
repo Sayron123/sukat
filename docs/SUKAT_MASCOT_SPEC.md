@@ -4,7 +4,7 @@
 - public/mascot/sukat-{emote}-{light|dark}.svg — 16 static emotes
 - public/mascot/sukat-icon.svg — app icon art (put on a dark #1C1917 rounded tile)
 - public/mascot/sukat-mark-small.svg — simple mark for 16–32px (favicon)
-- public/mascot/sukat-logo-pullout-{light|dark}.svg — main logo (wordmark uses Outfit 800)
+- public/mascot/sukat-logo-pullout-{light|dark}.svg — main logo (text already converted to shapes, no font needed)
 - docs/sukat-mascot-motion.html — animated rig (SVG + CSS keyframes), 7 motions
 
 ## Emote → app state
@@ -38,4 +38,4 @@ Status dark: red #FCA5A5 on #450A0A, amber #FCD34D on #422006, green #86EFAC
 Status light: red #B91C1C on #FEE2E2, amber #92400E on #FEF3C7, green #15803D
 
 ## Fonts
-UI: Inter. Logo wordmark: Outfit 800 (outline it in the final logo file).
+UI: Inter. Logo wordmark: Outfit 800 (already outlined in the logo SVGs).
