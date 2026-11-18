@@ -1,6 +1,8 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
+import type { Theme } from "@/lib/theme";
+
 export const EMOTES = [
   "normal",
   "thinking",
@@ -41,8 +43,8 @@ const ALT: Record<Emote, string> = {
   "scan-done": "Sukat mascot, scan done",
 };
 
-function src(emote: Emote, theme: "dark" | "light") {
-  return `/mascot/emotes-svg/sukat-${emote}-${theme}.svg`;
+function src(emote: Emote, theme: Theme) {
+  return `/mascot/sukat-${emote}-${theme}.svg`;
 }
 
 export function Mascot({
@@ -57,7 +59,7 @@ export function Mascot({
   size?: number;
   glow?: boolean;
   alt?: string;
-  theme?: "light" | "dark";
+  theme?: Theme;
   className?: string;
 }) {
   const label = alt ?? ALT[emote];
