@@ -231,18 +231,22 @@ Anyone can sign in, set up a store or join by invite with their Google account. 
 2. Google sends them back to `/api/auth/google/callback`. The web app checks the `state` against the cookie and passes the code, the verifier, its callback address and the nonce to the API.
 3. The API swaps the code for Google's ID token (the client secret never leaves the API), checks its signature, audience, issuer, expiry and nonce with Google's library, and needs a verified email.
 4. The person is found by Google's account id (`sub` in `user_identities`), never by email.
+5. For a new store or an invite, the API first gives a **ticket**: a 15-minute signed note of who Google says the person is. The web app then shows one short form (name, the store for a new owner, and the Terms box), and that form sends the ticket back. So the person picks their Google account first and fills in only what Google can't give.
 
 | Endpoint | Who | What it does |
 |---|---|---|
 | `GET /auth/google` | anyone | The client id, or `null` when Google isn't set up (the web app then hides the button). |
 | `POST /auth/google/login` | anyone | Signs in the account linked to this Google account. |
-| `POST /auth/google/signup` | anyone | A new account from Google (verified email, no password) plus a new store, like sign up. |
-| `POST /staff/invites/accept-google` | anyone with an invite | Joins the store with Google: the linked account, or a new one. |
+| `POST /auth/google/ticket` | anyone | Checks Google's answer and gives a ticket, the Google email and name, and whether a Sukat account already uses it. Refuses an email that an account already uses without Google. |
+| `POST /auth/google/signup` | ticket | A new account from Google (verified email, no password) plus a new store, with the typed name and Terms. |
+| `POST /staff/invites/accept-google` | ticket and invite | Joins the store with Google: the linked account, or a new one with the typed name (Google's name if empty). |
 | `POST /auth/google/connect` | signed in | Links Google to your account. Proves your email if it is the same address. |
 
 **Rules**
 - A Google account is never attached to an existing account just because the email matches: sign-up and invites refuse that email, and the person signs in with their password and uses Connect Google instead.
 - One Google account per Sukat account, and one Sukat account per Google account.
+- `user_identities.email` keeps the Google email (migration `0020`), updated at each Google sign-in. `GET /auth/me` returns it as `google_email` for Settings.
+- A ticket is signed with `JWT_SECRET` and marked as a Google ticket, so an access token can't be used as one.
 - The API only accepts its own callback addresses (`CORS_ORIGINS` and `WEB_APP_URL` + `/api/auth/google/callback`).
 - An account made with Google has no password, so Change password says so. A manager reset link can still give it one.
 - Settings: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `api/.env`. Empty = Google is off.
