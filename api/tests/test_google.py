@@ -144,13 +144,15 @@ def test_google_joining_needs_the_terms(api, manager, as_google):
 
 
 def test_the_client_id_is_shared_only_when_google_is_set_up(api, monkeypatch):
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
     assert api.get("/auth/google").json() == {"client_id": None}
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "id.apps.googleusercontent.com")
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", SecretStr("secret"))
     assert api.get("/auth/google").json() == {"client_id": "id.apps.googleusercontent.com"}
 
 
-def test_google_is_refused_when_not_set_up(api):
+def test_google_is_refused_when_not_set_up(api, monkeypatch):
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
     res = api.post("/auth/google/login", json=FLOW)
     assert res.status_code == 400 and "isn't set up" in res.json()["detail"]
 
@@ -192,18 +194,30 @@ def _claims(**changes):
     ],
 )
 def test_bad_google_answers_are_refused(monkeypatch, changes):
-    monkeypatch.setattr(google.id_token, "verify_oauth2_token", lambda *a: _claims(**changes))
+    monkeypatch.setattr(google.id_token, "verify_oauth2_token", lambda *a, **k: _claims(**changes))
     with pytest.raises(BadRequest):
         google.verify("token", "n" * 16)
 
 
 def test_a_good_google_answer_gives_the_person(monkeypatch):
-    monkeypatch.setattr(google.id_token, "verify_oauth2_token", lambda *a: _claims())
+    monkeypatch.setattr(google.id_token, "verify_oauth2_token", lambda *a, **k: _claims())
     assert google.verify("token", "n" * 16) == GoogleUser("google-sub-1", "juan@gmail.com", "Juan")
 
 
+def test_a_few_seconds_of_clock_difference_is_allowed(monkeypatch):
+    seen = {}
+
+    def check(*args, **kwargs):
+        seen.update(kwargs)
+        return _claims()
+
+    monkeypatch.setattr(google.id_token, "verify_oauth2_token", check)
+    google.verify("token", "n" * 16)
+    assert 5 <= seen["clock_skew_in_seconds"] <= 30
+
+
 def test_a_forged_token_is_refused(monkeypatch):
-    def forged(*args):
+    def forged(*args, **kwargs):
         raise ValueError("Wrong signature")
 
     monkeypatch.setattr(google.id_token, "verify_oauth2_token", forged)
