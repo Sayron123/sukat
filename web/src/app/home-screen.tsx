@@ -6,7 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/icons";
 import { Mascot, MascotMessage } from "@/components/mascot";
 import { PageHeader } from "@/components/page-header";
-import { SukatLogo } from "@/components/sukat-mascot";
+import { SukatLogo } from "@/components/sukat-logo";
 import { Avatar, Badge, Card } from "@/components/ui";
 import { TXN_TITLE } from "@/lib/labels";
 import { api } from "@/lib/api-client";
@@ -57,7 +57,7 @@ export function HomeScreen() {
   return (
     <>
       <div className="flex h-14 items-end">
-        <SukatLogo height={36} />
+        <SukatLogo />
       </div>
       <PageHeader
         eyebrow={today || " "}

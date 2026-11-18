@@ -64,7 +64,7 @@ The rules come from `docs/SUKAT_MASCOT_SPEC.md`. Where this file and the spec di
 - **Theme:** dark is the default. Light and System are kept once picked (`web/src/lib/theme.ts`). `useTheme()` (`web/src/lib/use-theme.ts`) gives the saved choice, the theme on screen and a setter. The colors in `globals.css` are the spec's dark and light tokens. Autofilled inputs keep the surface color instead of the browser's blue.
 - **Static mascot:** `<Mascot emote="..." size={n} glow />` (`web/src/components/mascot.tsx`) shows `/mascot/sukat-{emote}-{light|dark}.svg` for the theme on screen, with alt text. `glow` adds a soft orange glow behind it.
 - **Animated mascot:** `<SukatMascot motion="..." size={n} />` (`web/src/components/sukat-mascot.tsx` and `.css`) is the rig from `docs/sukat-mascot-motion.html`, with the same layers and keyframes. Each mascot gets its own gradient ids. When the phone asks for reduced motion, it holds its first pose and doesn't move.
-- **Logo:** `<SukatLogo />` is the pull-out logo, drawn in the page so the **Sukat** wordmark uses Outfit 800 (loaded with `next/font`). The wordmark follows the theme, like the two logo files. It sits at the top of Home.
+- **Logo:** `<SukatLogo height={n} />` (`web/src/components/sukat-logo.tsx`) shows `sukat-logo-pullout-{light|dark}.svg` for the theme on screen, at 345:98, with alt "Sukat". The letters are already shapes, so no font is needed. It sits at the top of Home at 32px. It is never shown under 28px; small places (favicon, app icon, bottom nav) use `sukat-icon.svg` or `sukat-mark-small.svg`.
 - **Icons:** the app icons (`icon-192.png`, `icon-512.png`, `apple-touch-icon.png`) are `sukat-icon.svg` on a #1C1917 rounded tile. `icon-maskable-512.png` is the same art inside the safe zone on a full square, for Android. The favicon is `sukat-mark-small.svg`, with `favicon.ico` made from it for older browsers.
 
 **Where each one is used**
@@ -90,5 +90,5 @@ The rules come from `docs/SUKAT_MASCOT_SPEC.md`. Where this file and the spec di
 
 **Why**
 - Motion goes on moments that pass: a welcome, an answer on its way, a scan, a save, something to check. Screens that stay put (empty lists, offline, no permission) use the still emotes, so there's never more than one moving thing on screen.
-- The wordmark is drawn in the page because an SVG shown as an image can't load web fonts. It would fall back to Arial until the logo file has the letters outlined, as the spec plans.
+- The logo switches with CSS (both files in the page, one hidden), the way the Next.js image docs show for themed images. Choosing the file in JavaScript would show the dark logo for a moment to light-mode users while the page loads.
 - The maskable icon is separate because Android crops it into its own shape. A rounded tile with clear corners would get a black ring.

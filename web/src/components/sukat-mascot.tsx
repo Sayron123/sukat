@@ -162,30 +162,6 @@ export function SukatMascot({
   );
 }
 
-export function SukatLogo({ height = 32, alt = "Sukat", className = "" }: { height?: number; alt?: string; className?: string }) {
-  const id = useId();
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="4 12 246 96"
-      width={Math.round((height * 246) / 96)}
-      height={height}
-      {...label(alt)}
-      className={`shrink-0 overflow-visible ${className}`}
-    >
-      <Defs id={id} />
-      <g className="mascot">
-        <g className="hop">
-          <Body id={id} motion="idle" tail={80} tip={236} />
-        </g>
-      </g>
-      <text x="104" y="48" fontWeight="800" fontSize="46" letterSpacing="-1" className="fill-text font-brand">
-        Sukat
-      </text>
-    </svg>
-  );
-}
-
 function Defs({ id }: { id: string }) {
   return (
     <defs>
