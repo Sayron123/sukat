@@ -393,14 +393,12 @@ export function AuthForm({
                 {pending ? "Please wait…" : submitLabel}
               </Button>
               {googleOption}
-              <div className="-my-1 flex items-center gap-3 text-[13px] text-muted">
-                <span aria-hidden className="h-px flex-1 bg-border" />
-                {createAccount.prompt}
-                <span aria-hidden className="h-px flex-1 bg-border" />
-              </div>
-              <Link href={createAccount.href} className="flex h-12 items-center justify-center rounded-button border border-line bg-surface px-4 text-[15px] font-bold text-text hover:bg-background">
-                {createAccount.text}
-              </Link>
+              <p className="text-center text-sm text-muted">
+                {createAccount.prompt}{" "}
+                <Link href={createAccount.href} className="inline-flex min-h-11 items-center font-bold text-accent-text underline">
+                  {createAccount.text}
+                </Link>
+              </p>
             </>
           )}
         </form>
