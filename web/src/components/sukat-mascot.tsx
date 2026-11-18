@@ -95,6 +95,12 @@ export function SukatMascot({
           <Body id={id} motion={motion} tail={wide ? 10 : 80} tip={wide ? 98 : 112} />
         </g>
       </g>
+      {motion === "wave" && (
+        <g className="hi stroke-text" fill="none" strokeWidth="3" strokeLinecap="round">
+          <path className="hi1" d="M118 20 q4 -4 0 -9" />
+          <path className="hi2" d="M124 24 q5 -5 0 -12" />
+        </g>
+      )}
       {motion === "thinking" &&
         DOTS.map((dot, i) => <circle key={dot.cx} className={`d${i + 1} fill-text`} {...dot} />)}
       {motion === "happy" &&

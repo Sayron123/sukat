@@ -111,6 +111,18 @@
 .sukat-mo.wave .body {
   animation: sukat-lean 2.6s ease-in-out infinite;
 }
+@keyframes sukat-hi {
+  0%, 18%, 74%, 100% { opacity: 0; transform: translate(-3px, 3px); }
+  28%, 64% { opacity: 1; transform: translate(0, 0); }
+  40% { opacity: 1; transform: translate(1.5px, -1.5px); }
+  52% { opacity: 1; transform: translate(0, 0); }
+}
+.sukat-mo.wave .hi1 {
+  animation: sukat-hi 2.6s ease-out infinite;
+}
+.sukat-mo.wave .hi2 {
+  animation: sukat-hi 2.6s 0.12s ease-out infinite;
+}
 
 @keyframes sukat-tap {
   0%, 100% { transform: rotate(-58deg); }
@@ -258,7 +270,9 @@
   }
   .sukat-mo.think .d1,
   .sukat-mo.think .d2,
-  .sukat-mo.think .d3 {
+  .sukat-mo.think .d3,
+  .sukat-mo.wave .hi1,
+  .sukat-mo.wave .hi2 {
     animation: none !important;
   }
 }
